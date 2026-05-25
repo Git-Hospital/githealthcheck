@@ -641,7 +641,7 @@ jobs:
 
 ## 🐛 Bug Reports & Feature Requests
 
-Please use the [GitHub Issues](https://github.com/your-username/repo-health-analyzer/issues) page to report bugs or request features.
+Please use the [GitHub Issues](https://github.com/kassvl/GitHealthCheck-CLI/issues) page to report bugs or request features.
 
 ### Known Limitations
 
