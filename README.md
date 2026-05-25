@@ -62,8 +62,8 @@ Our development process included:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/repo-health-analyzer.git
-cd repo-health-analyzer
+git clone https://github.com/kassvl/GitHealthCheck-CLI.git
+cd GitHealthCheck-CLI
 
 # Install minimal dependencies (CLI-only)
 pip install -r requirements.txt
