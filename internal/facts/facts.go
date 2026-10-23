@@ -34,6 +34,30 @@ type Coverage struct {
 	Data    []byte
 }
 
+// Change is one path a commit touched, as git log --name-status reports it.
+type Change struct {
+	Status byte   // 'A' added, 'M' modified, 'R' renamed, 'D' deleted, 'C' copied, 'T' type changed
+	Old    string // the path before a rename or copy
+	Path   string
+}
+
+// Commit is one non-merge commit reachable from HEAD. Name and Email are the author's, with the
+// commit's .mailmap applied.
+type Commit struct {
+	Hash        string
+	Name, Email string
+	Time        int64 // author time, Unix seconds
+	NoTime      bool  // git printed no usable author time: the object is corrupt or crafted
+	Changes     []Change
+}
+
+// History is the commit history reachable from HEAD.
+type History struct {
+	Commits  []Commit // newest first
+	Shallow  bool     // the clone is shallow: older commits are missing
+	TooLarge bool     // git log printed more than execx.MaxOutput; Commits is empty
+}
+
 // Repo is everything known about the scanned commit.
 type Repo struct {
 	Files []File
@@ -41,4 +65,5 @@ type Repo struct {
 	Paths    map[string]bool
 	Modules  []Module
 	Coverage *Coverage // nil when no report was found
+	History  *History  // nil when the history was not read
 }
