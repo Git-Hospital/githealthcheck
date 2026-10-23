@@ -22,19 +22,21 @@ It is not a linter. It does not report style, and it does not find bugs. It does
 
 ## 2. Principles
 
-- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `too_large`, `not_implemented`, `tool_crashed`). Paths that are not read at all are listed in `skipped[]` with their own reasons: `symlink`, `too_large`, `nested_repository`, `unreadable`. Default constants presented as measurements are a bug class, and the tests target it (§7).
+- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `too_large`, `not_implemented`, `tool_crashed`). Paths that are not read at all are listed in `skipped[]` with their own reasons: `symlink`, `too_large`, `nested_repository`, `unreadable` (with a cause such as `permission denied`, never a path), `not_regular_file`. Default constants presented as measurements are a bug class, and the tests target it (§7).
 - **Facts once, metrics many.** Files are parsed once into `FileFacts`, and analyzers read facts, not files. This is what makes "no file cap" (D23) affordable.
 - **Explainable findings, comparable scores.** A finding cites a documented threshold and a location. A score is a percentile against a pinned corpus (D18, D19).
-- **The scanned repository is untrusted input.** Repository code and configuration are never executed by default (D22). This includes git's own configuration in the scanned `.git/config`, which can run commands through `core.fsmonitor`, `diff.external` or textconv drivers.
-  - `execx` runs git with these environment variables: `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_OPTIONAL_LOCKS=0` and `GIT_TERMINAL_PROMPT=0`.
-  - It passes these options: `-c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat`, plus `--no-ext-diff --no-textconv` on log and diff.
-  - The overrides also cover `log.showSignature=false` and `protocol.allow=never`, and the environment sets `GIT_NO_LAZY_FETCH=1`. Without them, a repository could make `git log` run `gpg.program`, or make a partial clone fetch over the network.
-  - `GIT_CEILING_DIRECTORIES` is set to the parent of the root, and the root must equal `rev-parse --show-toplevel`. This stops git from falling back to an enclosing repository.
-  - `-c safe.directory=<root>` trusts only the scanned root. The command scope counts as protected configuration in git.
-  - Arguments that would undo the safety flags are rejected: `--ext-diff`, `--textconv`, `--show-signature`, `-c`, `--git-dir` and `--work-tree`.
-  - git is used only to read history. Commands that refresh the index, such as `status` or work-tree diffs, are never used.
-  - Symlinks are never followed: files are checked with lstat, and symlinks are listed in `skipped[]`.
-  - Source files over 1 MiB and coverage reports over 50 MiB are skipped with the reason `too_large`.
+- **The scanned repository is untrusted input.** Repository code and configuration are never executed by default (D22). This includes git's own configuration in the scanned `.git/config`, and the files git reads beside it. Left alone, they can make git run a program (`core.fsmonitor`, `diff.external`, textconv drivers, `gpg.program` through `log.showSignature` or a `%G` placeholder in `format.pretty`), open a connection (a partial clone's promisor remote with an `ext::` URL), read another repository (a `.git` file, a symlink inside `.git`, `alternates`, `commondir`, `core.worktree`), or block or read without end (`diff.orderFile`, `core.attributesFile`, `.gitattributes`, `.mailmap` or `info/grafts` pointed at a FIFO or `/dev/zero`, a blob that inflates a thousandfold). Every git call goes through `execx.Git`, which:
+  - needs git 2.44 or newer, the first with `--no-lazy-fetch`; older git ignores `GIT_NO_LAZY_FETCH` silently, so it is refused rather than run with one guard missing;
+  - accepts a repository only when `.git` is a real directory whose entries are all directories or regular files (no symlink, FIFO, device or socket), `rev-parse --show-toplevel` equals the root, both git directories resolve to `root/.git`, and there is no `objects/info/alternates`;
+  - sets the environment: `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`, `GIT_NO_LAZY_FETCH=1`, `GIT_ALLOW_PROTOCOL=none`, `GIT_PAGER=cat`, `GIT_GRAFT_FILE=/dev/null`, `GIT_NO_REPLACE_OBJECTS=1`, `GIT_CEILING_DIRECTORIES=<parent of root>`, and `GIT_ATTR_SOURCE=<empty tree>`, so attributes never come from the work tree. Everything else from the caller's environment is dropped except `PATH`, `HOME`, `USER`, `LOGNAME`, `TMPDIR`, `LANG`, `TZ` and `LC_*`, and `PATH` keeps only absolute directories;
+  - passes `--no-lazy-fetch` and these `-c` overrides before every subcommand. To stop programs and connections: `core.fsmonitor=false`, `core.hooksPath=/dev/null`, `core.pager=cat`, `diff.external=`, `log.showSignature=false`, `gpg.program`, `gpg.ssh.program` and `gpg.x509.program` set to a nonexistent absolute path, and `protocol.allow=never`. To stop unbounded reads: `diff.orderFile=/dev/null`, `core.attributesFile=/dev/null`, `mailmap.file=/dev/null`, `mailmap.blob=`, `log.mailmap=false`, `core.bigFileThreshold=1m`. To pin the output that is parsed: `color.ui=false`, `core.quotePath=true`, `diff.noprefix=false`, `diff.mnemonicPrefix=false`, `diff.relative=false`, `diff.algorithm=myers`, `diff.renameLimit=1000`, `i18n.logOutputEncoding=UTF-8`, `log.showRoot=true`;
+  - `protocol.allow=never` is defence in depth only: a repository's own `protocol.<name>.allow` overrides it. `GIT_ALLOW_PROTOCOL=none` and `--no-lazy-fetch` are the transport guards, and each one alone is tested to stop a lazy fetch;
+  - `-c safe.directory=<root>` trusts only the scanned root, so a container or CI runner with another uid can read it. The command scope counts as protected configuration in git;
+  - runs only `rev-parse` and `log`, which never refresh the index, and inserts `--no-ext-diff --no-textconv --no-show-signature --no-color --no-mailmap` after `log`;
+  - accepts only arguments on an allowlist (for `log`: `--numstat`, `--name-status`, `--no-merges`, `-M`, `-z`, `--since=`, `--max-count=` and a few more; revisions must be `HEAD` or full object names; anything after `--` is a pathspec). Patch output (`-p` and friends) is not allowed, because it inflates every blob. `log` needs exactly one `--format=format:` or `--format=tformat:`; a bare name would be looked up as the repository's own `pretty.<name>`. The format may not use `%G` (signatures), the mailmap placeholders `%aN %aE %aL %cN %cE %cL`, or `%(describe)`, with or without a `-`, `+` or space modifier. Anything outside the allowlist is a programming error and panics in tests;
+  - bounds `version` and `rev-parse` with a 30-second timeout each, so a config include that names a FIFO fails as "timed out while opening" instead of stalling until `--timeout`. `log` is bounded by `--timeout`. Every command's stdout is capped at 512 MiB.
+  - The work tree is walked through an `os.Root`, which refuses any path that leaves the root, even through a directory swapped for a symlink during the walk. Symlinks are never followed: they are listed in `skipped[]`. Files are opened without blocking (a FIFO is skipped as `not_regular_file`), and their type and size come from the open descriptor. Source files over 1 MiB and coverage reports over 50 MiB are skipped with the reason `too_large`, including a file that grows past the limit while it is read.
+  - Builds for Linux, macOS and Windows. The FIFO guards apply on Unix, which has FIFOs.
 - **Same contract as the rest of Git-Hospital.** Exit codes 0/1/2/3, a versioned JSON report, and stable rule IDs (D25). Another tool can rely on these.
 
 ## 3. Package layout
@@ -127,23 +129,26 @@ Guards against the "measured or null" principle being bypassed:
 `schemaVersion: 1`. Top level:
 
 - `tool`
-- `repository`: path, HEAD SHA, whether the clone is shallow
-- `languages`: analysed and present-not-analysed, with file counts
-- `families[]`: score or null, reason, metrics, findings
-- `overall`: score, measured count, weights
-- `inputs`: files analysed/total, commits read, elapsed time
-- `skipped[]`: what was not done, and why
+- `repository`: `path` (the directory name only, so reports carry no home directory), `head` (the HEAD SHA; absent on a branch with no commits yet), `shallow`
+- `languages`: analysed and present-not-analysed, with file and line counts
+- `families[]`: `measured`, score or null, reason, metrics, findings
+- `overall`: score, measured count, family count, and the weights once scores are calibrated (v0.4.0)
+- `inputs`: files analysed/total, `walkComplete` (false when `--timeout` ran out during the walk; the file and line counts are then partial, and the text output says so), commits read, elapsed time
+- `skipped[]`: what was not done, and why; always an array, `[]` when empty
 
 Every `null` carries a `reason`. JSON is the source of truth. SARIF, Markdown and the terminal table are pure renderings of it, tested by golden files.
 
 Exit codes (D25):
 - **0:** no unsuppressed findings, and the score is not below `--fail-under`.
 - **1:** there are unsuppressed findings, or the score is below `--fail-under`.
-- **2:** usage or runtime error.
-- **3:** incomplete. This covers three cases:
-  - a family timed out, or a tool crashed;
+- **2:** usage or runtime error. This includes a repository that cannot be opened or is refused, a per-command timeout while opening it, and a report that could not be written (stdout or `-o`). `-o` refuses a symlink, FIFO or device at the output path and writes through a temporary file and a rename.
+- **3:** incomplete. This covers four cases:
+  - a family, or a metric inside a measured family, timed out or its tool crashed;
+  - `--timeout` ran out (during the walk there is still a report, with every family `null` with the reason `timeout`; before the repository is open there is none);
   - no family was measured at all;
   - `--fail-under` is set but the overall score is `null`.
+
+`--fail-under` takes a number from 0 to 10; `NaN`, `Inf` and trailing text are usage errors.
 
 Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to be absent: `no_coverage_report`, `offline`, `tool_not_found`, `exec_not_allowed`, `unsupported_language`, `history_too_short`, `not_calibrated` and `insufficient_input`. These do not cause exit 3 on their own.
 
