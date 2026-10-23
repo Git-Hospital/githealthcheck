@@ -79,6 +79,7 @@ var gitConfig = []string{
 // refreshes the index.
 var gitSubcommands = map[string][]string{
 	"rev-parse": nil,
+	"ls-tree":   nil,
 	"log":       {"--no-ext-diff", "--no-textconv", "--no-show-signature", "--no-color", "--no-mailmap"},
 }
 
@@ -90,6 +91,7 @@ var gitAllowed = map[string]struct{ exact, prefix []string }{
 		exact: []string{"--show-toplevel", "--absolute-git-dir", "--git-common-dir", "--verify", "--quiet",
 			"--is-shallow-repository", "--show-object-format"},
 	},
+	"ls-tree": {exact: []string{"-r", "-z", "--full-tree"}},
 	"log": {
 		exact: []string{"--numstat", "--name-status", "--no-merges", "--first-parent", "--no-renames", "-M",
 			"--find-renames", "-z", "--reverse", "--topo-order", "--date-order"},
@@ -121,8 +123,9 @@ var quick = map[string]bool{"version": true, "rev-parse": true}
 
 // Git runs read-only git commands against one repository root.
 type Git struct {
-	root   string
-	runner Runner
+	root         string
+	objectFormat string
+	runner       Runner
 }
 
 // NewGit returns a Git for the repository whose work tree is exactly root and whose git directory is
@@ -198,6 +201,7 @@ func NewGit(ctx context.Context, root string) (*Git, error) {
 		return nil, fmt.Errorf("%s: unknown object format %q", root, strings.TrimSpace(string(out)))
 	}
 	g.runner.Env = append(g.runner.Env, "GIT_ATTR_SOURCE="+tree)
+	g.objectFormat = strings.TrimSpace(string(out))
 	return g, nil
 }
 
@@ -265,6 +269,9 @@ func checkGitVersion(out string) error {
 
 // Root returns the repository root as an absolute path with symlinks resolved.
 func (g *Git) Root() string { return g.root }
+
+// ObjectFormat returns the repository's object format, "sha1" or "sha256".
+func (g *Git) ObjectFormat() string { return g.objectFormat }
 
 // Run executes an allowed git subcommand with the hardening options. The subcommand's own safety
 // flags are inserted right after it, before the caller's arguments.

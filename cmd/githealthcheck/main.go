@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -186,12 +187,35 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 	}
 	r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
 
+	// Only the files in HEAD's tree are read: untracked and ignored files (.venv, build output) are not
+	// part of the commit the report names. A branch with no commits has no files.
+	var entries []repo.Entry
+	if r.Repository.Head != "" {
+		out, err := git.Run(ctx, "ls-tree", "-r", "-z", "--full-tree", r.Repository.Head)
+		if err == nil {
+			entries, err = repo.ParseTree(out)
+		}
+		if err != nil && ctx.Err() == nil {
+			return nil, err
+		}
+	}
+	blobID, err := repo.BlobID(git.ObjectFormat())
+	if err != nil {
+		return nil, err
+	}
+
 	// A timed-out walk still produces a report: what was read is listed, walkComplete is false, every
 	// family is null with reason timeout, and the run exits 3.
 	familyReason := report.NotImplemented
-	tree, err := walk(ctx, git.Root())
+	tree := &repo.Tree{}
+	if ctx.Err() == nil {
+		tree, err = walk(ctx, git.Root(), entries, blobID)
+	}
+	if tree == nil {
+		tree = &repo.Tree{}
+	}
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
+	case ctx.Err() != nil:
 		familyReason = report.Timeout
 	case err != nil:
 		return nil, err
@@ -201,6 +225,13 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 	r.Skipped = append(r.Skipped, tree.Skipped...)
 	r.Languages = languages(tree)
 	r.Inputs.FilesTotal = len(tree.Files)
+	for _, f := range tree.Files {
+		if f.Modified {
+			r.Repository.ModifiedFiles++
+		}
+	}
+	missing := slices.ContainsFunc(tree.Skipped, func(s report.Skip) bool { return s.Reason == report.SkipMissing })
+	r.Repository.Dirty = r.Repository.ModifiedFiles > 0 || missing
 
 	// No family is implemented yet. Each one says so instead of printing a number, and the run exits 3
 	// because nothing was measured.
@@ -250,6 +281,9 @@ func text(r *report.Report) string {
 	fmt.Fprintf(&b, "%s at %s", r.Repository.Path, head)
 	if r.Repository.Shallow {
 		b.WriteString(" (shallow clone)")
+	}
+	if r.Repository.Dirty {
+		fmt.Fprintf(&b, " (work tree differs from it: %d files modified)", r.Repository.ModifiedFiles)
 	}
 	b.WriteString("\n\nLanguages")
 	if !r.Inputs.WalkComplete {

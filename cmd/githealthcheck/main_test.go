@@ -123,8 +123,8 @@ func TestFailUnderWithNullOverallIsIncomplete(t *testing.T) {
 func TestScanWalkTimeoutStillReports(t *testing.T) {
 	dir := gitRepo(t)
 	t.Cleanup(func() { walk = repo.Walk })
-	walk = func(ctx context.Context, root string) (*repo.Tree, error) {
-		tree, _ := repo.Walk(context.Background(), root)
+	walk = func(ctx context.Context, root string, entries []repo.Entry, id func([]byte) string) (*repo.Tree, error) {
+		tree, _ := repo.Walk(context.Background(), root, entries, id)
 		<-ctx.Done()
 		return tree, ctx.Err()
 	}
@@ -194,6 +194,43 @@ func TestScanOpenTimeoutAndRefusal(t *testing.T) {
 	}
 }
 
+// Only the commit's files count. Untracked and ignored files are left out; a tracked file changed in
+// the work tree makes the report dirty.
+func TestScanCountsOnlyCommittedFiles(t *testing.T) {
+	dir := gitRepo(t)
+	os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".venv/\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, ".venv", "lib"), 0o755)
+	os.WriteFile(filepath.Join(dir, ".venv", "lib", "site.py"), []byte("x = 1\ny = 2\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "untracked.go"), []byte("package main\n"), 0o644)
+
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	var r report.Report
+	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
+		t.Fatalf("%v\n%s", err, stderr.String())
+	}
+	if len(r.Languages) != 1 || r.Languages[0].Name != "go" || r.Languages[0].Files != 1 || r.Inputs.FilesTotal != 1 {
+		t.Errorf("languages %+v filesTotal %d, want only the committed main.go", r.Languages, r.Inputs.FilesTotal)
+	}
+	if r.Repository.Dirty {
+		t.Errorf("clean work tree reported dirty: %+v", r.Repository)
+	}
+
+	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() { println() }\n"), 0o644)
+	stdout.Reset()
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	r = report.Report{}
+	json.Unmarshal(stdout.Bytes(), &r)
+	if !r.Repository.Dirty || r.Repository.ModifiedFiles != 1 {
+		t.Errorf("modified main.go not reported: %+v", r.Repository)
+	}
+	stdout.Reset()
+	run([]string{"scan", dir}, &stdout, &stderr)
+	if !strings.Contains(stdout.String(), "1 files modified") {
+		t.Errorf("text output does not say the work tree differs:\n%s", stdout.String())
+	}
+}
+
 func TestScanUnbornHead(t *testing.T) {
 	dir := t.TempDir()
 	cmd := exec.Command("git", "init", "-q")
@@ -259,8 +296,8 @@ func TestScanUnreadableFileKeepsPathsOut(t *testing.T) {
 		t.Skip("root reads files whatever their mode")
 	}
 	dir := gitRepo(t)
-	locked := filepath.Join(dir, "locked.go")
-	if err := os.WriteFile(locked, []byte("package main\n"), 0); err != nil {
+	// The committed main.go becomes unreadable in the work tree.
+	if err := os.Chmod(filepath.Join(dir, "main.go"), 0); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
@@ -268,7 +305,7 @@ func TestScanUnreadableFileKeepsPathsOut(t *testing.T) {
 	if strings.Contains(stdout.String(), dir) {
 		t.Errorf("report contains the absolute path:\n%s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), `"locked.go"`) {
+	if !strings.Contains(stdout.String(), `"main.go"`) || !strings.Contains(stdout.String(), "permission denied") {
 		t.Errorf("unreadable file not listed in skipped:\n%s", stdout.String())
 	}
 }

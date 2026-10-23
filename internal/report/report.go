@@ -113,11 +113,13 @@ type Language struct {
 type SkipReason string
 
 const (
-	SkipSymlink    SkipReason = "symlink"
-	SkipTooLarge   SkipReason = "too_large"
-	SkipNestedRepo SkipReason = "nested_repository"
-	SkipUnreadable SkipReason = "unreadable"
-	SkipNotRegular SkipReason = "not_regular_file"
+	SkipSymlink     SkipReason = "symlink"
+	SkipTooLarge    SkipReason = "too_large"
+	SkipNestedRepo  SkipReason = "nested_repository"
+	SkipUnreadable  SkipReason = "unreadable"
+	SkipNotRegular  SkipReason = "not_regular_file"
+	SkipMissing     SkipReason = "missing"      // in the commit, not in the work tree
+	SkipInvalidPath SkipReason = "invalid_path" // a tree entry no checkout would create; the path is not echoed
 )
 
 // Skip is a path that was not read, with the reason.
@@ -148,6 +150,10 @@ type Repo struct {
 	Path    string `json:"path"`
 	Head    string `json:"head,omitempty"` // absent before the first commit
 	Shallow bool   `json:"shallow"`
+	// ModifiedFiles counts the source files read whose work-tree content differs from the commit's
+	// blob, and Dirty is true when there are any, or when commit files are missing from the work tree.
+	ModifiedFiles int  `json:"modifiedFiles"`
+	Dirty         bool `json:"dirty"`
 }
 
 // Overall is the combined score over measured families only.

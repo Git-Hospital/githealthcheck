@@ -648,12 +648,16 @@ func TestGitArgsPolicy(t *testing.T) {
 	for _, args := range [][]string{{"--show-toplevel", "--git-dir"}, {"HEAD:a.txt"}, {"--verify", "HEAD@{1}"}} {
 		mustPanic(t, "rev-parse "+strings.Join(args, " "), func() { gitArgs("/r", "rev-parse", args) })
 	}
+	for _, args := range [][]string{{"-r", "--format=%(objectname)"}, {"-r", "HEAD:sub"}, {"--long"}} {
+		mustPanic(t, "ls-tree "+strings.Join(args, " "), func() { gitArgs("/r", "ls-tree", args) })
+	}
 
 	// What the families and NewGit use must stay allowed.
 	sha := strings.Repeat("a", 40)
 	for sub, args := range map[string][]string{
 		"log":       {"--format=format:%H%x00%an%x00%ae%x00%at", "--numstat", "-z", "--no-merges", "-M", "--since=2020-01-01", sha, "--", "a.txt", "-weird-path"},
 		"rev-parse": {"--verify", "--quiet", "HEAD"},
+		"ls-tree":   {"-r", "-z", "--full-tree", sha},
 	} {
 		got := gitArgs("/r", sub, args)
 		if got[0] != "--no-lazy-fetch" || !slices.Equal(got[len(got)-len(args):], args) {
