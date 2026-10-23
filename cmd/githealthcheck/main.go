@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,7 +20,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Git-Hospital/githealthcheck/internal/analyze"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
+	"github.com/Git-Hospital/githealthcheck/internal/facts"
+	"github.com/Git-Hospital/githealthcheck/internal/lang"
+	"github.com/Git-Hospital/githealthcheck/internal/lang/golang"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
@@ -65,6 +71,7 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	out := fs.String("o", "", "write the report to this file instead of stdout")
 	timeout := fs.Duration("timeout", 10*time.Minute, "give up after this long; the run then exits 3")
 	failUnderText := fs.String("fail-under", "", "exit 1 when the overall score is below this value (0-10)")
+	coverageFile := fs.String("coverage", "", "read this coverage report instead of looking for one at the repository root")
 	if err := fs.Parse(args); err != nil {
 		return report.ExitError
 	}
@@ -92,7 +99,7 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 
-	r, err := buildReport(ctx, fs.Arg(0))
+	r, err := buildReport(ctx, fs.Arg(0), *coverageFile)
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
 		// Incomplete only when the user's --timeout ran out. A per-command timeout inside (a config
@@ -157,10 +164,23 @@ func writeFile(path string, body []byte) error {
 // walk is repo.Walk; tests replace it to time out after the repository is open.
 var walk = repo.Walk
 
-func buildReport(ctx context.Context, path string) (*report.Report, error) {
+// analyzers are the families implemented in this build. A family without one is null with the reason
+// not_implemented.
+var analyzers = []analyze.Analyzer{tests.Analyzer{}}
+
+func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, error) {
 	git, err := execx.NewGit(ctx, path)
 	if err != nil {
 		return nil, err
+	}
+	// Read before the walk: a report the user named that cannot be read is a usage error, and is
+	// reported before any time is spent.
+	var cov *facts.Coverage
+	inside := false
+	if coverageFile != "" {
+		if cov, inside, err = readCoverage(git.Root(), coverageFile); err != nil {
+			return nil, fmt.Errorf("--coverage: %w", err)
+		}
 	}
 	r := &report.Report{
 		SchemaVersion: report.SchemaVersion,
@@ -229,19 +249,126 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 		if f.Modified {
 			r.Repository.ModifiedFiles++
 		}
+		if lang.Analysed(f.Language) {
+			r.Inputs.FilesAnalysed++
+		}
 	}
 	missing := slices.ContainsFunc(tree.Skipped, func(s report.Skip) bool { return s.Reason == report.SkipMissing })
 	r.Repository.Dirty = r.Repository.ModifiedFiles > 0 || missing
 
-	// No family is implemented yet. Each one says so instead of printing a number, and the run exits 3
-	// because nothing was measured.
-	for _, f := range report.Families {
-		r.Families = append(r.Families, report.FamilyResult{
-			Family: f, Reason: familyReason, Score: report.Null(familyReason),
-		})
+	rf := &facts.Repo{Files: tree.Files, Paths: map[string]bool{}, Coverage: cov}
+	for _, e := range entries {
+		rf.Paths[e.Path] = true
 	}
-	r.Overall = report.Overall{Score: report.Null(report.InsufficientFamily), Of: len(report.Families)}
+	if inside {
+		cov.Tracked = rf.Paths[cov.Name]
+	}
+	if familyReason != report.Timeout {
+		var skipped []report.Skip
+		rf.Modules, skipped = modules(git.Root(), entries)
+		r.Skipped = append(r.Skipped, skipped...)
+		if cov == nil {
+			rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
+			r.Skipped = append(r.Skipped, skipped...)
+		}
+	}
+
+	byFamily := map[report.Family]analyze.Analyzer{}
+	for _, a := range analyzers {
+		byFamily[a.Family()] = a
+	}
+	for _, f := range report.Families {
+		fr := report.FamilyResult{Family: f, Reason: familyReason, Score: report.Null(familyReason)}
+		if a := byFamily[f]; a != nil && familyReason != report.Timeout {
+			res := a.Run(ctx, rf)
+			fr.Measured, fr.Reason, fr.Metrics, fr.Findings = res.Measured, res.Reason, res.Metrics, res.Findings
+			// Scores are percentiles against the calibration corpus, which does not exist before v0.4.0.
+			fr.Score = report.Null(report.NotCalibrated)
+			if !res.Measured {
+				fr.Score = report.Null(res.Reason)
+			}
+			if res.Coverage != nil {
+				r.Inputs.Coverage = res.Coverage
+			}
+		}
+		if fr.Measured {
+			r.Overall.Measured++
+		}
+		r.Families = append(r.Families, fr)
+	}
+	r.Overall.Of = len(report.Families)
+	r.Overall.Score = report.Null(report.InsufficientFamily)
+	if r.Overall.Measured >= 2 {
+		r.Overall.Score = report.Null(report.NotCalibrated)
+	}
+	// A report the user named is listed even when no family read it, e.g. in a repository without Go.
+	if r.Inputs.Coverage == nil && cov != nil {
+		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
+	}
 	return r, nil
+}
+
+// modules reads every go.mod in the commit that the go command does not ignore. They are ordered by
+// depth, so of two go.mod files that declare the same module path the shallower one is used.
+func modules(root string, entries []repo.Entry) ([]facts.Module, []report.Skip) {
+	var mods []facts.Module
+	var skipped []report.Skip
+	for _, e := range entries {
+		if filepath.Base(e.Path) != "go.mod" || (e.Mode != "100644" && e.Mode != "100755") || golang.Package(e.Path) == "" {
+			continue
+		}
+		src, skip := repo.ReadFile(root, e.Path, repo.MaxSourceBytes)
+		if skip != nil {
+			skipped = append(skipped, *skip)
+			continue
+		}
+		if p := golang.ModulePath(src); p != "" {
+			mods = append(mods, facts.Module{Dir: golang.Package(e.Path), Path: p})
+		}
+	}
+	slices.SortStableFunc(mods, func(a, b facts.Module) int {
+		return cmp.Or(cmp.Compare(strings.Count(a.Dir, "/"), strings.Count(b.Dir, "/")), cmp.Compare(a.Dir, b.Dir))
+	})
+	return mods, skipped
+}
+
+// findCoverage looks for a coverage report under the names in tests.ReportNames at the root of the work
+// tree, tracked or not: CI writes the report just before the scan and does not commit it. A name
+// that exists but cannot be read, such as a symlink, is listed as skipped and the next name is tried.
+func findCoverage(root string, tracked map[string]bool) (*facts.Coverage, []report.Skip) {
+	var skipped []report.Skip
+	for _, name := range tests.ReportNames {
+		data, skip := repo.ReadFile(root, name, repo.MaxReportBytes)
+		switch {
+		case skip == nil:
+			return &facts.Coverage{Name: name, Tracked: tracked[name], Data: data}, skipped
+		case skip.Reason != report.SkipMissing:
+			skipped = append(skipped, *skip)
+		}
+	}
+	return nil, skipped
+}
+
+// readCoverage reads the report the user named with --coverage. It may be outside the repository; the
+// report then names it by its base name only, so no absolute path reaches the output. inside is true
+// when the report is in the work tree, and its name is then relative to the root.
+func readCoverage(root, name string) (c *facts.Coverage, inside bool, err error) {
+	data, err := repo.ReadPath(name, repo.MaxReportBytes)
+	if err != nil {
+		return nil, false, err
+	}
+	c = &facts.Coverage{Name: filepath.Base(name), Data: data}
+	abs, err1 := filepath.Abs(name)
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
+	}
+	realRoot, err2 := filepath.EvalSymlinks(root)
+	if err1 == nil && err2 == nil {
+		if rel, err := filepath.Rel(realRoot, abs); err == nil && filepath.IsLocal(rel) {
+			c.Name, inside = filepath.ToSlash(rel), true
+		}
+	}
+	return c, inside, nil
 }
 
 // languages counts the project's own code per language; vendored and generated files are left out.
@@ -253,7 +380,7 @@ func languages(t *repo.Tree) []report.Language {
 		}
 		l := by[f.Language]
 		if l == nil {
-			l = &report.Language{Name: f.Language, Analysed: repo.Analysed[f.Language]}
+			l = &report.Language{Name: f.Language, Analysed: lang.Analysed(f.Language)}
 			by[f.Language] = l
 		}
 		l.Files++
@@ -298,14 +425,50 @@ func text(r *report.Report) string {
 		fmt.Fprintf(&b, "  %-12s %6d files %8d lines  %s\n", l.Name, l.Files, l.Lines, status)
 	}
 	b.WriteString("\nFamilies\n")
+	findings := 0
 	for _, f := range r.Families {
-		fmt.Fprintf(&b, "  %-12s %s\n", f.Family, scoreText(f.Score))
+		fmt.Fprintf(&b, "  %-12s score %s\n", f.Family, scoreText(f.Score))
+		names := make([]string, 0, len(f.Metrics))
+		for name := range f.Metrics {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			fmt.Fprintf(&b, "    %-24s %s\n", name, metricText(name, f.Metrics[name]))
+		}
+		findings += len(f.Findings)
+	}
+	if c := r.Inputs.Coverage; c != nil {
+		tracked := "untracked"
+		if c.Tracked {
+			tracked = "tracked"
+		}
+		fmt.Fprintf(&b, "\nCoverage report %s (%s): %d of its %d files are in the commit\n", c.Path, tracked, c.FilesAtHead, c.Files)
+	}
+	if findings > 0 {
+		fmt.Fprintf(&b, "\nFindings (%d)\n", findings)
+		for _, f := range r.Families {
+			for _, fd := range f.Findings {
+				fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, fd.Path, fd.Message)
+			}
+		}
 	}
 	fmt.Fprintf(&b, "\nOverall  %s  (%d of %d families measured)\n", scoreText(r.Overall.Score), r.Overall.Measured, r.Overall.Of)
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
 	}
 	return b.String()
+}
+
+// metricText prints a share or a coverage as a percentage and any other value as a plain number.
+func metricText(name string, m report.Measurement) string {
+	if m.IsNull() {
+		return "null (" + string(m.Reason) + ")"
+	}
+	if strings.HasSuffix(name, "_share") || strings.HasSuffix(name, "_coverage") {
+		return fmt.Sprintf("%.1f%%  (from %d)", 100**m.Value, m.Inputs)
+	}
+	return fmt.Sprintf("%.2f  (from %d)", *m.Value, m.Inputs)
 }
 
 func scoreText(m report.Measurement) string {

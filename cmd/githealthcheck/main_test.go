@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
@@ -20,30 +21,47 @@ import (
 
 func gitRepo(t *testing.T) string {
 	t.Helper()
+	return gitRepoWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n"})
+}
+
+// gitRepoWith commits files, keyed by slash-separated path, into a new repository.
+func gitRepoWith(t *testing.T, files map[string]string) string {
+	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"commit", "-q", "-m", "init"}} {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "HOME="+t.TempDir(), "GIT_CONFIG_NOSYSTEM=1",
-			"GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=a@example.com",
-			"GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=a@example.com")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
+	for rel, body := range files {
+		p := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
 		}
 	}
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "init")
 	return dir
+}
+
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "HOME="+t.TempDir(), "GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=a@example.com",
+		"GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=a@example.com")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
 
 func TestScanJSON(t *testing.T) {
 	dir := gitRepo(t)
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
-	// Nothing is measured yet, so the honest answer is "incomplete", never "clean".
-	if code != report.ExitIncomplete {
-		t.Fatalf("exit %d, want %d; stderr: %s", code, report.ExitIncomplete, stderr.String())
+	// main declares a function and has no test file: a finding.
+	if code != report.ExitFindings {
+		t.Fatalf("exit %d, want %d; stderr: %s", code, report.ExitFindings, stderr.String())
 	}
 	var r report.Report
 	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
@@ -56,11 +74,20 @@ func TestScanJSON(t *testing.T) {
 		t.Fatalf("families = %d, want 4", len(r.Families))
 	}
 	for _, f := range r.Families {
+		if f.Family == report.Tests {
+			if !f.Measured || f.Score.Reason != report.NotCalibrated || len(f.Findings) != 1 || f.Findings[0].RuleID != tests.UntestedPackage {
+				t.Errorf("tests family = %+v, want measured, not calibrated, one untested package", f)
+			}
+			continue
+		}
 		if f.Measured || !f.Score.IsNull() || f.Score.Reason != report.NotImplemented {
 			t.Errorf("family %s = %+v, want null not_implemented", f.Family, f)
 		}
 	}
-	if len(r.Languages) != 1 || r.Languages[0].Name != "go" || r.Languages[0].Lines != 3 {
+	if r.Overall.Measured != 1 || r.Overall.Score.Reason != report.InsufficientFamily || r.Inputs.FilesAnalysed != 1 {
+		t.Errorf("overall %+v, filesAnalysed %d", r.Overall, r.Inputs.FilesAnalysed)
+	}
+	if len(r.Languages) != 1 || r.Languages[0].Name != "go" || r.Languages[0].Lines != 3 || !r.Languages[0].Analysed {
 		t.Errorf("languages = %+v", r.Languages)
 	}
 	if strings.Contains(stdout.String(), dir) {
