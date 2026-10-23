@@ -7,11 +7,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
@@ -53,7 +56,7 @@ func Walk(ctx context.Context, root string) (*Tree, error) {
 			if path == root {
 				return err
 			}
-			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipUnreadable, Detail: err.Error()})
+			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipUnreadable, Detail: cause(err)})
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
@@ -77,41 +80,84 @@ func Walk(ctx context.Context, root string) (*Tree, error) {
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
 		lang := language(rel)
 		if lang == "" {
 			return nil
 		}
-		info, err := d.Info()
-		if err != nil {
-			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipUnreadable, Detail: err.Error()})
+		if !d.Type().IsRegular() {
+			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipNotRegular})
 			return nil
 		}
-		if info.Size() > MaxSourceBytes {
-			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipTooLarge})
-			return nil
-		}
-		src, err := os.ReadFile(path)
-		if err != nil {
-			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipUnreadable, Detail: err.Error()})
+		src, size, reason, err := readSource(path)
+		if reason != "" {
+			s := report.Skip{Path: rel, Reason: reason}
+			if err != nil {
+				s.Detail = cause(err)
+			}
+			t.Skipped = append(t.Skipped, s)
 			return nil
 		}
 		t.Files = append(t.Files, File{
 			Path:      rel,
 			Language:  lang,
-			Size:      info.Size(),
+			Size:      size,
 			Lines:     countLines(src),
 			Vendored:  vendored(rel),
 			Generated: generated(lang, src),
 		})
 		return nil
 	})
+	// On cancellation the files read so far are still returned, so a timed-out run can report what it
+	// did measure.
+	return t, err
+}
+
+// readSource reads a regular file without following a symlink swapped in after the walk saw it, without
+// blocking on a FIFO swapped in, and without reading past MaxSourceBytes even if the file grows. The
+// type and size come from the open descriptor, not from the earlier lstat.
+func readSource(path string) (src []byte, size int64, reason report.SkipReason, err error) {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, syscall.ELOOP) {
+			return nil, 0, report.SkipSymlink, nil
+		}
+		return nil, 0, report.SkipUnreadable, err
 	}
-	return t, nil
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, 0, report.SkipUnreadable, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, 0, report.SkipNotRegular, nil
+	}
+	if info.Size() > MaxSourceBytes {
+		return nil, 0, report.SkipTooLarge, nil
+	}
+	src, err = io.ReadAll(io.LimitReader(f, MaxSourceBytes+1))
+	if err != nil {
+		return nil, 0, report.SkipUnreadable, err
+	}
+	if len(src) > MaxSourceBytes {
+		return nil, 0, report.SkipTooLarge, nil
+	}
+	return src, int64(len(src)), "", nil
+}
+
+// cause describes an error without the path it carries: reports must not contain the user's absolute
+// paths.
+func cause(err error) string {
+	switch {
+	case errors.Is(err, fs.ErrPermission):
+		return "permission denied"
+	case errors.Is(err, fs.ErrNotExist):
+		return "does not exist"
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err.Error()
+	}
+	return "unreadable"
 }
 
 func countLines(src []byte) int {

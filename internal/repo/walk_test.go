@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
@@ -112,5 +114,83 @@ func TestWalkCancelled(t *testing.T) {
 	cancel()
 	if _, err := Walk(ctx, root); err == nil {
 		t.Fatal("Walk ignored a cancelled context")
+	}
+}
+
+func TestWalkSpecialAndUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads files whatever their mode")
+	}
+	root := t.TempDir()
+	write(t, root, "ok.go", "package ok\n")
+	write(t, root, "locked.go", "package locked\n")
+	write(t, root, "lockeddir/x.go", "package x\n")
+	if err := syscall.Mkfifo(filepath.Join(root, "pipe.go"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(filepath.Join(root, "locked.go"), 0)
+	os.Chmod(filepath.Join(root, "lockeddir"), 0)
+	t.Cleanup(func() { os.Chmod(filepath.Join(root, "lockeddir"), 0o755) })
+
+	tree, err := Walk(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]report.Skip{}
+	for _, s := range tree.Skipped {
+		got[s.Path] = s
+		if strings.Contains(s.Detail, root) {
+			t.Errorf("skip detail %q contains the absolute path", s.Detail)
+		}
+	}
+	if got["pipe.go"].Reason != report.SkipNotRegular {
+		t.Errorf("pipe.go skipped as %q, want %q", got["pipe.go"].Reason, report.SkipNotRegular)
+	}
+	for _, p := range []string{"locked.go", "lockeddir"} {
+		if got[p].Reason != report.SkipUnreadable || got[p].Detail != "permission denied" {
+			t.Errorf("%s = %+v, want unreadable / permission denied", p, got[p])
+		}
+	}
+	if len(tree.Files) != 1 || tree.Files[0].Path != "ok.go" {
+		t.Errorf("files = %+v, want only ok.go", tree.Files)
+	}
+}
+
+// readSource is what Walk calls after its lstat; these are the files an attacker could swap in between
+// the two.
+func TestReadSourceSwappedFiles(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.go")
+	write(t, dir, "target.go", "package target\n")
+	link := filepath.Join(dir, "link.go")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, reason, _ := readSource(link); reason != report.SkipSymlink {
+		t.Errorf("symlink read with reason %q, want %q", reason, report.SkipSymlink)
+	}
+
+	fifo := filepath.Join(dir, "fifo.go")
+	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan report.SkipReason, 1)
+	go func() { _, _, r, _ := readSource(fifo); done <- r }()
+	select {
+	case r := <-done:
+		if r != report.SkipNotRegular {
+			t.Errorf("fifo read with reason %q, want %q", r, report.SkipNotRegular)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("readSource blocked on a FIFO")
+	}
+
+	big := filepath.Join(dir, "big.go")
+	write(t, dir, "big.go", strings.Repeat("x", MaxSourceBytes+1))
+	if _, _, reason, _ := readSource(big); reason != report.SkipTooLarge {
+		t.Errorf("big file read with reason %q", reason)
+	}
+	if src, size, reason, err := readSource(target); reason != "" || err != nil || size != 15 || string(src) != "package target\n" {
+		t.Errorf("regular file: %q %d %q %v", src, size, reason, err)
 	}
 }

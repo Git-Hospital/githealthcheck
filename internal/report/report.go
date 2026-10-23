@@ -117,6 +117,7 @@ const (
 	SkipTooLarge   SkipReason = "too_large"
 	SkipNestedRepo SkipReason = "nested_repository"
 	SkipUnreadable SkipReason = "unreadable"
+	SkipNotRegular SkipReason = "not_regular_file"
 )
 
 // Skip is a path that was not read, with the reason.
@@ -145,7 +146,7 @@ type Tool struct {
 
 type Repo struct {
 	Path    string `json:"path"`
-	Head    string `json:"head"`
+	Head    string `json:"head,omitempty"` // absent before the first commit
 	Shallow bool   `json:"shallow"`
 }
 

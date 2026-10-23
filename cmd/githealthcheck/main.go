@@ -138,8 +138,14 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 		r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
 	}
 
+	// A timed-out walk still produces a report: what was read is listed, every family is null with
+	// reason timeout, and the run exits 3.
+	familyReason := report.NotImplemented
 	tree, err := repo.Walk(ctx, git.Root())
-	if err != nil {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		familyReason = report.Timeout
+	case err != nil:
 		return nil, err
 	}
 	r.Skipped = append(r.Skipped, tree.Skipped...)
@@ -150,7 +156,7 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 	// because nothing was measured.
 	for _, f := range report.Families {
 		r.Families = append(r.Families, report.FamilyResult{
-			Family: f, Reason: report.NotImplemented, Score: report.Null(report.NotImplemented),
+			Family: f, Reason: familyReason, Score: report.Null(familyReason),
 		})
 	}
 	r.Overall = report.Overall{Score: report.Null(report.InsufficientFamily), Of: len(report.Families)}

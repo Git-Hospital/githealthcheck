@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // ErrNotFound is returned when the command is not installed. Callers turn it into a null measurement
@@ -33,10 +34,43 @@ func Env(environ []string) []string {
 	return env
 }
 
+// MaxOutput caps a command's stdout. A repository can make git print without end (a mailmap that
+// never ends, a huge commit message); past the cap the command is killed and the call fails.
+const MaxOutput = 512 << 20
+
+// waitDelay bounds how long Wait blocks after the process is killed, in case a grandchild still
+// holds the output pipes.
+const waitDelay = 5 * time.Second
+
+// ErrOutputTooLarge is returned when a command writes more than MaxOutput bytes.
+var ErrOutputTooLarge = errors.New("output exceeds the limit")
+
 // Runner executes commands in Dir with a fixed environment.
 type Runner struct {
 	Env []string
 	Dir string
+}
+
+// capped is a buffer that holds at most max bytes. Past that it either fails, which stops the
+// command's copy goroutine so Run reports ErrOutputTooLarge (stdout), or drops the rest (stderr,
+// which only feeds error messages).
+type capped struct {
+	buf      bytes.Buffer
+	max      int
+	truncate bool
+	over     bool
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.max - c.buf.Len(); len(p) > room {
+		c.over = true
+		if !c.truncate {
+			return 0, ErrOutputTooLarge
+		}
+		c.buf.Write(p[:max(room, 0)])
+		return len(p), nil
+	}
+	return c.buf.Write(p)
 }
 
 // Run executes name with args and returns stdout. On failure the error carries the trimmed stderr.
@@ -48,14 +82,19 @@ func (r *Runner) Run(ctx context.Context, name string, args ...string) ([]byte, 
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = r.Env
 	cmd.Dir = r.Dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.WaitDelay = waitDelay
+	stdout := &capped{max: MaxOutput}
+	stderr := &capped{max: 64 << 10, truncate: true}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
+		switch {
+		case ctx.Err() != nil:
 			return nil, fmt.Errorf("%s: %w", name, ctx.Err())
+		case stdout.over:
+			return nil, fmt.Errorf("%s: %w", name, ErrOutputTooLarge)
 		}
-		return nil, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(stderr.buf.String()))
 	}
-	return stdout.Bytes(), nil
+	return stdout.buf.Bytes(), nil
 }

@@ -104,3 +104,46 @@ func TestFailUnderWithNullOverallIsIncomplete(t *testing.T) {
 		t.Errorf("exit %d, want %d", code, report.ExitIncomplete)
 	}
 }
+
+func TestScanTimeoutStillReports(t *testing.T) {
+	dir := gitRepo(t)
+	var stdout, stderr bytes.Buffer
+	// Long enough for git to open the repository, short enough to expire during the walk on most
+	// machines; either way the run must not claim to be clean.
+	code := run([]string{"scan", "--format", "json", "--timeout", "1ns", dir}, &stdout, &stderr)
+	if code != report.ExitIncomplete {
+		t.Fatalf("exit %d, want %d; stderr %s", code, report.ExitIncomplete, stderr.String())
+	}
+	if stdout.Len() > 0 {
+		var r report.Report
+		if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range r.Families {
+			if f.Reason != report.Timeout {
+				t.Errorf("family %s reason %q, want timeout", f.Family, f.Reason)
+			}
+		}
+	} else if !strings.Contains(stderr.String(), "timed out") {
+		t.Errorf("no report and no timeout message: %s", stderr.String())
+	}
+}
+
+func TestScanUnreadableFileKeepsPathsOut(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads files whatever their mode")
+	}
+	dir := gitRepo(t)
+	locked := filepath.Join(dir, "locked.go")
+	if err := os.WriteFile(locked, []byte("package main\n"), 0); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	if strings.Contains(stdout.String(), dir) {
+		t.Errorf("report contains the absolute path:\n%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"locked.go"`) {
+		t.Errorf("unreadable file not listed in skipped:\n%s", stdout.String())
+	}
+}
