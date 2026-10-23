@@ -473,7 +473,8 @@ func text(r *report.Report) string {
 
 // printable quotes a string that comes from the scanned repository when it holds anything but graphic
 // characters (ESC, CR, a newline, a bidi control, invalid UTF-8), so a path cannot move the cursor or
-// forge lines of the report in a terminal or a CI log. JSON escapes these by itself.
+// forge lines of the report in a terminal or a CI log. JSON output escapes control characters below
+// U+0020 but not bidi or C1 controls; it is meant for programs, not terminals.
 func printable(s string) string {
 	if utf8.ValidString(s) && strings.IndexFunc(s, func(r rune) bool { return !unicode.IsGraphic(r) }) < 0 {
 		return s

@@ -32,14 +32,19 @@ type profile struct {
 	// repository's module paths; the rest are the standard library and dependencies, which
 	// -coverpkg=all adds.
 	files, inModules int
-	// blocks holds the blocks of the files that are in the commit, by repository path. Nothing else is
-	// kept, so a profile's memory is bounded by the commit's tree, not by the profile.
+	// blocks holds the blocks of the files that are in the commit, by repository path; the blocks of
+	// other files are only counted. Memory stays linear in the profile, which is capped at 50 MiB.
 	blocks map[string]map[blockKey]*block
 }
 
-// maxBlockStmts bounds the statements of one block, far above anything go test writes, so that sums
-// over a 50 MiB profile cannot overflow.
-const maxBlockStmts = 1 << 24
+// Bounds far above anything go test writes. maxBlockStmts keeps sums over a 50 MiB profile from
+// overflowing; maxLineBytes and maxPathSegments bound the cost of resolving one file name, which
+// looks up each parent of the import path.
+const (
+	maxBlockStmts   = 1 << 24
+	maxLineBytes    = 4096
+	maxPathSegments = 128
+)
 
 var profileLine = regexp.MustCompile(`^(.+):([0-9]+)\.([0-9]+),([0-9]+)\.([0-9]+) ([0-9]+) ([0-9]+)$`)
 
@@ -61,6 +66,9 @@ func parseProfile(ctx context.Context, data []byte, resolve resolver) (*profile,
 		n++
 		if n%4096 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if len(line) > maxLineBytes {
+			return nil, fmt.Errorf("line %d: longer than %d bytes", n, maxLineBytes)
 		}
 		s := strings.TrimSuffix(string(line), "\r")
 		if s == "" {
@@ -98,6 +106,12 @@ func parseProfile(ctx context.Context, data []byte, resolve resolver) (*profile,
 			return nil, fmt.Errorf("line %d: %d statements in one block", n, stmts)
 		}
 		if name := m[1]; name != last {
+			if strings.Count(name, "/") > maxPathSegments {
+				return nil, fmt.Errorf("line %d: file name has more than %d path segments", n, maxPathSegments)
+			}
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			last, lastBlocks = name, nil
 			h := maphash.String(seed, name)
 			rel, inModule, atHead := resolve(name)

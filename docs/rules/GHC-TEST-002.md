@@ -28,7 +28,8 @@ outside the repository's module paths, such as the standard library and dependen
 `-coverpkg=all` adds, are counted in `files` and otherwise ignored.
 
 The report is not used, and coverage is `null` with the reason `stale_coverage_report`, when fewer than
-90% of the files it lists under the repository's module paths exist in the commit, or when a block of
+90% of the files it lists under the repository's module paths exist in the commit (a report with no
+file under them is stale too), or when a block of
 the repository's own code starts before line 1, ends before it starts, or ends past the last line of
 its file as read from the work tree. Generated files are not checked, because `//line` directives (in
 goyacc output, for example) move their positions; a `//line` directive in hand-written code makes the

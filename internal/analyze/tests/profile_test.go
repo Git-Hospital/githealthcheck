@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // probe resolves example.com/probe/<rest> to <rest>; only the files in atHead are in the commit.
@@ -120,12 +121,30 @@ func TestParseProfileRejects(t *testing.T) {
 func TestParseProfileCancelled(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("mode: set\n")
-	for i := range 10000 {
+	for i := range 100 {
 		fmt.Fprintf(&b, "example.com/probe/f%d.go:1.1,1.2 1 1\n", i)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := parseProfile(ctx, []byte(b.String()), probe()); err != context.Canceled {
 		t.Errorf("err = %v, want context.Canceled", err)
+	}
+}
+
+// One crafted line cannot make resolving a file name take hours: long lines and deep paths are
+// refused before any lookup.
+func TestParseProfileBoundsOneLine(t *testing.T) {
+	deep := "mode: set\nexample.com/probe/" + strings.Repeat("a/", maxPathSegments) + "x.go:1.1,1.2 1 1\n"
+	long := "mode: set\nexample.com/probe/" + strings.Repeat("a", maxLineBytes) + ".go:1.1,1.2 1 1\n"
+	huge := "mode: set\nm/" + strings.Repeat("/", 10<<20) + "x.go:1.1,1.2 1 1\n"
+	for name, src := range map[string]string{"deep": deep, "long": long, "huge": huge} {
+		start := time.Now()
+		if _, err := parseProfile(context.Background(), []byte(src), probe()); err == nil || time.Since(start) > time.Second {
+			t.Errorf("%s: err %v after %v", name, err, time.Since(start))
+		}
+	}
+	ok := "mode: set\nexample.com/probe/" + strings.Repeat("a/", maxPathSegments-2) + "x.go:1.1,1.2 1 1\n"
+	if _, err := parseProfile(context.Background(), []byte(ok), probe()); err != nil {
+		t.Errorf("a deep but legal path: %v", err)
 	}
 }
