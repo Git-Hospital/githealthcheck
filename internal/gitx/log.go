@@ -6,6 +6,7 @@ package gitx
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,11 +20,20 @@ import (
 // and a NUL ends the commit.
 const logFormat = "--format=format:%x01%H%x00%an%x00%ae%x00%at"
 
-// LogArgs are the git arguments for the history of head: non-merge commits with their changed paths,
-// renames detected as in Avelino et al.'s truck-factor tool.
+// LogArgs are the git arguments for the history of head: non-merge commits with their changed paths.
+// Only exact renames are detected: scoring a rename by similarity makes git inflate both blobs in
+// full, whatever core.bigFileThreshold says, so a repository of a few hundred kilobytes could make it
+// allocate gigabytes. Exact renames compare object names and read no blob.
 func LogArgs(head string) []string {
-	return []string{"log", "--no-merges", "-M", "--name-status", "-z", logFormat, head}
+	return []string{"log", "--no-merges", "--find-renames=100%", "--name-status", "-z", logFormat, head}
 }
+
+// ErrTooLarge is returned when the history lists more than MaxChanges changed paths. Parsed, each
+// costs several times its bytes in memory, so the 512 MiB output cap alone does not bound it.
+var ErrTooLarge = errors.New("git log: too many changes")
+
+// MaxChanges is far above real repositories: the Linux kernel has about 3 million.
+var MaxChanges = 20_000_000
 
 // Log reads the history reachable from head.
 func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, error) {
@@ -36,27 +46,33 @@ func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, erro
 }
 
 // ParseLog parses the output of LogArgs. Fields are taken by position, so an author name holding \x01
-// or a newline cannot shift the records.
+// or a newline cannot shift the records. The fields are slices of out, read in place.
 func ParseLog(out []byte) ([]facts.Commit, error) {
-	tokens := bytes.Split(out, []byte{0})
 	var commits []facts.Commit
-	i := 0
+	changes := 0
+	pos := 0 // where the next field starts; past len(out) once the last one was taken
 	next := func() ([]byte, bool) {
-		if i >= len(tokens) {
+		if pos > len(out) {
 			return nil, false
 		}
-		t := tokens[i]
-		i++
+		end := bytes.IndexByte(out[pos:], 0)
+		if end < 0 {
+			t := out[pos:]
+			pos = len(out) + 1
+			return t, true
+		}
+		t := out[pos : pos+end]
+		pos += end + 1
 		return t, true
 	}
-	for i < len(tokens) {
+	for pos <= len(out) {
 		head, _ := next()
-		if len(head) == 0 && i == len(tokens) {
+		if len(head) == 0 && pos > len(out) {
 			break // trailing NUL
 		}
 		hash, ok := bytes.CutPrefix(head, []byte{1})
 		if !ok || !isHash(hash) {
-			return nil, fmt.Errorf("git log: expected a commit at field %d, got %q", i, truncate(head))
+			return nil, fmt.Errorf("git log: expected a commit at byte %d, got %q", pos, truncate(head))
 		}
 		name, ok1 := next()
 		email, ok2 := next()
@@ -94,6 +110,9 @@ func ParseLog(out []byte) ([]facts.Commit, error) {
 				ch.Path = string(path)
 			default:
 				return nil, fmt.Errorf("git log: commit %s: unknown status %q", hash, truncate(status))
+			}
+			if changes++; changes > MaxChanges {
+				return nil, ErrTooLarge
 			}
 			c.Changes = append(c.Changes, ch)
 			if status, hasChanges = next(); !hasChanges {

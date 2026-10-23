@@ -384,7 +384,7 @@ func TestLogDoesNotBlockOnPlantedFIFOs(t *testing.T) {
 			g := newGit(t, dir)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			for _, args := range [][]string{{hashFormat + " %an %ae", "--numstat"}, {hashFormat, "--name-status", "-M"}} {
+			for _, args := range [][]string{{hashFormat + " %an %ae", "--numstat"}, {hashFormat, "--name-status", "--find-renames=100%"}} {
 				if _, err := g.Run(ctx, "log", args...); err != nil {
 					t.Fatalf("hardened git log %v: %v", args, err)
 				}
@@ -642,6 +642,10 @@ func TestGitArgsPolicy(t *testing.T) {
 		{"--format=oneline"},
 		{"--numstat"},
 		{hashFormat, "--format=format:%an"},
+		{hashFormat, "-M"},
+		{hashFormat, "--find-renames"},
+		{hashFormat, "--find-renames=50%"},
+		{hashFormat, "-M100%"},
 	} {
 		mustPanic(t, "log "+strings.Join(args, " "), func() { gitArgs("/r", "log", args) })
 	}
@@ -655,7 +659,7 @@ func TestGitArgsPolicy(t *testing.T) {
 	// What the families and NewGit use must stay allowed.
 	sha := strings.Repeat("a", 40)
 	for sub, args := range map[string][]string{
-		"log":       {"--format=format:%H%x00%an%x00%ae%x00%at", "--numstat", "-z", "--no-merges", "-M", "--since=2020-01-01", sha, "--", "a.txt", "-weird-path"},
+		"log":       {"--format=format:%H%x00%an%x00%ae%x00%at", "--numstat", "-z", "--no-merges", "--find-renames=100%", "--since=2020-01-01", sha, "--", "a.txt", "-weird-path"},
 		"rev-parse": {"--verify", "--quiet", "HEAD"},
 		"ls-tree":   {"-r", "-z", "--full-tree", sha},
 	} {

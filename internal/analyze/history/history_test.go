@@ -45,6 +45,12 @@ func TestRunNotMeasured(t *testing.T) {
 	vendored.Files[0].Vendored = true
 	vendored.Files[1].Generated = true
 
+	// pad.py's 50 entries are read for pad.py and again for p2.py, renamed from it: 101 in all. The
+	// copy p1.py has no history of its own.
+	chains := repoWith(hist(append(padding("a", MinCommits), "a C:pad.py>p1.py", "a R:pad.py>p2.py")...), "p1.py", "p2.py", "pad.py")
+	defer func(n int) { MaxVisits = n }(MaxVisits)
+	MaxVisits = 2*MinCommits - 1
+
 	for name, c := range map[string]struct {
 		ctx  context.Context
 		rf   *facts.Repo
@@ -53,6 +59,8 @@ func TestRunNotMeasured(t *testing.T) {
 		"no history":        {context.Background(), &facts.Repo{}, report.HistoryTooShort},
 		"shallow":           {context.Background(), &facts.Repo{History: &facts.History{Commits: enough, Shallow: true}}, report.HistoryTooShort},
 		"too large":         {context.Background(), &facts.Repo{History: &facts.History{TooLarge: true}}, report.TooLarge},
+		"git log failed":    {context.Background(), &facts.Repo{History: &facts.History{Failed: true}}, report.ToolCrashed},
+		"renames too large": {context.Background(), chains, report.TooLarge},
 		"one short":         {context.Background(), repoWith(enough[1:], "pad.py"), report.HistoryTooShort},
 		"bots do not count": {context.Background(), repoWith(bots, "pad.py"), report.HistoryTooShort},
 		"no own file":       {context.Background(), vendored, report.InsufficientInput},
@@ -244,6 +252,30 @@ func TestAbandonedMessageNamesTheAuthors(t *testing.T) {
 	res := Analyzer{}.Run(context.Background(), repoWith(commits, "old.py", "pad.py"))
 	want := []report.Finding{{RuleID: AbandonedFile, Path: "old.py",
 		Message: "none of its 2 authors committed in the year before the latest commit; the last of them stopped 400 days before it"}}
+	if !reflect.DeepEqual(res.Findings, want) {
+		t.Errorf("findings %+v", res.Findings)
+	}
+}
+
+// When pruning leaves one developer, losing them alone can leave half the files with an author or
+// more; the finding says so instead of claiming under half.
+func TestTruckFactorOneAfterPruning(t *testing.T) {
+	// a adds 60 files; 13 others add 5 each. Without a, 65 of 125 keep an author, so the greedy step
+	// also removes one of the others and stops at 60; pruning drops that one (5/60 < 0.1).
+	var lines []string
+	paths := []string{}
+	for i := range 60 {
+		lines = append(lines, fmt.Sprintf("a A:a%02d.py", i))
+		paths = append(paths, fmt.Sprintf("a%02d.py", i))
+	}
+	for d := range 13 {
+		for i := range 5 {
+			lines = append(lines, fmt.Sprintf("d%02d A:d%02d_%d.py", d, d, i))
+			paths = append(paths, fmt.Sprintf("d%02d_%d.py", d, i))
+		}
+	}
+	res := Analyzer{}.Run(context.Background(), repoWith(hist(lines...), paths...))
+	want := []report.Finding{{RuleID: TruckFactorOne, Message: "one developer is the truck factor: without them 65 of the 125 files with history keep an author, nearly all through developers who each author under 10% as many files"}}
 	if !reflect.DeepEqual(res.Findings, want) {
 		t.Errorf("findings %+v", res.Findings)
 	}

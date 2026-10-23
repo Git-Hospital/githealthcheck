@@ -5,6 +5,7 @@ package history
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -59,6 +60,8 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		return analyze.Result{Reason: report.HistoryTooShort}
 	case h.TooLarge:
 		return analyze.Result{Reason: report.TooLarge}
+	case h.Failed:
+		return analyze.Result{Reason: report.ToolCrashed}
 	}
 	var commits []facts.Commit
 	for _, c := range h.Commits {
@@ -80,6 +83,8 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	developer := Developers(commits)
 	tf, err := TruckFactor(ctx, commits, paths, developer)
 	switch {
+	case errors.Is(err, ErrTooLarge):
+		return analyze.Result{Reason: report.TooLarge}
 	case err != nil:
 		return analyze.Result{Reason: report.Timeout}
 	case tf.Files == 0:
@@ -89,11 +94,15 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	res := analyze.Result{Measured: true, Metrics: map[string]report.Measurement{}}
 	res.Metrics[TruckFactorMetric] = report.Measured(float64(tf.TF), tf.Files)
 	if tf.TF == 1 {
-		res.Findings = append(res.Findings, report.Finding{
-			RuleID: TruckFactorOne,
-			Message: fmt.Sprintf("one developer authors so much of the code that without them %d of the %d files with history keep an author",
-				tf.CoveredAfter, tf.Files),
-		})
+		msg := fmt.Sprintf("one developer authors so much of the code that without them %d of the %d files with history keep an author",
+			tf.CoveredWithoutTF, tf.Files)
+		if 2*tf.CoveredWithoutTF >= tf.Files {
+			// Pruning dropped the other developers the estimate removed: each authors under 10% as
+			// many files as this one.
+			msg = fmt.Sprintf("one developer is the truck factor: without them %d of the %d files with history keep an author, nearly all through developers who each author under 10%% as many files",
+				tf.CoveredWithoutTF, tf.Files)
+		}
+		res.Findings = append(res.Findings, report.Finding{RuleID: TruckFactorOne, Message: msg})
 	}
 
 	// When each developer last committed, and the latest commit of all. A commit whose author time

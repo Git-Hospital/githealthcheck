@@ -156,9 +156,38 @@ func TestScanHistoryMailmap(t *testing.T) {
 func TestScanHistoryShallow(t *testing.T) {
 	src := fixtureRepo(t, filepath.Join("..", "..", "testdata", "pairs", history.TruckFactorOne, "clean"))
 	dir := filepath.Join(t.TempDir(), "shallow")
-	git(t, t.TempDir(), "clone", "-q", "--depth", "10", "file://"+src, dir)
+	// Deep enough for MinCommits, so only the shallowness can make the family null.
+	git(t, t.TempDir(), "clone", "-q", "--depth", strconv.Itoa(history.MinCommits+5), "file://"+src, dir)
 	r, _, out := scanJSON(t, dir)
 	if f := historyFamily(t, r); f.Measured || f.Reason != report.HistoryTooShort || !r.Repository.Shallow {
 		t.Errorf("shallow clone: %+v shallow %v\n%s", f, r.Repository.Shallow, out)
+	}
+}
+
+// When git log fails, here on a missing parent commit, the history family is null and the others
+// still report.
+func TestScanHistoryLogFails(t *testing.T) {
+	dir := gitRepoWith(t, map[string]string{"go.mod": "module m\n", "a.go": "package m\n"})
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := strings.TrimSpace(string(out))
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package m\n\nvar X = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "commit", "-q", "-am", "two")
+	if err := os.Remove(filepath.Join(dir, ".git", "objects", parent[:2], parent[2:])); err != nil {
+		t.Fatal(err)
+	}
+	r, code, text := scanJSON(t, dir)
+	if f := historyFamily(t, r); f.Measured || f.Reason != report.ToolCrashed || code != report.ExitIncomplete {
+		t.Errorf("history %+v exit %d\n%s", f, code, text)
+	}
+	if f := testsFamily(r); f.Family != report.Tests || f.Reason == report.ToolCrashed {
+		t.Errorf("tests %+v\n%s", f, text)
+	}
+	if strings.Contains(text, parent) {
+		t.Errorf("git's error text reached the report:\n%s", text)
 	}
 }

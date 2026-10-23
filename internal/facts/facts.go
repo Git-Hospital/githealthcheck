@@ -55,7 +55,8 @@ type Commit struct {
 type History struct {
 	Commits  []Commit // newest first
 	Shallow  bool     // the clone is shallow: older commits are missing
-	TooLarge bool     // git log printed more than execx.MaxOutput; Commits is empty
+	TooLarge bool     // git log printed more than execx.MaxOutput or gitx.MaxChanges; Commits is empty
+	Failed   bool     // git log failed; Commits is empty
 }
 
 // Repo is everything known about the scanned commit.

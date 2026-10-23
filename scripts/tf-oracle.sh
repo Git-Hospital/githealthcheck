@@ -7,7 +7,9 @@
 # (git apply scripts/tf-oracle.patch in the checkout) and built with mvn package in its gittruckfactor
 # directory; java must be on PATH. The patch fixes one bug: the tool marks a rename as expanded on the
 # record that all files share, so of two files with a common rename chain the second in path order
-# loses the older history. Without the patch the two tools differ on such repositories only.
+# loses the older history. It also makes the tool follow exact renames only, as githealthcheck does
+# (git inflates whole blobs to score a similar rename). Without the patch the tools differ by a few
+# files on repositories with such renames.
 #
 # Both tools get the same snapshot and the same file list (the files githealthcheck counts), so only
 # the history and the algorithm are compared. The repository is cloned to a temporary directory first,
@@ -23,6 +25,9 @@ echo "work: $work" >&2
 trap 'if [ -z "${KEEP:-}" ]; then rm -rf "$work"; fi' EXIT
 
 git clone --quiet --no-hardlinks "$src" "$work/repo"
+# The tool's script writes these into the work tree; a tracked symlink by one of the names would
+# redirect the write anywhere. rm removes the link, not its target.
+rm -f "$work/repo/commitinfo.log" "$work/repo/log.log" "$work/repo/commitfileinfo.log" "$work/repo/filelist.log"
 GHC_TF_ORACLE="$work/repo" GHC_TF_ORACLE_OUT="$work" \
 	go -C "$here" test ./internal/analyze/history -run '^TestOracle$' -count=1 >/dev/null
 

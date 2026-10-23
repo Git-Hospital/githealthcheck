@@ -2,6 +2,7 @@ package gitx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,6 +45,7 @@ func TestLog(t *testing.T) {
 	body := strings.Repeat("a line that git can match across a rename\n", 20)
 	odd := "dir/tab\there \"quoted\" ünï\ncode.py"
 	write(t, dir, "a.py", body)
+	write(t, dir, "s.py", body)
 	write(t, dir, odd, "x\n")
 	commit(t, dir, "Ann\x01 Newline", "ann@example.com", "1700000000 +0000", "add", "-A")
 	commit(t, dir, "Ann\x01 Newline", "ann@example.com", "1700000000 +0000", "commit", "-q", "-m", "one")
@@ -51,6 +53,11 @@ func TestLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, dir, "c.py", "y\n")
+	// Only exact renames are followed: s.py moved with one line changed is a delete and an add.
+	if err := os.Remove(filepath.Join(dir, "s.py")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, dir, "t.py", body+"one more\n")
 	// The zone does not move a Unix time.
 	commit(t, dir, "Bob", "bob@example.com", "1700086400 +0200", "add", "-A")
 	commit(t, dir, "Bob", "bob@example.com", "1700086400 +0200", "commit", "-q", "-m", "two")
@@ -87,9 +94,10 @@ func TestLog(t *testing.T) {
 		{Name: "Bob", Email: "bob@example.com", Time: 1700172801},
 		{Name: "Bob", Time: 1700172800, Changes: []facts.Change{{Status: 'D', Path: "c.py"}}},
 		{Name: "Bob", Email: "bob@example.com", Time: 1700086400, Changes: []facts.Change{
-			{Status: 'R', Old: "a.py", Path: "b.py"}, {Status: 'A', Path: "c.py"}}},
+			{Status: 'R', Old: "a.py", Path: "b.py"}, {Status: 'A', Path: "c.py"},
+			{Status: 'D', Path: "s.py"}, {Status: 'A', Path: "t.py"}}},
 		{Name: "Ann\x01 Newline", Email: "ann@example.com", Time: 1700000000, Changes: []facts.Change{
-			{Status: 'A', Path: "a.py"}, {Status: 'A', Path: odd}}},
+			{Status: 'A', Path: "a.py"}, {Status: 'A', Path: odd}, {Status: 'A', Path: "s.py"}}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)
@@ -159,5 +167,19 @@ func TestLogCraftedTimes(t *testing.T) {
 	}
 	if got[3].NoTime || got[3].Time != 1700000000 {
 		t.Errorf("good commit: %+v", got[3])
+	}
+}
+
+// The number of changes is bounded apart from the byte cap: parsed, each costs several times its bytes.
+func TestParseLogTooManyChanges(t *testing.T) {
+	defer func(n int) { MaxChanges = n }(MaxChanges)
+	MaxChanges = 2
+	hash := strings.Repeat("a", 40)
+	out := "\x01" + hash + "\x00n\x00e\x001\nA\x00x\x00M\x00x\x00\x00"
+	if got, err := ParseLog([]byte(out)); err != nil || len(got[0].Changes) != 2 {
+		t.Fatalf("two changes: %+v %v", got, err)
+	}
+	if _, err := ParseLog([]byte(out + "\x01" + hash + "\x00n\x00e\x001\nD\x00x\x00\x00")); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("three changes: %v", err)
 	}
 }

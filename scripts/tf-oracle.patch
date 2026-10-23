@@ -1,6 +1,21 @@
+diff --git a/gittruckfactor/scripts/commit_log_script.sh b/gittruckfactor/scripts/commit_log_script.sh
+index caeebb3..01e10f2 100755
+--- a/gittruckfactor/scripts/commit_log_script.sh
++++ b/gittruckfactor/scripts/commit_log_script.sh
+@@ -14,7 +14,7 @@ git config diff.renameLimit 999999
+ git log --pretty=format:"%H-;-%aN-;-%aE-;-%at-;-%cN-;-%cE-;-%ct-;-%f"  > commitinfo.log
+ 
+ #Extract and format commit files information
+-git log --name-status --pretty=format:"commit	%H" --find-renames > log.log
++git log --name-status --pretty=format:"commit	%H" --find-renames=100% > log.log
+ awk -F$'\t' -f $currentpath/log.awk log.log > commitfileinfo.log
+ 
+ #Get current file list
+diff --git a/gittruckfactor/src/aserg/gtf/task/DOACalculator.java b/gittruckfactor/src/aserg/gtf/task/DOACalculator.java
+index a4c2dc9..6da593d 100644
 --- a/gittruckfactor/src/aserg/gtf/task/DOACalculator.java
 +++ b/gittruckfactor/src/aserg/gtf/task/DOACalculator.java
-@@ -122,7 +122,7 @@
+@@ -122,7 +122,7 @@ public class DOACalculator extends AbstractTask<Repository>{
  				authorshipInfo.addNewDelivery();
  				//file.addNewChange();					
  			}
@@ -9,7 +24,7 @@
  				// Considering a rename as a new delivery
  				authorshipInfo.addNewDelivery();
  				//file.addNewChange();		
-@@ -168,29 +168,25 @@
+@@ -168,29 +168,25 @@ public class DOACalculator extends AbstractTask<Repository>{
  		for (LogCommitFileInfo commitFile : logCommitFiles)
  			map.put(commitFile.getTempId().toString(), commitFile);
   		

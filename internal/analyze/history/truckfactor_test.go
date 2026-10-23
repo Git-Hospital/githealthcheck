@@ -2,6 +2,7 @@ package history
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -176,8 +177,20 @@ func TestGreedyAndPruning(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("s%02d M:f%02d.py", i, i))
 	}
 	r := tf(t, hist(lines...), paths...)
-	if r.TF != 1 || !slices.Equal(r.TFDevs, []string{"t"}) || r.CoveredAfter != 9 || r.Files != 20 {
-		t.Errorf("got TF %d %v, covered after %d of %d", r.TF, r.TFDevs, r.CoveredAfter, r.Files)
+	if r.TF != 1 || !slices.Equal(r.TFDevs, []string{"t"}) || r.CoveredAfter != 9 || r.CoveredWithoutTF != 11 || r.Files != 20 {
+		t.Errorf("got TF %d %v, covered after %d (without TF %d) of %d", r.TF, r.TFDevs, r.CoveredAfter, r.CoveredWithoutTF, r.Files)
+	}
+
+	// An author without name or email has the key "": still a developer the greedy step can pick,
+	// whatever the map order. "" authors 6 of 10 files; without them 4 keep an author.
+	lines = []string{"x A:e1.py A:e2.py A:e3.py A:e4.py A:e5.py A:e6.py", "a A:a.py", "b A:b.py", "c A:c1.py A:c2.py"}
+	commits := hist(lines...)
+	commits[len(commits)-1].Email = ""
+	paths = []string{"a.py", "b.py", "c1.py", "c2.py", "e1.py", "e2.py", "e3.py", "e4.py", "e5.py", "e6.py"}
+	for range 50 {
+		if r := tf(t, commits, paths...); r.TF != 1 || !slices.Equal(r.TFDevs, []string{""}) {
+			t.Fatalf("empty identity: TF %d %v", r.TF, r.TFDevs)
+		}
 	}
 
 	// Two developers who each author half the files: removing one leaves exactly half, which is not
@@ -229,5 +242,18 @@ func TestDevelopers(t *testing.T) {
 	}
 	if key(4) == key(5) || key(0) == key(4) || key(0) == key(6) || key(8) == key(4) {
 		t.Errorf("distinct developers merged: %q %q %q %q", key(0), key(4), key(6), key(8))
+	}
+}
+
+// Following rename chains is bounded: files that share an ancestor each read its whole history.
+func TestTruckFactorTooLarge(t *testing.T) {
+	defer func(n int) { MaxVisits = n }(MaxVisits)
+	MaxVisits = 4
+	commits := hist("a A:x.py", "a M:x.py", "a R:x.py>y.py", "a A:z.py", "a M:z.py")
+	if _, err := TruckFactor(context.Background(), commits, []string{"y.py"}, byEmail); err != nil {
+		t.Fatalf("3 entries: %v", err)
+	}
+	if _, err := TruckFactor(context.Background(), commits, []string{"y.py", "z.py"}, byEmail); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("3+2 entries over 4: %v", err)
 	}
 }

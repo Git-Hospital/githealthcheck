@@ -3,6 +3,7 @@ package history
 import (
 	"cmp"
 	"context"
+	"errors"
 	"math"
 	"slices"
 
@@ -18,6 +19,15 @@ const (
 	normalizedDOA = 0.75 // an author's DOA over the file's best DOA must exceed this
 	tfCoverage    = 0.5  // developers are removed until fewer than half of the files have an author
 )
+
+// ErrTooLarge is returned when following rename chains would read more than MaxVisits history
+// entries in all: files that share an ancestor each read its whole history, so a crafted history of
+// a few megabytes can cost files x entries.
+var ErrTooLarge = errors.New("rename history too large")
+
+// MaxVisits bounds the entries read over all files, far above real repositories: Flask reads about
+// 30 thousand.
+var MaxVisits = 50_000_000
 
 var (
 	// The tool keeps these thresholds as Java floats and compares doubles and floats against them, so
@@ -45,11 +55,14 @@ type fileAuthors struct {
 type Result struct {
 	TF    int
 	Files int // files with at least one add, modification or rename in the history
-	// CoveredAfter is the number of Files that still have an author once the developers the greedy
-	// step removed are gone, before pruning.
+	// CoveredAfter is the number of Files that still have an author once every developer the greedy
+	// step removed is gone, before pruning: the tool's coverage. It is under half of Files.
 	CoveredAfter int
-	TFDevs       []string // the TF developers after pruning, by key
-	files        []fileAuthors
+	// CoveredWithoutTF is the number of Files that still have an author once only TFDevs are gone.
+	// When pruning dropped developers, it can be half of Files or more.
+	CoveredWithoutTF int
+	TFDevs           []string // the TF developers after pruning, by key
+	files            []fileAuthors
 }
 
 // entry is one add, modification or rename of a path; id makes it unique across the history.
@@ -79,11 +92,15 @@ func TruckFactor(ctx context.Context, commits []facts.Commit, paths []string, de
 	}
 
 	res := &Result{}
+	visits := 0
 	for _, p := range paths {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		entries := history(byPath, p)
+		if visits += len(entries); visits > MaxVisits {
+			return nil, ErrTooLarge
+		}
 		if len(entries) == 0 {
 			continue // no commit produced this path: the tool leaves the file out
 		}
@@ -124,14 +141,15 @@ func TruckFactor(ctx context.Context, commits []facts.Commit, paths []string, de
 		if float32(covered(authored))/float32(res.Files) < tfCoverage {
 			break
 		}
-		top := ""
+		// "" is a developer key too (an author without name or email), so it cannot mark "none yet".
+		top, chosen := "", false
 		for d := range authored {
-			if top == "" || cmp.Or(
+			if !chosen || cmp.Or(
 				cmp.Compare(len(authored[d]), len(authored[top])),
 				cmp.Compare(changes[d], changes[top]),
 				cmp.Compare(top, d), // ties in the tool fall to HashMap order; here to the smaller key
 			) > 0 {
-				top = d
+				top, chosen = d, true
 			}
 		}
 		removed = append(removed, top)
@@ -151,6 +169,15 @@ func TruckFactor(ctx context.Context, commits []facts.Commit, paths []string, de
 		}
 	}
 	res.TF = len(res.TFDevs)
+	gone := map[string]bool{}
+	for _, d := range res.TFDevs {
+		gone[d] = true
+	}
+	for _, f := range res.files {
+		if slices.ContainsFunc(f.authors, func(a string) bool { return !gone[a] }) {
+			res.CoveredWithoutTF++
+		}
+	}
 	return res, nil
 }
 

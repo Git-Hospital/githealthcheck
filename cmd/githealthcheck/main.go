@@ -275,9 +275,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 			rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
 			r.Skipped = append(r.Skipped, skipped...)
 		}
-		if rf.History, skipped, err = readHistory(ctx, git, r.Repository.Head, r.Repository.Shallow); err != nil && ctx.Err() == nil {
-			return nil, err
-		}
+		rf.History, skipped, _ = readHistory(ctx, git, r.Repository.Head, r.Repository.Shallow) // nil only when ctx ended
 		r.Skipped = append(r.Skipped, skipped...)
 		if rf.History != nil {
 			r.Inputs.Commits = len(rf.History.Commits)
@@ -358,11 +356,16 @@ func readHistory(ctx context.Context, git *execx.Git, head string, shallow bool)
 	}
 	commits, err := gitx.Log(ctx, git, head)
 	switch {
-	case errors.Is(err, execx.ErrOutputTooLarge):
+	case errors.Is(err, execx.ErrOutputTooLarge) || errors.Is(err, gitx.ErrTooLarge):
 		h.TooLarge = true
 		return h, nil, nil
-	case err != nil:
+	case err != nil && ctx.Err() != nil:
 		return nil, nil, err
+	case err != nil:
+		// The other families still report: the history is null with the reason tool_crashed. The
+		// error text is not echoed into the report, which is shared.
+		h.Failed = true
+		return h, nil, nil
 	}
 	var skipped []report.Skip
 	src, skip := repo.ReadFile(git.Root(), ".mailmap", repo.MaxSourceBytes)
