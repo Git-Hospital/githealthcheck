@@ -11,7 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"strings"
 	"syscall"
@@ -44,16 +44,22 @@ var vendorDirs = map[string]bool{"vendor": true, "node_modules": true, "third_pa
 
 // Walk reads the tree under root. Directories named .git are not entered; a directory that contains a
 // .git entry of its own is a nested repository and is skipped.
+//
+// Everything is opened through an os.Root, which refuses any path that leaves root: a directory that
+// is swapped for a symlink after it was listed cannot lead the walk outside the repository.
 func Walk(ctx context.Context, root string) (*Tree, error) {
 	t := &Tree{Root: root}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	err = fs.WalkDir(r.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		rel, _ := filepath.Rel(root, path)
-		rel = filepath.ToSlash(rel)
 		if err != nil {
-			if path == root {
+			if rel == "." {
 				return err
 			}
 			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipUnreadable, Detail: cause(err)})
@@ -72,8 +78,8 @@ func Walk(ctx context.Context, root string) (*Tree, error) {
 			if d.Name() == ".git" {
 				return fs.SkipDir
 			}
-			if path != root {
-				if _, err := os.Lstat(filepath.Join(path, ".git")); err == nil {
+			if rel != "." {
+				if _, err := r.Lstat(path.Join(rel, ".git")); err == nil {
 					t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipNestedRepo})
 					return fs.SkipDir
 				}
@@ -88,7 +94,7 @@ func Walk(ctx context.Context, root string) (*Tree, error) {
 			t.Skipped = append(t.Skipped, report.Skip{Path: rel, Reason: report.SkipNotRegular})
 			return nil
 		}
-		src, size, reason, err := readSource(path)
+		src, size, reason, err := readSource(r, rel)
 		if reason != "" {
 			s := report.Skip{Path: rel, Reason: reason}
 			if err != nil {
@@ -112,11 +118,11 @@ func Walk(ctx context.Context, root string) (*Tree, error) {
 	return t, err
 }
 
-// readSource reads a regular file without following a symlink swapped in after the walk saw it, without
-// blocking on a FIFO swapped in, and without reading past MaxSourceBytes even if the file grows. The
-// type and size come from the open descriptor, not from the earlier lstat.
-func readSource(path string) (src []byte, size int64, reason report.SkipReason, err error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+// readSource reads a regular file without leaving the root through a symlink swapped in after the walk
+// saw it, without blocking on a FIFO swapped in (openFlags), and without reading past MaxSourceBytes
+// even if the file grows. The type and size come from the open descriptor, not from the earlier lstat.
+func readSource(r *os.Root, rel string) (src []byte, size int64, reason report.SkipReason, err error) {
+	f, err := r.OpenFile(rel, os.O_RDONLY|openFlags, 0)
 	if err != nil {
 		if errors.Is(err, syscall.ELOOP) {
 			return nil, 0, report.SkipSymlink, nil
@@ -134,6 +140,11 @@ func readSource(path string) (src []byte, size int64, reason report.SkipReason, 
 	if info.Size() > MaxSourceBytes {
 		return nil, 0, report.SkipTooLarge, nil
 	}
+	return readCapped(f)
+}
+
+// readCapped reads at most MaxSourceBytes; a file that grew past it after fstat counts as too large.
+func readCapped(f io.Reader) (src []byte, size int64, reason report.SkipReason, err error) {
 	src, err = io.ReadAll(io.LimitReader(f, MaxSourceBytes+1))
 	if err != nil {
 		return nil, 0, report.SkipUnreadable, err

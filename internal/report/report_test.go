@@ -57,6 +57,10 @@ func TestExitCode(t *testing.T) {
 	suppressed.Findings = []Finding{{RuleID: "GHC-TEST-001", Message: "m", Suppressed: true, SuppressReason: "generated"}}
 	notRun := FamilyResult{Family: History, Reason: HistoryTooShort, Score: Null(HistoryTooShort)}
 	timedOut := FamilyResult{Family: Complexity, Reason: Timeout, Score: Null(Timeout)}
+	crashedMetric := measured
+	crashedMetric.Metrics = map[string]Measurement{"coverage": Null(ToolCrashed), "testRatio": Measured(0.5, 2)}
+	expectedNullMetric := measured
+	expectedNullMetric.Metrics = map[string]Measurement{"coverage": Null(NoCoverageReport)}
 
 	cases := []struct {
 		name      string
@@ -72,6 +76,9 @@ func TestExitCode(t *testing.T) {
 		{"no family measured", []FamilyResult{notRun}, Null(InsufficientFamily), nil, ExitIncomplete},
 		{"no families at all", nil, Null(InsufficientFamily), nil, ExitIncomplete},
 		{"timeout beats findings", []FamilyResult{withFinding, timedOut}, Null(InsufficientFamily), nil, ExitIncomplete},
+		{"crashed metric in a measured family", []FamilyResult{crashedMetric}, Null(InsufficientFamily), nil, ExitIncomplete},
+		{"expected null metric", []FamilyResult{expectedNullMetric}, Null(InsufficientFamily), nil, ExitClean},
+		{"timed-out overall", []FamilyResult{measured}, Null(Timeout), nil, ExitIncomplete},
 		{"fail-under with null overall", []FamilyResult{measured}, Null(NotCalibrated), new(7.0), ExitIncomplete},
 		{"below fail-under", []FamilyResult{measured}, Measured(6.9, 2), new(7.0), ExitFindings},
 		{"at fail-under", []FamilyResult{measured}, Measured(7, 2), new(7.0), ExitClean},

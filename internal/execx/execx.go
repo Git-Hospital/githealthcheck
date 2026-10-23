@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -22,16 +23,32 @@ var envAllowed = map[string]bool{
 	"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "TMPDIR": true, "LANG": true, "TZ": true,
 }
 
-// Env returns the allowed variables from environ, plus LC_* locale settings.
+// Env returns the allowed variables from environ, plus LC_* locale settings. PATH keeps only absolute
+// directories: commands run inside the scanned repository, and an empty or relative PATH entry would
+// make a child find a program planted there.
 func Env(environ []string) []string {
 	var env []string
 	for _, kv := range environ {
-		key, _, ok := strings.Cut(kv, "=")
-		if ok && (envAllowed[key] || strings.HasPrefix(key, "LC_")) {
+		key, val, ok := strings.Cut(kv, "=")
+		switch {
+		case !ok:
+		case key == "PATH":
+			env = append(env, "PATH="+absolutePath(val))
+		case envAllowed[key] || strings.HasPrefix(key, "LC_"):
 			env = append(env, kv)
 		}
 	}
 	return env
+}
+
+func absolutePath(path string) string {
+	var keep []string
+	for _, dir := range filepath.SplitList(path) {
+		if filepath.IsAbs(dir) {
+			keep = append(keep, dir)
+		}
+	}
+	return strings.Join(keep, string(filepath.ListSeparator))
 }
 
 // MaxOutput caps a command's stdout. A repository can make git print without end (a mailmap that

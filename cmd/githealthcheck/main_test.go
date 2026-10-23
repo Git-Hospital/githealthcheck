@@ -2,13 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/Git-Hospital/githealthcheck/internal/execx"
+	"github.com/Git-Hospital/githealthcheck/internal/repo"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
@@ -60,6 +66,9 @@ func TestScanJSON(t *testing.T) {
 	if strings.Contains(stdout.String(), dir) {
 		t.Error("report contains the absolute repository path")
 	}
+	if !r.Inputs.WalkComplete || !strings.Contains(stdout.String(), `"skipped": []`) {
+		t.Errorf("walkComplete %v; skipped must encode as [] not null:\n%s", r.Inputs.WalkComplete, stdout.String())
+	}
 }
 
 func TestScanWritesOnlyWhenAsked(t *testing.T) {
@@ -89,6 +98,10 @@ func TestErrors(t *testing.T) {
 		{"scan", "--format", "yaml", dir},
 		{"scan", "--fail-under", "11", dir},
 		{"scan", "--fail-under", "x", dir},
+		{"scan", "--fail-under", "NaN", dir},
+		{"scan", "--fail-under", "5abc", dir},
+		{"scan", "--fail-under", "7,5", dir},
+		{"scan", "--fail-under", "Inf", dir},
 	}
 	for _, args := range cases {
 		var stdout, stderr bytes.Buffer
@@ -105,27 +118,139 @@ func TestFailUnderWithNullOverallIsIncomplete(t *testing.T) {
 	}
 }
 
-func TestScanTimeoutStillReports(t *testing.T) {
+// The deadline expires during the walk, after the repository is open: the report must still come out,
+// marked partial, with every family null(timeout) and exit 3.
+func TestScanWalkTimeoutStillReports(t *testing.T) {
 	dir := gitRepo(t)
-	var stdout, stderr bytes.Buffer
-	// Long enough for git to open the repository, short enough to expire during the walk on most
-	// machines; either way the run must not claim to be clean.
-	code := run([]string{"scan", "--format", "json", "--timeout", "1ns", dir}, &stdout, &stderr)
-	if code != report.ExitIncomplete {
-		t.Fatalf("exit %d, want %d; stderr %s", code, report.ExitIncomplete, stderr.String())
+	t.Cleanup(func() { walk = repo.Walk })
+	walk = func(ctx context.Context, root string) (*repo.Tree, error) {
+		tree, _ := repo.Walk(context.Background(), root)
+		<-ctx.Done()
+		return tree, ctx.Err()
 	}
-	if stdout.Len() > 0 {
+	for _, format := range []string{"json", "text"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{"scan", "--format", format, "--timeout", "300ms", dir}, &stdout, &stderr)
+		if code != report.ExitIncomplete {
+			t.Fatalf("%s: exit %d, want %d; stderr %s", format, code, report.ExitIncomplete, stderr.String())
+		}
+		if format == "text" {
+			if !strings.Contains(stdout.String(), "partial") {
+				t.Errorf("text report does not say the counts are partial:\n%s", stdout.String())
+			}
+			continue
+		}
 		var r report.Report
 		if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
-			t.Fatal(err)
+			t.Fatalf("no JSON report on a walk timeout: %v\n%s", err, stdout.String())
+		}
+		if r.Inputs.WalkComplete {
+			t.Error("walkComplete is true after a walk timeout")
 		}
 		for _, f := range r.Families {
 			if f.Reason != report.Timeout {
 				t.Errorf("family %s reason %q, want timeout", f.Family, f.Reason)
 			}
 		}
-	} else if !strings.Contains(stderr.String(), "timed out") {
-		t.Errorf("no report and no timeout message: %s", stderr.String())
+	}
+}
+
+// When the user's --timeout runs out before the repository is open there is no report, and the run
+// is incomplete; a repository that cannot be opened at all is an error.
+func TestScanOpenTimeoutAndRefusal(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan", "--timeout", "1ns", gitRepo(t)}, &stdout, &stderr); code != report.ExitIncomplete {
+		t.Errorf("--timeout 1ns: exit %d, want %d", code, report.ExitIncomplete)
+	}
+	dir := gitRepo(t)
+	cfg := filepath.Join(dir, ".git", "config")
+	os.Remove(cfg)
+	if err := syscall.Mkfifo(cfg, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stderr.Reset()
+	start := time.Now()
+	if code := run([]string{"scan", dir}, &stdout, &stderr); code != report.ExitError || time.Since(start) > 10*time.Second {
+		t.Errorf("FIFO config: exit %d after %v, want %d at once; stderr %s", code, time.Since(start), report.ExitError, stderr.String())
+	}
+
+	// A config include that names a FIFO outside the repository passes the .git check; git blocks
+	// on it and the per-command timeout fires while --timeout has plenty left. That is an error.
+	dir = gitRepo(t)
+	fifo := filepath.Join(t.TempDir(), "fifo")
+	syscall.Mkfifo(fifo, 0o644)
+	cfg = filepath.Join(dir, ".git", "config")
+	f, _ := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString("[include]\n\tpath = " + fifo + "\n")
+	f.Close()
+	t.Cleanup(func(d time.Duration) func() { return func() { execx.QuickTimeout = d } }(execx.QuickTimeout))
+	execx.QuickTimeout = 500 * time.Millisecond
+	stderr.Reset()
+	if code := run([]string{"scan", "--timeout", "1m", dir}, &stdout, &stderr); code != report.ExitError {
+		t.Errorf("include FIFO: exit %d, want %d; stderr %s", code, report.ExitError, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "timed out while opening") {
+		t.Errorf("include FIFO: message does not say what happened: %s", stderr.String())
+	}
+}
+
+func TestScanUnbornHead(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan", "--format", "json", dir}, &stdout, &stderr); code != report.ExitIncomplete {
+		t.Fatalf("exit %d, want %d; stderr %s", code, report.ExitIncomplete, stderr.String())
+	}
+	if strings.Contains(stdout.String(), `"head"`) {
+		t.Errorf("unborn branch reported a head:\n%s", stdout.String())
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
+
+func TestScanReportWriteFailureIsError(t *testing.T) {
+	var stderr bytes.Buffer
+	if code := run([]string{"scan", gitRepo(t)}, failingWriter{}, &stderr); code != report.ExitError {
+		t.Errorf("exit %d, want %d when the report cannot be written", code, report.ExitError)
+	}
+}
+
+// -o refuses a symlink or FIFO planted at the output path instead of writing through it or blocking.
+func TestScanOutputDoesNotFollowSymlink(t *testing.T) {
+	dir := gitRepo(t)
+	outDir := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim")
+	os.WriteFile(victim, []byte("keep"), 0o600)
+	link := filepath.Join(outDir, "report.json")
+	os.Symlink(victim, link)
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan", "--format", "json", "-o", link, dir}, &stdout, &stderr); code != report.ExitError {
+		t.Errorf("-o onto a symlink: exit %d, want %d", code, report.ExitError)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Errorf("-o wrote through a symlink into its target: %q", b)
+	}
+
+	fifo := filepath.Join(outDir, "fifo.json")
+	syscall.Mkfifo(fifo, 0o644)
+	done := make(chan int, 1)
+	go func() { done <- run([]string{"scan", "-o", fifo, dir}, &stdout, &stderr) }()
+	select {
+	case code := <-done:
+		if code != report.ExitError {
+			t.Errorf("-o to a FIFO: exit %d, want %d", code, report.ExitError)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("-o blocked on a FIFO")
+	}
+	if entries, _ := os.ReadDir(outDir); len(entries) != 2 {
+		t.Errorf("temporary files left behind: %v", entries)
 	}
 }
 

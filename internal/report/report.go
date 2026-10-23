@@ -159,8 +159,11 @@ type Overall struct {
 }
 
 type Inputs struct {
-	FilesAnalysed int   `json:"filesAnalysed"`
-	FilesTotal    int   `json:"filesTotal"`
+	FilesAnalysed int `json:"filesAnalysed"`
+	FilesTotal    int `json:"filesTotal"`
+	// WalkComplete is false when the run timed out during the walk: filesTotal and languages then
+	// count only the files read before the deadline.
+	WalkComplete  bool  `json:"walkComplete"`
 	Commits       int   `json:"commits"`
 	ElapsedMillis int64 `json:"elapsedMillis"`
 }

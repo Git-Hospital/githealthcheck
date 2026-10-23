@@ -9,9 +9,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,8 +77,10 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	}
 	var failUnder *float64
 	if *failUnderText != "" {
-		var v float64
-		if _, err := fmt.Sscan(*failUnderText, &v); err != nil || v < 0 || v > 10 {
+		// ParseFloat takes the whole string, so "5abc" and "7,5" are errors; NaN would compare false
+		// against every score and pass any gate.
+		v, err := strconv.ParseFloat(*failUnderText, 64)
+		if err != nil || math.IsNaN(v) || v < 0 || v > 10 {
 			fmt.Fprintf(stderr, "--fail-under must be a number from 0 to 10, got %q\n", *failUnderText)
 			return report.ExitError
 		}
@@ -89,7 +94,9 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	r, err := buildReport(ctx, fs.Arg(0))
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
-		if errors.Is(err, context.DeadlineExceeded) {
+		// Incomplete only when the user's --timeout ran out. A per-command timeout inside (a config
+		// that blocks) means the repository could not be opened: an error.
+		if ctx.Err() != nil {
 			return report.ExitIncomplete
 		}
 		return report.ExitError
@@ -108,15 +115,46 @@ func scan(args []string, stdout, stderr io.Writer) int {
 		return report.ExitError
 	}
 	if *out != "" {
-		if err := os.WriteFile(*out, body, 0o644); err != nil {
-			fmt.Fprintln(stderr, "githealthcheck:", err)
-			return report.ExitError
-		}
+		err = writeFile(*out, body)
 	} else {
-		stdout.Write(body)
+		_, err = stdout.Write(body)
+	}
+	if err != nil {
+		// A report that was not written must not let a pipeline pass.
+		fmt.Fprintln(stderr, "githealthcheck: writing the report:", err)
+		return report.ExitError
 	}
 	return report.ExitCode(r, failUnder)
 }
+
+// writeFile refuses a symlink, FIFO or device at path, which would be written through or block, then
+// writes the report next to path and renames it into place, so a failed write leaves no half-written
+// report.
+func writeFile(path string, body []byte) error {
+	if fi, err := os.Lstat(path); err == nil && !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s exists and is not a regular file", path)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(body); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// walk is repo.Walk; tests replace it to time out after the repository is open.
+var walk = repo.Walk
 
 func buildReport(ctx context.Context, path string) (*report.Report, error) {
 	git, err := execx.NewGit(ctx, path)
@@ -131,22 +169,34 @@ func buildReport(ctx context.Context, path string) (*report.Report, error) {
 		Repository: report.Repo{Path: filepath.Base(git.Root())},
 		Skipped:    []report.Skip{},
 	}
-	if head, err := git.Run(ctx, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
+	// --verify --quiet exits 1 with no output only when HEAD does not resolve: an unborn branch. Any
+	// other failure is an error, not an absent head.
+	head, err := git.Run(ctx, "rev-parse", "--verify", "--quiet", "HEAD")
+	var exitErr *exec.ExitError
+	switch {
+	case err == nil:
 		r.Repository.Head = strings.TrimSpace(string(head))
+	case errors.As(err, &exitErr) && exitErr.ExitCode() == 1 && ctx.Err() == nil:
+	default:
+		return nil, err
 	}
-	if shallow, err := git.Run(ctx, "rev-parse", "--is-shallow-repository"); err == nil {
-		r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
+	shallow, err := git.Run(ctx, "rev-parse", "--is-shallow-repository")
+	if err != nil {
+		return nil, err
 	}
+	r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
 
-	// A timed-out walk still produces a report: what was read is listed, every family is null with
-	// reason timeout, and the run exits 3.
+	// A timed-out walk still produces a report: what was read is listed, walkComplete is false, every
+	// family is null with reason timeout, and the run exits 3.
 	familyReason := report.NotImplemented
-	tree, err := repo.Walk(ctx, git.Root())
+	tree, err := walk(ctx, git.Root())
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		familyReason = report.Timeout
 	case err != nil:
 		return nil, err
+	default:
+		r.Inputs.WalkComplete = true
 	}
 	r.Skipped = append(r.Skipped, tree.Skipped...)
 	r.Languages = languages(tree)
@@ -201,7 +251,11 @@ func text(r *report.Report) string {
 	if r.Repository.Shallow {
 		b.WriteString(" (shallow clone)")
 	}
-	b.WriteString("\n\nLanguages\n")
+	b.WriteString("\n\nLanguages")
+	if !r.Inputs.WalkComplete {
+		b.WriteString(" (partial: the run timed out during the walk)")
+	}
+	b.WriteString("\n")
 	for _, l := range r.Languages {
 		status := "not analysed"
 		if l.Analysed {

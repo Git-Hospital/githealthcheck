@@ -12,9 +12,19 @@ const (
 // given. Errors (ExitError) are decided by the caller, which never gets a report in that case.
 func ExitCode(r *Report, failUnder *float64) int {
 	measured := 0
+	if incomplete[r.Overall.Score.Reason] {
+		return ExitIncomplete
+	}
 	for _, f := range r.Families {
 		if incomplete[f.Reason] || incomplete[f.Score.Reason] {
 			return ExitIncomplete
+		}
+		// A family can be measured while one of its metrics crashed or timed out; the run is then
+		// still incomplete.
+		for _, m := range f.Metrics {
+			if incomplete[m.Reason] {
+				return ExitIncomplete
+			}
 		}
 		if f.Measured {
 			measured++

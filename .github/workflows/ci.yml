@@ -37,5 +37,11 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
+      - name: build for every release OS
+        run: for os in linux darwin windows; do GOOS=$os go build ./... || exit 1; done
       - run: go test -race ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      # Needs root to give a test repository another owner; last, because it writes the build cache as
+      # root.
+      - name: safe.directory test as root
+        run: sudo -E env "PATH=$PATH" go test -count=1 -run TestSafeDirectoryForOtherOwner -v ./internal/execx/

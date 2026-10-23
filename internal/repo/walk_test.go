@@ -160,14 +160,23 @@ func TestWalkSpecialAndUnreadable(t *testing.T) {
 // the two.
 func TestReadSourceSwappedFiles(t *testing.T) {
 	dir := t.TempDir()
-	target := filepath.Join(dir, "target.go")
+	outside := t.TempDir()
+	write(t, outside, "secret.go", "package secret\n")
 	write(t, dir, "target.go", "package target\n")
-	link := filepath.Join(dir, "link.go")
-	if err := os.Symlink(target, link); err != nil {
+	r, err := os.OpenRoot(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, reason, _ := readSource(link); reason != report.SkipSymlink {
-		t.Errorf("symlink read with reason %q, want %q", reason, report.SkipSymlink)
+	defer r.Close()
+
+	// A file, or a directory on the way to it, swapped for a symlink that leaves the root.
+	os.Symlink(filepath.Join(outside, "secret.go"), filepath.Join(dir, "link.go"))
+	os.Symlink(outside, filepath.Join(dir, "d"))
+	for _, rel := range []string{"link.go", "d/secret.go"} {
+		src, _, reason, _ := readSource(r, rel)
+		if reason != report.SkipUnreadable || src != nil {
+			t.Errorf("%s: read %q with reason %q, want it refused", rel, src, reason)
+		}
 	}
 
 	fifo := filepath.Join(dir, "fifo.go")
@@ -175,7 +184,7 @@ func TestReadSourceSwappedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan report.SkipReason, 1)
-	go func() { _, _, r, _ := readSource(fifo); done <- r }()
+	go func() { _, _, r, _ := readSource(r, "fifo.go"); done <- r }()
 	select {
 	case r := <-done:
 		if r != report.SkipNotRegular {
@@ -185,12 +194,23 @@ func TestReadSourceSwappedFiles(t *testing.T) {
 		t.Fatal("readSource blocked on a FIFO")
 	}
 
-	big := filepath.Join(dir, "big.go")
 	write(t, dir, "big.go", strings.Repeat("x", MaxSourceBytes+1))
-	if _, _, reason, _ := readSource(big); reason != report.SkipTooLarge {
+	if _, _, reason, _ := readSource(r, "big.go"); reason != report.SkipTooLarge {
 		t.Errorf("big file read with reason %q", reason)
 	}
-	if src, size, reason, err := readSource(target); reason != "" || err != nil || size != 15 || string(src) != "package target\n" {
+	if src, size, reason, err := readSource(r, "target.go"); reason != "" || err != nil || size != 15 || string(src) != "package target\n" {
 		t.Errorf("regular file: %q %d %q %v", src, size, reason, err)
+	}
+}
+
+// A file that was small at fstat and then grew is cut off, not read whole.
+func TestReadCappedGrowth(t *testing.T) {
+	_, _, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes+1)))
+	if reason != report.SkipTooLarge {
+		t.Errorf("reason %q, want %q", reason, report.SkipTooLarge)
+	}
+	src, size, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes)))
+	if reason != "" || size != MaxSourceBytes || len(src) != MaxSourceBytes {
+		t.Errorf("file at the limit: size %d reason %q", size, reason)
 	}
 }

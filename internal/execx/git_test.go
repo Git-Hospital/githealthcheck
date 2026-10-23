@@ -2,17 +2,20 @@ package execx
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // Each attack test is a control/treatment pair. The control proves the attack works with plain git
 // on this machine; without it a passing treatment could mean the attack never worked at all. Where a
-// defence has two layers, each layer is also tested alone.
+// defence has several layers that each stop the attack, each layer is also tested alone.
 
 // plainGit runs git without any hardening, but with the user's own config out of the way.
 func plainGit(t *testing.T, dir string, args ...string) (string, error) {
@@ -78,11 +81,35 @@ func newGit(t *testing.T, dir string) *Git {
 	return g
 }
 
-// raw runs git with the hardened global options but bypasses gitArgs' argument policy, to prove that
-// the -c overrides hold even when a flag that re-enables an attack slips through.
+// prefix is gitPrefix without the -c options whose key is in drop, to test one layer of a defence
+// with the other layers removed.
+func prefix(g *Git, drop ...string) []string {
+	var p []string
+	all := gitPrefix(g.root)
+	for i := 0; i < len(all); i++ {
+		if all[i] == "-c" && slices.ContainsFunc(drop, func(k string) bool { return strings.HasPrefix(all[i+1], k+"=") }) {
+			i++
+			continue
+		}
+		p = append(p, all[i])
+	}
+	return p
+}
+
+// raw runs git with the hardened global options but none of gitArgs' policy or inserted flags, to
+// prove that the -c overrides hold even when a flag that re-enables an attack slips through.
 func raw(t *testing.T, g *Git, args ...string) {
 	t.Helper()
 	_, _ = g.runner.Run(context.Background(), "git", append(gitPrefix(g.root), args...)...)
+}
+
+// rawLog runs log with the hardened prefix minus drop and the flags gitArgs inserts after log, but
+// without the argument allowlist (so -p can be used).
+func rawLog(g *Git, drop []string, args ...string) (string, error) {
+	full := append(prefix(g, drop...), "log")
+	full = append(full, gitSubcommands["log"]...)
+	out, err := g.runner.Run(context.Background(), "git", append(full, args...)...)
+	return string(out), err
 }
 
 func control(t *testing.T, marker string, what string) {
@@ -100,6 +127,8 @@ func treatment(t *testing.T, marker string, what string) {
 	}
 }
 
+const hashFormat = "--format=format:%H"
+
 func TestFSMonitorDoesNotRun(t *testing.T) {
 	dir := newRepo(t)
 	script, marker := markerScript(t, "")
@@ -109,7 +138,7 @@ func TestFSMonitorDoesNotRun(t *testing.T) {
 	control(t, marker, "plain git status")
 
 	g := newGit(t, dir)
-	if _, err := g.Run(context.Background(), "log", "--format=%H", "--numstat"); err != nil {
+	if _, err := g.Run(context.Background(), "log", hashFormat, "--numstat"); err != nil {
 		t.Fatal(err)
 	}
 	raw(t, g, "status")
@@ -127,11 +156,13 @@ func TestTextconvDoesNotRun(t *testing.T) {
 	_, _ = plainGit(t, dir, "log", "-p")
 	control(t, marker, "plain git log -p")
 
+	// -p is outside the allowlist; --no-textconv must hold on its own even with it.
 	g := newGit(t, dir)
-	for _, args := range [][]string{{"--format=%H", "-p"}, {"--format=%H", "--numstat"}} {
-		if _, err := g.Run(context.Background(), "log", args...); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := g.Run(context.Background(), "log", hashFormat, "--numstat"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rawLog(g, nil, hashFormat, "-p"); err != nil {
+		t.Fatal(err)
 	}
 	treatment(t, marker, "hardened git log -p / --numstat")
 }
@@ -144,20 +175,22 @@ func TestExternalDiffDoesNotRun(t *testing.T) {
 	_, _ = plainGit(t, dir, "log", "-p", "--ext-diff")
 	control(t, marker, "plain git log -p --ext-diff")
 
-	// --ext-diff itself is refused by gitArgs; raw passes it anyway, so this proves that
-	// -c diff.external= holds on its own.
 	g := newGit(t, dir)
-	raw(t, g, "log", "--format=%H", "-p", "--ext-diff")
-	treatment(t, marker, "hardened git log -p --ext-diff")
+	// -c diff.external= alone: --ext-diff after the hardened prefix, without --no-ext-diff.
+	raw(t, g, "log", hashFormat, "-p", "--ext-diff")
+	treatment(t, marker, "-c diff.external= alone")
+	// --no-ext-diff alone: the repository's diff.external is left in place.
+	_, _ = rawLog(g, []string{"diff.external"}, hashFormat, "-p")
+	treatment(t, marker, "--no-ext-diff alone")
 }
 
-// signHead rewrites HEAD as a commit with a (fake) PGP signature header, so verifying it calls
-// gpg.program.
-func signHead(t *testing.T, dir string) {
+// signHead rewrites HEAD as a commit with a fake signature in the given armour, so verifying it calls
+// the matching gpg.*.program.
+func signHead(t *testing.T, dir, armour string) {
 	t.Helper()
 	rawCommit := mustGit(t, dir, "cat-file", "commit", "HEAD")
 	head, msg, _ := strings.Cut(rawCommit, "\n\n")
-	sig := "gpgsig -----BEGIN PGP SIGNATURE-----\n \n iQEzBAABCAAdFiEE\n -----END PGP SIGNATURE-----"
+	sig := "gpgsig -----BEGIN " + armour + "-----\n \n iQEzBAABCAAdFiEE\n -----END " + armour + "-----"
 	obj := head + "\n" + sig + "\n\n" + msg + "\n"
 	cmd := exec.Command("git", "hash-object", "-t", "commit", "-w", "--stdin")
 	cmd.Dir = dir
@@ -169,28 +202,49 @@ func signHead(t *testing.T, dir string) {
 	mustGit(t, dir, "update-ref", "HEAD", strings.TrimSpace(string(out)))
 }
 
-func signedRepo(t *testing.T) (dir, marker string) {
+// signers are the signature formats git verifies, each with the program setting it calls.
+var signers = []struct{ name, armour, program string }{
+	{"openpgp", "PGP SIGNATURE", "gpg.program"},
+	{"ssh", "SSH SIGNATURE", "gpg.ssh.program"},
+	{"x509", "SIGNED MESSAGE", "gpg.x509.program"},
+}
+
+func signedRepo(t *testing.T, armour, program string) (dir, marker string) {
 	t.Helper()
 	dir = newRepo(t)
-	signHead(t, dir)
+	signHead(t, dir, armour)
 	script, marker := markerScript(t, "exit 1")
-	mustGit(t, dir, "config", "gpg.program", script)
+	mustGit(t, dir, "config", program, script)
+	// ssh verification needs an allowed-signers file before it calls the program.
+	allowed := filepath.Join(t.TempDir(), "allowed")
+	os.WriteFile(allowed, []byte("a@example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA\n"), 0o644)
+	mustGit(t, dir, "config", "gpg.ssh.allowedSignersFile", allowed)
 	return dir, marker
 }
 
 func TestShowSignatureProgramDoesNotRun(t *testing.T) {
-	dir, marker := signedRepo(t)
-	mustGit(t, dir, "config", "log.showSignature", "true")
+	for _, s := range signers {
+		t.Run(s.name, func(t *testing.T) {
+			dir, marker := signedRepo(t, s.armour, s.program)
+			mustGit(t, dir, "config", "log.showSignature", "true")
 
-	_, _ = plainGit(t, dir, "log")
-	control(t, marker, "plain git log with log.showSignature")
+			_, _ = plainGit(t, dir, "log")
+			control(t, marker, "plain git log with log.showSignature")
 
-	g := newGit(t, dir)
-	if _, err := g.Run(context.Background(), "log", "--format=%H"); err != nil {
-		t.Fatal(err)
+			g := newGit(t, dir)
+			if _, err := g.Run(context.Background(), "log", hashFormat); err != nil {
+				t.Fatal(err)
+			}
+			treatment(t, marker, "hardened git log")
+			// Each layer alone.
+			raw(t, g, "log", "--show-signature")
+			treatment(t, marker, "-c "+s.program+" alone (with --show-signature)")
+			_, _ = g.runner.Run(context.Background(), "git", append(prefix(g, s.program), "log", hashFormat)...)
+			treatment(t, marker, "-c log.showSignature=false alone")
+			_, _ = rawLog(g, []string{s.program, "log.showSignature"}, hashFormat)
+			treatment(t, marker, "--no-show-signature alone")
+		})
 	}
-	raw(t, g, "log", "--show-signature")
-	treatment(t, marker, "hardened git log (and --show-signature under the same -c options)")
 }
 
 func TestPrettyFormatSignatureDoesNotRun(t *testing.T) {
@@ -198,25 +252,28 @@ func TestPrettyFormatSignatureDoesNotRun(t *testing.T) {
 		"format.pretty":   {{"format.pretty", "format:%H %G?"}},
 		"pretty alias":    {{"pretty.x", "format:%H %GS"}, {"format.pretty", "x"}},
 		"format with %GK": {{"format.pretty", "format:%GK"}},
+		"modifier %+G?":   {{"format.pretty", "format:%+G?"}},
 	} {
-		t.Run(name, func(t *testing.T) {
-			dir, marker := signedRepo(t)
-			for _, kv := range cfg {
-				mustGit(t, dir, "config", kv[0], kv[1])
-			}
+		for _, s := range signers {
+			t.Run(name+"/"+s.name, func(t *testing.T) {
+				dir, marker := signedRepo(t, s.armour, s.program)
+				for _, kv := range cfg {
+					mustGit(t, dir, "config", kv[0], kv[1])
+				}
 
-			_, _ = plainGit(t, dir, "log")
-			control(t, marker, "plain git log with "+name)
+				_, _ = plainGit(t, dir, "log")
+				control(t, marker, "plain git log with "+name)
 
-			g := newGit(t, dir)
-			if _, err := g.Run(context.Background(), "log", "--format=%H", "--numstat"); err != nil {
-				t.Fatal(err)
-			}
-			// Without --format, log uses the repository's format.pretty; gpg.program=false must
-			// still stop the verification.
-			raw(t, g, "log")
-			treatment(t, marker, "hardened git log with "+name)
-		})
+				g := newGit(t, dir)
+				if _, err := g.Run(context.Background(), "log", hashFormat, "--numstat"); err != nil {
+					t.Fatal(err)
+				}
+				// Without --format, log uses the repository's format.pretty; the program override
+				// must still stop the verification.
+				raw(t, g, "log")
+				treatment(t, marker, "hardened git log with "+name)
+			})
+		}
 	}
 }
 
@@ -249,20 +306,160 @@ func TestLazyFetchDoesNotRun(t *testing.T) {
 	control(t, marker, "plain git log --numstat in a partial clone")
 
 	g := newGit(t, dir)
-	_, _ = g.Run(context.Background(), "log", "--format=%H", "--numstat")
+	_, _ = g.Run(context.Background(), "log", hashFormat, "--numstat")
 	treatment(t, marker, "hardened git log --numstat")
 
 	// Each guard alone, as on a git that ignores the other one.
 	base := g.runner.Env
 	g.runner.Env = without(base, "GIT_NO_LAZY_FETCH")
-	args := slices.DeleteFunc(gitArgs(g.root, "log", []string{"--format=%H", "--numstat"}),
+	args := slices.DeleteFunc(gitArgs(g.root, "log", []string{hashFormat, "--numstat"}),
 		func(a string) bool { return a == "--no-lazy-fetch" })
 	_, _ = g.runner.Run(context.Background(), "git", args...)
 	treatment(t, marker, "GIT_ALLOW_PROTOCOL=none alone")
 
 	g.runner.Env = without(without(base, "GIT_NO_LAZY_FETCH"), "GIT_ALLOW_PROTOCOL")
-	_, _ = g.Run(context.Background(), "log", "--format=%H", "--numstat")
+	_, _ = g.Run(context.Background(), "log", hashFormat, "--numstat")
 	treatment(t, marker, "--no-lazy-fetch alone")
+}
+
+// stalls reports whether git, run as plain git with args, blocks for 2 seconds: the control for a
+// planted FIFO.
+func stalls(t *testing.T, dir string, args ...string) bool {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(Env(os.Environ()), "HOME="+t.TempDir(), "GIT_CONFIG_NOSYSTEM=1")
+	_ = cmd.Run()
+	return ctx.Err() != nil
+}
+
+func mkfifo(t *testing.T, path string) {
+	t.Helper()
+	if err := syscall.Mkfifo(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Files that git reads during log, pointed at a FIFO that never gets a writer. Plain git blocks on
+// each; the hardened log must finish. (Pointed at /dev/zero instead, the same files make git allocate
+// gigabytes per second, which is why they are not used as controls here.)
+func TestLogDoesNotBlockOnPlantedFIFOs(t *testing.T) {
+	cases := map[string]struct {
+		plant func(t *testing.T, dir, fifo string)
+		args  []string
+	}{
+		"diff.orderFile": {
+			func(t *testing.T, dir, fifo string) { mustGit(t, dir, "config", "diff.orderFile", fifo) },
+			[]string{"log", "--numstat"},
+		},
+		"core.attributesFile": {
+			func(t *testing.T, dir, fifo string) { mustGit(t, dir, "config", "core.attributesFile", fifo) },
+			[]string{"log", "-p"},
+		},
+		".gitattributes in the work tree": {
+			func(t *testing.T, dir, _ string) { mkfifo(t, filepath.Join(dir, ".gitattributes")) },
+			[]string{"log", "-p"},
+		},
+		".mailmap in the work tree": {
+			func(t *testing.T, dir, _ string) { mkfifo(t, filepath.Join(dir, ".mailmap")) },
+			[]string{"log"},
+		},
+		"mailmap.file": {
+			func(t *testing.T, dir, fifo string) { mustGit(t, dir, "config", "mailmap.file", fifo) },
+			[]string{"log"},
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := newRepo(t)
+			fifo := filepath.Join(t.TempDir(), "fifo")
+			mkfifo(t, fifo)
+			c.plant(t, dir, fifo)
+			if !stalls(t, dir, c.args...) {
+				t.Fatalf("control failed: plain git %v did not block, so this test proves nothing", c.args)
+			}
+
+			g := newGit(t, dir)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			for _, args := range [][]string{{hashFormat + " %an %ae", "--numstat"}, {hashFormat, "--name-status", "-M"}} {
+				if _, err := g.Run(ctx, "log", args...); err != nil {
+					t.Fatalf("hardened git log %v: %v", args, err)
+				}
+			}
+
+			// Plain git opens the mailmap even for %an. Three layers each keep it closed.
+			if !strings.Contains(name, "mailmap") {
+				return
+			}
+			noFlag := slices.DeleteFunc(slices.Clone(gitSubcommands["log"]), func(a string) bool { return a == "--no-mailmap" })
+			layers := map[string][]string{
+				"--no-mailmap alone":           append(append(prefix(g, "log.mailmap", "mailmap.file"), "log"), gitSubcommands["log"]...),
+				"log.mailmap=false alone":      append(append(prefix(g, "mailmap.file"), "log"), noFlag...),
+				"mailmap.file=/dev/null alone": append(append(prefix(g, "log.mailmap"), "log"), noFlag...),
+			}
+			for layer, args := range layers {
+				if layer == "mailmap.file=/dev/null alone" && name != "mailmap.file" {
+					continue // it only replaces the configured file, not the work tree's .mailmap
+				}
+				if _, err := g.runner.Run(ctx, "git", append(args, hashFormat)...); err != nil {
+					t.Errorf("%s: %v", layer, err)
+				}
+			}
+		})
+	}
+}
+
+func TestHistoryIsNotRewrittenOrRemapped(t *testing.T) {
+	dir := newRepo(t)
+	// info/grafts cuts HEAD off from its parent; a replace ref swaps HEAD for its parent; .mailmap
+	// renames the author.
+	head := mustGit(t, dir, "rev-parse", "HEAD")
+	parent := mustGit(t, dir, "rev-parse", "HEAD~1")
+	os.WriteFile(filepath.Join(dir, ".git", "info", "grafts"), []byte(head+"\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, ".mailmap"), []byte("Mapped <m@example.com> <a@example.com>\n"), 0o644)
+	if out := mustGit(t, dir, "-c", "advice.graftFileDeprecated=false", "log", "--format=%H %aN"); strings.Count(out, "\n") != 0 || !strings.Contains(out, "Mapped") {
+		t.Fatalf("control failed: plain git log shows %q, want one mapped commit", out)
+	}
+	os.Remove(filepath.Join(dir, ".git", "info", "grafts"))
+	mustGit(t, dir, "replace", head, parent)
+	if out := mustGit(t, dir, "log", "-1", "--format=%s"); out != "first" {
+		t.Fatalf("control failed: replace ref not in effect, HEAD subject %q", out)
+	}
+	os.WriteFile(filepath.Join(dir, ".git", "info", "grafts"), []byte(head+"\n"), 0o644)
+
+	g := newGit(t, dir)
+	out, err := g.Run(context.Background(), "log", "--format=format:%H %s %an")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := head + " second a\n" + parent + " first a"
+	if string(out) != want {
+		t.Errorf("hardened log = %q, want %q", out, want)
+	}
+}
+
+// Above core.bigFileThreshold git counts a blob as binary without inflating it; a repository's own
+// threshold of 512m would let a 1 MB .git inflate to gigabytes.
+func TestBigBlobsAreNotInflated(t *testing.T) {
+	dir := newRepo(t)
+	os.WriteFile(filepath.Join(dir, "big.txt"), []byte(strings.Repeat("a\n", 1<<20)), 0o644)
+	mustGit(t, dir, "add", "big.txt")
+	mustGit(t, dir, "commit", "-q", "-m", "big")
+	mustGit(t, dir, "config", "core.bigFileThreshold", "512m")
+	if out := mustGit(t, dir, "log", "-1", "--numstat", "--format="); !strings.HasPrefix(out, "1048576\t0") {
+		t.Fatalf("control failed: plain numstat %q", out)
+	}
+	g := newGit(t, dir)
+	out, err := g.Run(context.Background(), "log", "--max-count=1", "--numstat", "--format=format:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "-\t-\tbig.txt") {
+		t.Errorf("hardened numstat = %q, want big.txt counted as binary", out)
+	}
 }
 
 func TestNewGitRejectsNonRoot(t *testing.T) {
@@ -279,41 +476,125 @@ func TestNewGitRejectsNonRoot(t *testing.T) {
 	}
 }
 
-// A planted .git file, .git symlink, alternates or commondir would let the scan read another
-// repository on the machine; the report would then carry that repository's HEAD and history.
+// Each case plants something that would make the scan read another repository on the machine (whose
+// HEAD and history would end up in the report), or block or read without end. The want string is part
+// of the error, to check the case is refused by the guard meant for it.
 func TestNewGitRejectsForeignGitDir(t *testing.T) {
 	victim := newRepo(t)
-	cases := map[string]func(dir string){
-		"gitfile": func(dir string) {
-			os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: "+filepath.Join(victim, ".git")+"\n"), 0o644)
-		},
-		"symlink": func(dir string) {
-			os.Symlink(filepath.Join(victim, ".git"), filepath.Join(dir, ".git"))
-		},
-		"alternates": func(dir string) {
-			mustGit(t, dir, "init", "-q")
-			os.WriteFile(filepath.Join(dir, ".git", "objects", "info", "alternates"),
-				[]byte(filepath.Join(victim, ".git", "objects")+"\n"), 0o644)
-		},
-		"commondir": func(dir string) {
-			mustGit(t, dir, "init", "-q")
-			os.WriteFile(filepath.Join(dir, ".git", "commondir"), []byte(filepath.Join(victim, ".git")+"\n"), 0o644)
-		},
+	vgit := filepath.Join(victim, ".git")
+	initRepo := func(t *testing.T, dir string) string {
+		mustGit(t, dir, "init", "-q")
+		return filepath.Join(dir, ".git")
 	}
-	for name, plant := range cases {
+	swap := func(t *testing.T, dotGit, rel, target string) {
+		p := filepath.Join(dotGit, rel)
+		os.RemoveAll(p)
+		if err := os.Symlink(target, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := map[string]struct {
+		plant func(t *testing.T, dir string)
+		want  string
+	}{
+		"gitfile": {func(t *testing.T, dir string) {
+			os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: "+vgit+"\n"), 0o644)
+		}, "no .git directory"},
+		"symlink": {func(t *testing.T, dir string) {
+			os.Symlink(vgit, filepath.Join(dir, ".git"))
+		}, "no .git directory"},
+		"alternates": {func(t *testing.T, dir string) {
+			os.WriteFile(filepath.Join(initRepo(t, dir), "objects", "info", "alternates"),
+				[]byte(filepath.Join(vgit, "objects")+"\n"), 0o644)
+		}, "alternates"},
+		"commondir": {func(t *testing.T, dir string) {
+			os.WriteFile(filepath.Join(initRepo(t, dir), "commondir"), []byte(vgit+"\n"), 0o644)
+		}, "outside the repository root"},
+		"core.worktree": {func(t *testing.T, dir string) {
+			initRepo(t, dir)
+			mustGit(t, dir, "config", "core.worktree", victim)
+		}, "work tree is"},
+		"objects symlink": {func(t *testing.T, dir string) {
+			swap(t, initRepo(t, dir), "objects", filepath.Join(vgit, "objects"))
+		}, "objects is a symlink"},
+		"refs symlink": {func(t *testing.T, dir string) {
+			swap(t, initRepo(t, dir), "refs", filepath.Join(vgit, "refs"))
+		}, "refs is a symlink"},
+		"HEAD symlink": {func(t *testing.T, dir string) {
+			swap(t, initRepo(t, dir), "HEAD", filepath.Join(vgit, "HEAD"))
+		}, "HEAD is a symlink"},
+		"grafts to /dev/zero": {func(t *testing.T, dir string) {
+			swap(t, initRepo(t, dir), "info/grafts", "/dev/zero")
+		}, "grafts is a symlink"},
+		"config FIFO": {func(t *testing.T, dir string) {
+			p := filepath.Join(initRepo(t, dir), "config")
+			os.Remove(p)
+			mkfifo(t, p)
+		}, "config is a FIFO"},
+		"info/attributes FIFO": {func(t *testing.T, dir string) {
+			mkfifo(t, filepath.Join(initRepo(t, dir), "info", "attributes"))
+		}, "attributes is a FIFO"},
+	}
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
-			plant(dir)
-			g, err := NewGit(context.Background(), dir)
+			c.plant(t, dir)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			g, err := NewGit(ctx, dir)
 			if err == nil {
-				head, _ := g.Run(context.Background(), "rev-parse", "HEAD")
-				t.Fatalf("NewGit accepted a repository whose git directory is redirected (HEAD %s)", head)
+				head, _ := g.Run(context.Background(), "rev-parse", "--verify", "HEAD")
+				t.Fatalf("NewGit accepted it (HEAD %s)", head)
 			}
-			// A .git that is not a directory is refused before git runs, with a message that says why.
-			if (name == "gitfile" || name == "symlink") && !strings.Contains(err.Error(), "no .git directory") {
-				t.Errorf("error %q does not explain that .git must be a directory", err)
+			if !strings.Contains(err.Error(), c.want) {
+				t.Errorf("error %q does not contain %q", err, c.want)
+			}
+			if strings.Contains(err.Error(), "timed out") {
+				t.Errorf("refused only by the timeout: %v", err)
 			}
 		})
+	}
+}
+
+func TestNewGitSHA256(t *testing.T) {
+	dir := t.TempDir()
+	mustGit(t, dir, "init", "-q", "--object-format=sha256")
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\n"), 0o644)
+	mustGit(t, dir, "add", "a.txt")
+	mustGit(t, dir, "commit", "-q", "-m", "a")
+	g := newGit(t, dir)
+	out, err := g.Run(context.Background(), "log", hashFormat, "--numstat")
+	if err != nil || !strings.Contains(string(out), "1\t0\ta.txt") {
+		t.Errorf("log in a sha256 repository: %q %v", out, err)
+	}
+}
+
+func TestNewGitRefusesOldGit(t *testing.T) {
+	dir := newRepo(t)
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "git"), []byte("#!/bin/sh\necho 'git version 2.43.0'\n"), 0o755)
+	t.Setenv("PATH", bin)
+	if _, err := NewGit(context.Background(), dir); err == nil || !strings.Contains(err.Error(), "too old") {
+		t.Errorf("NewGit with git 2.43: %v, want a too-old error", err)
+	}
+}
+
+// A container or CI runner often scans a checkout owned by another uid. safe.directory from the
+// command scope must let git open it; a repository-level safe.directory=* must not be what does it.
+// Needs root to chown; CI runs it with sudo.
+func TestSafeDirectoryForOtherOwner(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to give the repository another owner")
+	}
+	dir := newRepo(t)
+	if err := filepath.WalkDir(dir, func(p string, _ fs.DirEntry, _ error) error { return os.Lchown(p, 65534, 65534) }); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := plainGit(t, dir, "rev-parse", "HEAD"); err == nil || !strings.Contains(out, "dubious ownership") {
+		t.Fatalf("control failed: plain git opened a repository owned by another user: %s", out)
+	}
+	if _, err := NewGit(context.Background(), dir); err != nil {
+		t.Errorf("NewGit refused a repository owned by another user: %v", err)
 	}
 }
 
@@ -328,26 +609,56 @@ func mustPanic(t *testing.T, what string, f func()) {
 }
 
 func TestGitArgsPolicy(t *testing.T) {
-	for _, sub := range []string{"status", "diff", "fetch", "checkout", "config", "version"} {
+	for _, sub := range []string{"status", "diff", "fetch", "checkout", "config", "version", "show", "cat-file"} {
 		mustPanic(t, "subcommand "+sub, func() { gitArgs("/r", sub, nil) })
 	}
 	for _, args := range [][]string{
-		{"--format=%H", "--ext-diff"},
-		{"--format=%H", "--textconv"},
-		{"--format=%H", "--show-signature"},
-		{"--format=%H", "--output=/tmp/x"},
-		{"--format=%H", "--pretty=%G?"},
-		{"--format=%H", "--oneline"},
-		{"--format=%H %G?"},
-		{"--format=%GK"},
+		{hashFormat, "--ext-diff"},
+		{hashFormat, "--textconv"},
+		{hashFormat, "--show-signature"},
+		{hashFormat, "--output=/tmp/x"},
+		{hashFormat, "--pretty=%G?"},
+		{hashFormat, "--oneline"},
+		{hashFormat, "-p"},
+		{hashFormat, "--patch"},
+		{hashFormat, "-u"},
+		{hashFormat, "--stat"},
+		{hashFormat, "-O/dev/zero"},
+		{hashFormat, "--use-mailmap"},
+		{hashFormat, "-c"},
+		{hashFormat, "--git-dir=/x"},
+		{hashFormat, "main"},
+		{hashFormat, "HEAD~1"},
+		{"--format=format:%H %G?"},
+		{"--format=format:%+G?"},
+		{"--format=format:%-GS"},
+		{"--format=format:% GK"},
+		{"--format=tformat:%aN"},
+		{"--format=format:%cE"},
+		{"--format=format:%aL"},
+		{"--format=format:%(describe)"},
+		{"--format=%H"},
+		{"--format=sig"},
+		{"--format=oneline"},
 		{"--numstat"},
-		{"--format=%H", "--format=%an"},
+		{hashFormat, "--format=format:%an"},
 	} {
 		mustPanic(t, "log "+strings.Join(args, " "), func() { gitArgs("/r", "log", args) })
 	}
-	got := gitArgs("/r", "log", []string{"--format=%H", "--numstat"})
-	if got[0] != "--no-lazy-fetch" {
-		t.Errorf("args do not start with --no-lazy-fetch: %q", got)
+	for _, args := range [][]string{{"--show-toplevel", "--git-dir"}, {"HEAD:a.txt"}, {"--verify", "HEAD@{1}"}} {
+		mustPanic(t, "rev-parse "+strings.Join(args, " "), func() { gitArgs("/r", "rev-parse", args) })
+	}
+
+	// What the families and NewGit use must stay allowed.
+	sha := strings.Repeat("a", 40)
+	for sub, args := range map[string][]string{
+		"log":       {"--format=format:%H%x00%an%x00%ae%x00%at", "--numstat", "-z", "--no-merges", "-M", "--since=2020-01-01", sha, "--", "a.txt", "-weird-path"},
+		"rev-parse": {"--verify", "--quiet", "HEAD"},
+	} {
+		got := gitArgs("/r", sub, args)
+		if got[0] != "--no-lazy-fetch" || !slices.Equal(got[len(got)-len(args):], args) {
+			t.Errorf("gitArgs(%s) = %q", sub, got)
+		}
 	}
 }
 
@@ -367,17 +678,34 @@ func TestCheckGitVersion(t *testing.T) {
 }
 
 func TestGitEnv(t *testing.T) {
-	env := gitEnv([]string{"PATH=/bin", "GIT_DIR=/elsewhere", "GIT_EXTERNAL_DIFF=/x", "GITHUB_TOKEN=t"}, "/r/repo")
+	env := gitEnv([]string{"PATH=/bin::.:bin:/usr/bin", "GIT_DIR=/elsewhere", "GIT_EXTERNAL_DIFF=/x", "GITHUB_TOKEN=t",
+		"GIT_CONFIG_PARAMETERS='core.fsmonitor=x'", "GIT_ATTR_SOURCE=HEAD"}, "/r/repo")
 	for _, kv := range env {
-		for _, bad := range []string{"GIT_DIR=", "GIT_EXTERNAL_DIFF=", "GITHUB_TOKEN="} {
+		for _, bad := range []string{"GIT_DIR=", "GIT_EXTERNAL_DIFF=", "GITHUB_TOKEN=", "GIT_CONFIG_PARAMETERS=", "GIT_ATTR_SOURCE="} {
 			if strings.HasPrefix(kv, bad) {
 				t.Errorf("env keeps %s", kv)
 			}
 		}
 	}
-	for _, want := range []string{"GIT_CEILING_DIRECTORIES=/r", "GIT_ALLOW_PROTOCOL=none", "GIT_NO_LAZY_FETCH=1"} {
-		if !slices.Contains(env, want) {
-			t.Errorf("env has no %s", want)
+	want := []string{
+		"PATH=/bin:/usr/bin",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_OPTIONAL_LOCKS=0",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_NO_LAZY_FETCH=1",
+		"GIT_ALLOW_PROTOCOL=none",
+		"GIT_PAGER=cat",
+		"GIT_CEILING_DIRECTORIES=/r",
+		"GIT_GRAFT_FILE=/dev/null",
+		"GIT_NO_REPLACE_OBJECTS=1",
+	}
+	for _, w := range want {
+		if !slices.Contains(env, w) {
+			t.Errorf("env has no %s", w)
 		}
+	}
+	if len(env) != len(want) {
+		t.Errorf("env = %q, want exactly %q", env, want)
 	}
 }
