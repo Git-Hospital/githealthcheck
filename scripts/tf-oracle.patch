@@ -1,0 +1,56 @@
+--- a/gittruckfactor/src/aserg/gtf/task/DOACalculator.java
++++ b/gittruckfactor/src/aserg/gtf/task/DOACalculator.java
+@@ -122,7 +122,7 @@
+ 				authorshipInfo.addNewDelivery();
+ 				//file.addNewChange();					
+ 			}
+-			else if (status == Status.RENAMED_TREATED){
++			else if (status == Status.RENAMED_TREATED || status == Status.RENAMED){
+ 				// Considering a rename as a new delivery
+ 				authorshipInfo.addNewDelivery();
+ 				//file.addNewChange();		
+@@ -168,29 +168,25 @@
+ 		for (LogCommitFileInfo commitFile : logCommitFiles)
+ 			map.put(commitFile.getTempId().toString(), commitFile);
+  		
+- 		while (hasRenamed(map.values())) {
+- 			List<LogCommitFileInfo> tempCommitFiles = new ArrayList<LogCommitFileInfo>(map.values());
++ 		// Patched for the githealthcheck oracle: remember expanded renames per file instead of
++ 		// marking the shared entries, so every file sees its whole rename chain.
++ 		java.util.Set<Integer> treated = new java.util.HashSet<Integer>();
++ 		boolean again = true;
++ 		while (again) {
++ 			again = false;
++			List<LogCommitFileInfo> tempCommitFiles = new ArrayList<LogCommitFileInfo>(map.values());
+ 			for (LogCommitFileInfo commitFile : tempCommitFiles) {
+-				
+-				Status status = commitFile.getStatus();
+-				if (status == Status.RENAMED) {
++				if (commitFile.getStatus() == Status.RENAMED && !treated.contains(commitFile.getTempId())) {
++					treated.add(commitFile.getTempId());
++					again = true;
+ 					List<LogCommitFileInfo> newList = mapFiles.get(commitFile.getOldFileName());
+-					// Some renamed files do not have any commit, even in GitHub.
+-					if (newList==null) {
+-						LOGGER.warn("ERROR in RENAME: No commits for old filename: " + commitFile.getOldFileName());
+-					}
+-					else{
+-						for (LogCommitFileInfo newCommitFile : newList) {
+-							if (!map.containsKey(newCommitFile.getTempId()
+-									.toString()))
+-								map.put(newCommitFile.getTempId().toString(),
+-										newCommitFile);
+-						}
+-					}
+-					commitFile.setStatus(Status.RENAMED_TREATED);
++					if (newList != null)
++						for (LogCommitFileInfo newCommitFile : newList)
++							if (!map.containsKey(newCommitFile.getTempId().toString()))
++								map.put(newCommitFile.getTempId().toString(), newCommitFile);
+ 				}
+ 			}
+-		}	
++		}
+ 		
+ 		return new ArrayList<LogCommitFileInfo>(map.values());
+ 	}
