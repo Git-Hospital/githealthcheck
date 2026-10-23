@@ -181,11 +181,14 @@ type Inputs struct {
 
 // CoverageInput describes a coverage report, so a reader can judge whether it belongs to the commit.
 type CoverageInput struct {
-	Path    string `json:"path"`    // relative to the root, or only the base name when outside it
-	Tracked bool   `json:"tracked"` // the report is a file in the scanned commit
-	Format  string `json:"format,omitempty"`
-	// Files is the number of source files the report lists, and FilesAtHead how many of them exist
-	// in the commit. Below 90%, coverage is null with the reason stale_coverage_report.
-	Files       int `json:"files"`
-	FilesAtHead int `json:"filesAtHead"`
+	Path    string `json:"path"`             // relative to the root, or only the base name when outside it
+	Tracked bool   `json:"tracked"`          // the report is a file in the scanned commit
+	Format  string `json:"format,omitempty"` // absent when the report could not be parsed
+	// Files is the number of source files the report lists, ModuleFiles those under one of the
+	// repository's module paths (the rest are the standard library and dependencies), and FilesAtHead
+	// those that exist in the commit. Below 90% of ModuleFiles at HEAD, coverage is null with the
+	// reason stale_coverage_report. All three are absent when the report was not parsed.
+	Files       *int `json:"files,omitempty"`
+	ModuleFiles *int `json:"moduleFiles,omitempty"`
+	FilesAtHead *int `json:"filesAtHead,omitempty"`
 }

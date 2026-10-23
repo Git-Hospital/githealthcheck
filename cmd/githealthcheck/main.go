@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
@@ -265,7 +267,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	}
 	if familyReason != report.Timeout {
 		var skipped []report.Skip
-		rf.Modules, skipped = modules(git.Root(), entries)
+		rf.Modules, skipped = modules(ctx, git.Root(), entries)
 		r.Skipped = append(r.Skipped, skipped...)
 		if cov == nil {
 			rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
@@ -309,11 +311,15 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 }
 
 // modules reads every go.mod in the commit that the go command does not ignore. They are ordered by
-// depth, so of two go.mod files that declare the same module path the shallower one is used.
-func modules(root string, entries []repo.Entry) ([]facts.Module, []report.Skip) {
+// depth, so of two go.mod files that declare the same module path the shallower one is used. When ctx
+// ends it stops; the analyzers then report the timeout.
+func modules(ctx context.Context, root string, entries []repo.Entry) ([]facts.Module, []report.Skip) {
 	var mods []facts.Module
 	var skipped []report.Skip
 	for _, e := range entries {
+		if ctx.Err() != nil {
+			break
+		}
 		if filepath.Base(e.Path) != "go.mod" || (e.Mode != "100644" && e.Mode != "100755") || golang.Package(e.Path) == "" {
 			continue
 		}
@@ -405,7 +411,7 @@ func text(r *report.Report) string {
 	if len(head) > 12 {
 		head = head[:12]
 	}
-	fmt.Fprintf(&b, "%s at %s", r.Repository.Path, head)
+	fmt.Fprintf(&b, "%s at %s", printable(r.Repository.Path), head)
 	if r.Repository.Shallow {
 		b.WriteString(" (shallow clone)")
 	}
@@ -443,13 +449,18 @@ func text(r *report.Report) string {
 		if c.Tracked {
 			tracked = "tracked"
 		}
-		fmt.Fprintf(&b, "\nCoverage report %s (%s): %d of its %d files are in the commit\n", c.Path, tracked, c.FilesAtHead, c.Files)
+		fmt.Fprintf(&b, "\nCoverage report %s (%s)", printable(c.Path), tracked)
+		if c.Files != nil {
+			fmt.Fprintf(&b, ": %d of the %d files it lists under the repository's modules are in the commit (%d files listed)",
+				*c.FilesAtHead, *c.ModuleFiles, *c.Files)
+		}
+		b.WriteString("\n")
 	}
 	if findings > 0 {
 		fmt.Fprintf(&b, "\nFindings (%d)\n", findings)
 		for _, f := range r.Families {
 			for _, fd := range f.Findings {
-				fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, fd.Path, fd.Message)
+				fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), fd.Message)
 			}
 		}
 	}
@@ -458,6 +469,16 @@ func text(r *report.Report) string {
 		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
 	}
 	return b.String()
+}
+
+// printable quotes a string that comes from the scanned repository when it holds anything but graphic
+// characters (ESC, CR, a newline, a bidi control, invalid UTF-8), so a path cannot move the cursor or
+// forge lines of the report in a terminal or a CI log. JSON escapes these by itself.
+func printable(s string) string {
+	if utf8.ValidString(s) && strings.IndexFunc(s, func(r rune) bool { return !unicode.IsGraphic(r) }) < 0 {
+		return s
+	}
+	return strconv.QuoteToGraphic(s)
 }
 
 // metricText prints a share or a coverage as a percentage and any other value as a plain number.

@@ -2,7 +2,9 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"hash/maphash"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,7 +16,8 @@ import (
 //	example.com/m/pkg/file.go:4.2,6.3 2 1
 //
 // Each line is one block: the file's import path, the block's start and end as line.column, its
-// number of statements and how often it ran.
+// number of statements and how often it ran. Positions follow //line directives, so a generated file
+// can have blocks that end before they start, past its last line, or at column 0.
 
 type blockKey struct{ startLine, startCol, endLine, endCol int }
 
@@ -24,20 +27,41 @@ type block struct {
 }
 
 type profile struct {
-	mode  string
-	files map[string]map[blockKey]*block // import path of the file -> its blocks
+	mode string
+	// files counts the distinct files the profile lists, and inModules those under one of the
+	// repository's module paths; the rest are the standard library and dependencies, which
+	// -coverpkg=all adds.
+	files, inModules int
+	// blocks holds the blocks of the files that are in the commit, by repository path. Nothing else is
+	// kept, so a profile's memory is bounded by the commit's tree, not by the profile.
+	blocks map[string]map[blockKey]*block
 }
 
+// maxBlockStmts bounds the statements of one block, far above anything go test writes, so that sums
+// over a 50 MiB profile cannot overflow.
+const maxBlockStmts = 1 << 24
+
 var profileLine = regexp.MustCompile(`^(.+):([0-9]+)\.([0-9]+),([0-9]+)\.([0-9]+) ([0-9]+) ([0-9]+)$`)
+
+// resolver maps a file's import path to its repository path, reporting whether the file is under one
+// of the repository's modules and whether it is in the commit.
+type resolver func(importPath string) (rel string, inModule, atHead bool)
 
 // parseProfile parses a Go coverage profile. Profiles that were concatenated, with a repeated mode line,
 // and blocks that appear more than once, as -coverpkg writes them, are merged: a block is covered
 // when any of its copies ran.
-func parseProfile(data []byte) (*profile, error) {
-	p := &profile{files: map[string]map[blockKey]*block{}}
+func parseProfile(ctx context.Context, data []byte, resolve resolver) (*profile, error) {
+	p := &profile{blocks: map[string]map[blockKey]*block{}}
+	seed := maphash.MakeSeed()
+	seen := map[uint64]bool{} // distinct file names, by a hash an attacker cannot predict
+	var last string
+	var lastBlocks map[blockKey]*block
 	n := 0
 	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
 		n++
+		if n%4096 == 0 && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		s := strings.TrimSuffix(string(line), "\r")
 		if s == "" {
 			continue
@@ -69,24 +93,39 @@ func parseProfile(data []byte) (*profile, error) {
 			v[i] = x
 		}
 		k := blockKey{v[0], v[1], v[2], v[3]}
-		if k.startLine < 1 || k.startCol < 1 || k.endLine < k.startLine || (k.endLine == k.startLine && k.endCol < k.startCol) {
-			return nil, fmt.Errorf("line %d: block ends before it starts", n)
-		}
-		// Atoi has already refused a count that overflows int.
 		stmts, covered := v[4], v[5] > 0
-		blocks := p.files[m[1]]
-		if blocks == nil {
-			blocks = map[blockKey]*block{}
-			p.files[m[1]] = blocks
+		if stmts > maxBlockStmts {
+			return nil, fmt.Errorf("line %d: %d statements in one block", n, stmts)
 		}
-		if b := blocks[k]; b != nil {
+		if name := m[1]; name != last {
+			last, lastBlocks = name, nil
+			h := maphash.String(seed, name)
+			rel, inModule, atHead := resolve(name)
+			if !seen[h] {
+				seen[h] = true
+				p.files++
+				if inModule {
+					p.inModules++
+				}
+			}
+			if atHead {
+				if lastBlocks = p.blocks[rel]; lastBlocks == nil {
+					lastBlocks = map[blockKey]*block{}
+					p.blocks[rel] = lastBlocks
+				}
+			}
+		}
+		if lastBlocks == nil {
+			continue
+		}
+		if b := lastBlocks[k]; b != nil {
 			if b.stmts != stmts {
 				return nil, fmt.Errorf("line %d: block has %d statements, earlier %d", n, stmts, b.stmts)
 			}
 			b.covered = b.covered || covered
 			continue
 		}
-		blocks[k] = &block{stmts: stmts, covered: covered}
+		lastBlocks[k] = &block{stmts: stmts, covered: covered}
 	}
 	if p.mode == "" {
 		return nil, fmt.Errorf("no mode line")

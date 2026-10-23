@@ -8,7 +8,7 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 
 ## What works today
 
-`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] <path>` scans the commit at HEAD. Go is analysed; other languages are counted. Of the four families, **tests** is implemented: the test-to-code line ratio, the share of packages without a test file, and statement coverage read from an existing Go coverage profile (the tool never runs your tests). Its rules are documented in [docs/rules](docs/rules). The other three families are `null` with the reason `not_implemented`, and scores stay `null` (`not_calibrated`) until the calibration corpus exists.
+`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] <path>` scans the commit at HEAD. Go is analysed; other languages are counted. Of the four families, **tests** is implemented: the test-to-code line ratio, the share of packages without a test file, and statement coverage read from an existing Go coverage profile (the tool never runs your tests). Its rules are documented in [docs/rules](docs/rules). The other three families are `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: the tests family's score with the reason `not_calibrated`, and the overall score with `insufficient_families`, since it needs at least two measured families.
 
 ```sh
 go test -coverprofile=coverage.out ./...

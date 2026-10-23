@@ -23,12 +23,19 @@ named by `--coverage`, or else the first of `coverage.out`, `cover.out`, `covera
 Supported format: the Go coverage profile (`go test -coverprofile`, `go tool covdata textfmt`). Profiles
 concatenated from several runs, and blocks repeated by `-coverpkg`, are merged; a block counts as covered
 when any copy of it ran. Paths in the profile are import paths, mapped to files through the `go.mod`
-files of the commit.
+files of the commit (not those under `testdata/` or other directories the go command ignores). Files
+outside the repository's module paths, such as the standard library and dependencies that
+`-coverpkg=all` adds, are counted in `files` and otherwise ignored.
 
 The report is not used, and coverage is `null` with the reason `stale_coverage_report`, when fewer than
-90% of the files it lists exist in the commit, or when any block ends past the last line of its file as
-read from the work tree. A report from an older commit whose files kept their line counts is not
-detected. `inputs.coverage` names the report, says whether it is tracked, and gives both file counts.
+90% of the files it lists under the repository's module paths exist in the commit, or when a block of
+the repository's own code starts before line 1, ends before it starts, or ends past the last line of
+its file as read from the work tree. Generated files are not checked, because `//line` directives (in
+goyacc output, for example) move their positions; a `//line` directive in hand-written code makes the
+report stale. A report from an older commit whose files kept their line counts is not detected.
+`inputs.coverage` names the report, says whether it is tracked, and gives `files`, `moduleFiles` and
+`filesAtHead`; the counts are absent when the report could not be parsed, and coverage is then `null`
+with the reason `invalid_coverage_report`.
 
 Vendored and generated files are left out of the statistics, and so is a file of the commit that was
 not read (for example one over 1 MiB).

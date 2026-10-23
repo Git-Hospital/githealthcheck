@@ -61,7 +61,7 @@ func TestScanFindsUntrackedCoverage(t *testing.T) {
 	if m := coverageOf(t, r); m.IsNull() || *m.Value != 1 || code != report.ExitClean {
 		t.Fatalf("coverage %+v exit %d\n%s", m, code, out)
 	}
-	if c := r.Inputs.Coverage; c == nil || *c != (report.CoverageInput{Path: "coverage.out", Format: "go-coverprofile", Files: 1, FilesAtHead: 1}) {
+	if c := r.Inputs.Coverage; c == nil || c.Path != "coverage.out" || c.Tracked || c.Format != "go-coverprofile" || *c.Files != 1 || *c.ModuleFiles != 1 || *c.FilesAtHead != 1 {
 		t.Errorf("inputs.coverage = %+v", c)
 	}
 
@@ -254,5 +254,43 @@ func TestScanWithoutGo(t *testing.T) {
 	}
 	if r.Languages[0].Analysed {
 		t.Errorf("python reported as analysed: %+v", r.Languages)
+	}
+}
+
+// A report that was not parsed has no file counts: absent in JSON, not printed in text.
+func TestScanUnparsedCoverageHasNoCounts(t *testing.T) {
+	dir := gitRepoWith(t, covered)
+	os.WriteFile(filepath.Join(dir, "coverage.out"), []byte("garbage\n"), 0o644)
+	r, _, out := scanJSON(t, dir)
+	if c := r.Inputs.Coverage; c == nil || c.Files != nil || c.FilesAtHead != nil || strings.Contains(out, `"filesAtHead"`) || strings.Contains(out, `"moduleFiles"`) {
+		t.Errorf("inputs.coverage = %+v\n%s", c, out)
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", dir}, &stdout, &stderr)
+	if !strings.Contains(stdout.String(), "Coverage report coverage.out (untracked)\n") {
+		t.Errorf("text output:\n%s", stdout.String())
+	}
+}
+
+// Paths from the scanned repository cannot inject terminal control sequences or forge report lines in
+// the text output.
+func TestScanTextQuotesRepositoryPaths(t *testing.T) {
+	evil := "x\x1b[2K\rOverall  10.0  (4 of 4 families measured)\nok"
+	dir := gitRepoWith(t, map[string]string{evil + "/a.go": "package a\n\nfunc A() {}\n"})
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", dir}, &stdout, &stderr)
+	out := stdout.String()
+	if strings.ContainsAny(out, "\x1b\r") || strings.Contains(out, "\nok:") || !strings.Contains(out, `"x\x1b[2K\rOverall`) {
+		t.Errorf("control characters reached the text output:\n%q", out)
+	}
+	for _, s := range []string{"plain/dir", "ünïcode/路径"} {
+		if printable(s) != s {
+			t.Errorf("printable(%q) = %q", s, printable(s))
+		}
+	}
+	for _, s := range []string{"a\u202eb", "a\xffb", "a\tb", "a\u0085b"} {
+		if printable(s) == s {
+			t.Errorf("printable(%q) left it unquoted", s)
+		}
 	}
 }

@@ -15,3 +15,6 @@
 .idea/
 .vscode/
 .DS_Store
+
+# Fixture pairs commit their coverage profiles.
+!testdata/pairs/**/coverage.out

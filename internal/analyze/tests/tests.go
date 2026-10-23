@@ -65,15 +65,13 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		return analyze.Result{Reason: report.Timeout}
 	}
 	anyGo := false
-	read := map[string]*facts.File{} // every Go file read, for the report's line check
-	own := map[string]*facts.File{}  // the repository's own Go code: not vendored, generated or ignored
+	own := map[string]*facts.File{} // the repository's own Go code: not vendored, generated or ignored
 	for i := range rf.Files {
 		f := &rf.Files[i]
 		if f.Language != "go" {
 			continue
 		}
 		anyGo = true
-		read[f.Path] = f
 		if !f.Vendored && !f.Generated && f.Package != "" {
 			own[f.Path] = f
 		}
@@ -131,71 +129,77 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		res.Metrics[UntestedPackageShare] = report.Null(report.InsufficientInput)
 	}
 
-	m, input, findings := coverage(rf, read, own)
+	m, input, findings := coverage(ctx, rf, own)
+	if ctx.Err() != nil {
+		return analyze.Result{Reason: report.Timeout, Coverage: input}
+	}
 	res.Metrics[StatementCoverage] = m
 	res.Coverage = input
 	res.Findings = append(res.Findings, findings...)
 	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
 		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
 	})
+	// A family with no measured number did not measure anything, whatever it found.
+	measured := false
+	for _, m := range res.Metrics {
+		measured = measured || !m.IsNull()
+	}
+	if !measured {
+		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics, Coverage: input}
+	}
 	return res
 }
 
 type tally struct{ stmts, covered int }
 
-// coverage reads the coverage report. A report is used only when at least MinPercentAtHead of the
-// files it lists exist in the commit, and every block it records fits inside the file as read: a
-// block past a file's last line means the file changed after the report was written.
-func coverage(rf *facts.Repo, read, own map[string]*facts.File) (report.Measurement, *report.CoverageInput, []report.Finding) {
+// coverage reads the coverage report. Only files under one of the repository's module paths count:
+// -coverpkg=all also lists the standard library and dependencies. A report is used only when at least
+// MinPercentAtHead of those files exist in the commit, and every block of the repository's own code
+// fits inside its file as read: a block past a file's last line means the file changed after the
+// report was written. Generated files are not checked, since //line directives move their positions.
+func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (report.Measurement, *report.CoverageInput, []report.Finding) {
 	if rf.Coverage == nil {
 		return report.Null(report.NoCoverageReport), nil, nil
 	}
 	in := &report.CoverageInput{Path: rf.Coverage.Name, Tracked: rf.Coverage.Tracked}
-	p, err := parseProfile(rf.Coverage.Data)
-	if err != nil {
+	mods := indexModules(rf.Modules)
+	p, err := parseProfile(ctx, rf.Coverage.Data, func(ip string) (string, bool, bool) {
+		rel, ok := mods.resolve(ip)
+		return rel, ok, ok && rf.Paths[rel]
+	})
+	switch {
+	case ctx.Err() != nil:
+		return report.Null(report.Timeout), in, nil
+	case err != nil:
 		return report.Null(report.InvalidCoverageReport), in, nil
 	}
 	in.Format = "go-coverprofile"
-	in.Files = len(p.files)
-	if len(p.files) == 0 {
+	in.Files, in.ModuleFiles, in.FilesAtHead = &p.files, &p.inModules, new(len(p.blocks))
+	switch {
+	case p.files == 0:
 		return report.Null(report.InsufficientInput), in, nil
-	}
-
-	atHead := map[string]string{} // import path -> repository path
-	for ip := range p.files {
-		if rel, ok := resolve(rf.Modules, ip); ok && rf.Paths[rel] {
-			atHead[ip] = rel
-		}
-	}
-	in.FilesAtHead = len(atHead)
-	if len(atHead)*100 < MinPercentAtHead*len(p.files) {
+	case p.inModules == 0 || len(p.blocks)*100 < MinPercentAtHead*p.inModules:
 		return report.Null(report.StaleCoverageReport), in, nil
-	}
-	for ip, rel := range atHead {
-		f := read[rel]
-		if f == nil {
-			continue // in the commit but not read, e.g. too large: nothing to check against
-		}
-		for k := range p.files[ip] {
-			if k.endLine > f.Lines {
-				return report.Null(report.StaleCoverageReport), in, nil
-			}
-		}
 	}
 
 	files, pkgs := map[string]*tally{}, map[string]*tally{}
 	var total tally
-	for ip, rel := range atHead {
+	for rel, blocks := range p.blocks {
 		f := own[rel]
 		if f == nil {
 			continue // vendored, generated, ignored by the go command, or not read
+		}
+		for k := range blocks {
+			if k.startLine < 1 || k.endLine < k.startLine || k.endLine > f.Lines {
+				return report.Null(report.StaleCoverageReport), in, nil
+			}
 		}
 		ft, pt := &tally{}, pkgs[f.Package]
 		if pt == nil {
 			pt = &tally{}
 			pkgs[f.Package] = pt
 		}
-		for _, b := range p.files[ip] {
+		for _, b := range blocks {
 			ft.stmts += b.stmts
 			if b.covered {
 				ft.covered += b.stmts
@@ -237,22 +241,34 @@ func percent(t *tally) string {
 	return fmt.Sprintf("%.1f%%", 100*float64(t.covered)/float64(t.stmts))
 }
 
-// resolve maps a file's import path in a profile to its path in the repository, through the module
-// with the longest matching path. Modules come in the order the caller chose, which breaks ties
-// between two go.mod files that declare the same path.
-func resolve(mods []facts.Module, importPath string) (string, bool) {
-	best := -1
-	for i, m := range mods {
-		if strings.HasPrefix(importPath, m.Path+"/") && (best < 0 || len(m.Path) > len(mods[best].Path)) {
-			best = i
+// moduleIndex maps module paths to modules. Of two go.mod files that declare the same path, the first
+// in the caller's order is kept.
+type moduleIndex map[string]facts.Module
+
+func indexModules(mods []facts.Module) moduleIndex {
+	idx := moduleIndex{}
+	for _, m := range mods {
+		if _, ok := idx[m.Path]; !ok {
+			idx[m.Path] = m
 		}
 	}
-	if best < 0 {
-		return "", false
+	return idx
+}
+
+// resolve maps a file's import path in a profile to its path in the repository, through the module
+// with the longest matching path. It looks up each parent of the import path, so its cost does not
+// grow with the number of modules.
+func (idx moduleIndex) resolve(importPath string) (string, bool) {
+	for i := strings.LastIndexByte(importPath, '/'); i > 0; i = strings.LastIndexByte(importPath[:i], '/') {
+		m, ok := idx[importPath[:i]]
+		if !ok {
+			continue
+		}
+		rest := importPath[i+1:]
+		if m.Dir == "." {
+			return rest, true
+		}
+		return m.Dir + "/" + rest, true
 	}
-	rest := importPath[len(mods[best].Path)+1:]
-	if mods[best].Dir == "." {
-		return rest, true
-	}
-	return mods[best].Dir + "/" + rest, true
+	return "", false
 }

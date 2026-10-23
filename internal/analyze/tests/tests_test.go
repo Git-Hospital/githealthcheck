@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -117,6 +118,21 @@ func TestRunOnlyTests(t *testing.T) {
 	if r.Metrics[TestCodeLineRatio].Reason != report.InsufficientInput || r.Metrics[UntestedPackageShare].Reason != report.InsufficientInput {
 		t.Errorf("metrics = %+v", r.Metrics)
 	}
+	// With no number measured, the family is not measured either, so the run cannot pass as clean.
+	if r.Measured || r.Reason != report.InsufficientInput {
+		t.Errorf("measured %v reason %q, want not measured", r.Measured, r.Reason)
+	}
+}
+
+// counts returns a coverage input's file counts, -1 for an absent one.
+func counts(c *report.CoverageInput) [3]int {
+	out := [3]int{-1, -1, -1}
+	for i, p := range []*int{c.Files, c.ModuleFiles, c.FilesAtHead} {
+		if p != nil {
+			out[i] = *p
+		}
+	}
+	return out
 }
 
 func TestCoverage(t *testing.T) {
@@ -138,7 +154,7 @@ func TestCoverage(t *testing.T) {
 	if got := value(t, m); got != 3.0/6 || m.Inputs != 3 {
 		t.Errorf("coverage = %v from %d files, want 0.5 from 3", got, m.Inputs)
 	}
-	if c := r.Coverage; c == nil || *c != (report.CoverageInput{Path: "coverage.out", Format: "go-coverprofile", Files: 4, FilesAtHead: 4}) {
+	if c := r.Coverage; c == nil || c.Path != "coverage.out" || c.Tracked || c.Format != "go-coverprofile" || counts(c) != [3]int{4, 4, 4} {
 		t.Errorf("input = %+v", c)
 	}
 	// a is at 75%; b is at 0%, a package finding and a file finding.
@@ -189,13 +205,24 @@ func TestCoverageNulls(t *testing.T) {
 			rf := files()
 			rf.Coverage = &facts.Coverage{Name: "coverage.txt", Data: []byte("total: 80%\n")}
 			return rf
-		}(), reason: report.InvalidCoverageReport},
+		}(), reason: report.InvalidCoverageReport, atHead: -1},
 		{name: "no blocks", rf: withProfile(files()), reason: report.InsufficientInput},
 		{name: "9 of 10 files at HEAD is enough", rf: withProfile(files(), append(lines(9), "example.com/m/gone/f.go:1.1,2.1 1 1")...), atHead: 9},
 		{name: "8 of 10 is stale", rf: withProfile(files(), append(lines(8), "example.com/m/gone/f.go:1.1,2.1 1 1", "example.com/m/gone2/f.go:1.1,2.1 1 1")...), reason: report.StaleCoverageReport, atHead: 8},
 		{name: "another module's files are not at HEAD", rf: withProfile(files(), "example.com/other/p0/f.go:1.1,2.1 1 1"), reason: report.StaleCoverageReport},
 		{name: "a block past the last line", rf: withProfile(files(), append(lines(9), "example.com/m/p9/f.go:11.1,11.5 1 1")...), reason: report.StaleCoverageReport, atHead: 10},
 		{name: "a block on the last line", rf: withProfile(files(), append(lines(9), "example.com/m/p9/f.go:10.1,10.5 1 1")...), atHead: 10},
+		{name: "-coverpkg=all: the standard library and dependencies do not count", rf: withProfile(files(), append(lines(9),
+			"strings/strings.go:10.2,12.3 2 1", "fmt/print.go:1.1,2.1 1 0", "golang.org/x/mod/module/module.go:1.1,2.1 1 0")...), atHead: 9},
+		{name: "a //line directive in own code is stale", rf: withProfile(files(), append(lines(9), "example.com/m/p9/f.go:5.0,3.0 1 1")...), reason: report.StaleCoverageReport, atHead: 10},
+		{name: "a //line directive in a generated file is ignored", rf: func() *facts.Repo {
+			rf := files()
+			gen := goFile("y/y.go", 20, 1)
+			gen.Generated = true
+			rf.Files = append(rf.Files, gen)
+			rf.Paths[gen.Path] = true
+			return withProfile(rf, append(lines(10), "example.com/m/y/y.go:3.19,5000.0 1 1", "example.com/m/y/parser.y:10.0,11.0 1 1")...)
+		}(), atHead: 11},
 		{name: "only zero-statement blocks", rf: withProfile(files(), "example.com/m/p0/f.go:1.1,1.1 0 0"), reason: report.InsufficientInput, atHead: 1},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -204,7 +231,7 @@ func TestCoverageNulls(t *testing.T) {
 			if m.Reason != c.reason || (c.reason == "") == m.IsNull() {
 				t.Errorf("coverage = %+v, want reason %q", m, c.reason)
 			}
-			if c.noInput != (r.Coverage == nil) || (r.Coverage != nil && r.Coverage.FilesAtHead != c.atHead) {
+			if c.noInput != (r.Coverage == nil) || (r.Coverage != nil && counts(r.Coverage)[2] != c.atHead) {
 				t.Errorf("input = %+v, want %d at HEAD", r.Coverage, c.atHead)
 			}
 			// A null coverage produces no coverage findings.
@@ -233,7 +260,7 @@ func TestResolve(t *testing.T) {
 		"_/home/u/m/a.go":            "",
 		"/abs/a.go":                  "",
 	} {
-		got, ok := resolve(mods, ip)
+		got, ok := indexModules(mods).resolve(ip)
 		if got != want || ok != (want != "") {
 			t.Errorf("resolve(%q) = %q, %v; want %q", ip, got, ok, want)
 		}
@@ -247,5 +274,42 @@ func TestRules(t *testing.T) {
 			t.Errorf("rule %+v", r)
 		}
 		seen[r.ID] = true
+	}
+}
+
+// A deadline that passes while the report is read makes the family time out, not measure.
+func TestCoverageTimeout(t *testing.T) {
+	var lines []string
+	for i := range 10000 {
+		lines = append(lines, fmt.Sprintf("example.com/m/f%d.go:1.1,1.2 1 1", i))
+	}
+	rf := withProfile(repoOf(goFile("a/a.go", 10, 1)), lines...)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if m, _, _ := coverage(ctx, rf, nil); m.Reason != report.Timeout {
+		t.Errorf("coverage = %+v, want timeout", m)
+	}
+}
+
+// A profile that lists millions of files under the module path, with as many go.mod files as an
+// attacker likes, is read in time and memory bounded by the commit, not by the profile.
+func TestCoverageCostIsBoundedByTheCommit(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("mode: set\n")
+	for i := range 300000 {
+		fmt.Fprintf(&b, "example.com/m/x%07d.go:1.1,1.2 1 1\n", i)
+	}
+	rf := repoOf(goFile("a/a.go", 10, 1))
+	for i := range 20000 {
+		rf.Modules = append(rf.Modules, facts.Module{Dir: fmt.Sprintf("d%d", i), Path: "example.com/m"})
+	}
+	rf.Coverage = &facts.Coverage{Name: "coverage.out", Data: []byte(b.String())}
+	start := time.Now()
+	m, in, _ := coverage(context.Background(), rf, nil)
+	if m.Reason != report.StaleCoverageReport || counts(in) != [3]int{300000, 300000, 0} {
+		t.Errorf("coverage = %+v, input %v", m, counts(in))
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Errorf("took %v", d)
 	}
 }
