@@ -233,7 +233,12 @@ No file is written unless `-o` asks for one. Today's silent `health_report.json`
 > **Known gap:** until a second person reviews, criterion C1 below ("reviewed by another person") is only partly met.
 
 #### D30. Who builds it
-- [x] Kadirhan with at most three AI agents at a time. The unit of parallel work is a package. Writers are Sonnet, and a skeptic reviewer (Opus) runs before each PR.
+- [x] **One builder, agents only where they fit.** *(changed on acceptance)*
+  - The main session writes all of the code. No agent writes production code.
+  - Agents do only work suited to agents: independent reviews, documentation lookups and mechanical checks. At most three run at a time.
+  - Every review checks security explicitly: untrusted repository input, exec paths, git config, network use and secrets in output.
+  - Agents get read-only access to the work tree. They are never given tokens and never act on GitHub.
+- [ ] Kadirhan with at most three AI agents writing packages in parallel, with an Opus skeptic before each PR.
 - [ ] One person, no agents.
 - [ ] Kadirhan writes, the agent reviews.
 
