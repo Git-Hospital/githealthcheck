@@ -56,7 +56,7 @@ of HEAD in a recognised language, not vendored or generated, that some commit ad
 into; a file that only ever arrived as a copy has no history.
 
 The family is `null` with the reason `history_too_short` when the clone is shallow or the history has
-fewer than 50 commits by people; `too_large` when `git log` prints more than 512 MiB or more than 20
+fewer than 50 commits by people; `too_large` when `git log` prints more than 512 MiB or more than 5
 million changed paths, or when following rename chains would read more than 50 million history entries
 (files that share an ancestor each read its history); and `tool_crashed` when `git log` fails, for
 example on a missing object. The other families still report.

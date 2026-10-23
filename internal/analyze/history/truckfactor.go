@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"slices"
 
@@ -109,16 +110,16 @@ func TruckFactor(ctx context.Context, commits []facts.Commit, paths []string, de
 	}
 
 	// Greedy removal: take away the developer who authors the most files until fewer than half of the
-	// files have an author left.
-	authored := map[string]map[string]bool{} // developer -> files they author
-	changes := map[string]int{}              // developer -> adds and deliveries over all files
-	for _, f := range res.files {
+	// files have an author left. Removing a developer changes no one else's files or changes, so the
+	// order of removal is fixed up front, and each file keeps a count of the authors it has left.
+	authored := map[string][]int{} // developer -> indexes in res.files of the files they author
+	changes := map[string]int{}    // developer -> adds and deliveries over all files
+	left := make([]int, len(res.files))
+	for i, f := range res.files {
 		for _, a := range f.authors {
-			if authored[a] == nil {
-				authored[a] = map[string]bool{}
-			}
-			authored[a][f.path] = true
+			authored[a] = append(authored[a], i)
 		}
+		left[i] = len(f.authors)
 		for _, r := range f.records {
 			changes[r.dev] += r.deliveries
 			if r.first || r.secondary {
@@ -129,42 +130,45 @@ func TruckFactor(ctx context.Context, commits []facts.Commit, paths []string, de
 	if res.Files == 0 {
 		return res, nil
 	}
-	sizes := map[string]int{}
-	for d, fs := range authored {
-		sizes[d] = len(fs)
+	order := slices.Collect(maps.Keys(authored))
+	slices.SortFunc(order, func(a, b string) int {
+		return cmp.Or(
+			-cmp.Compare(len(authored[a]), len(authored[b])),
+			-cmp.Compare(changes[a], changes[b]),
+			cmp.Compare(a, b), // ties in the tool fall to HashMap order; here to the smaller key
+		)
+	})
+	cov := 0
+	for _, n := range left {
+		if n > 0 {
+			cov++
+		}
 	}
 	var removed []string
-	for len(authored) > 0 {
+	for _, d := range order {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		if float32(covered(authored))/float32(res.Files) < tfCoverage {
+		if float32(cov)/float32(res.Files) < tfCoverage {
 			break
 		}
-		// "" is a developer key too (an author without name or email), so it cannot mark "none yet".
-		top, chosen := "", false
-		for d := range authored {
-			if !chosen || cmp.Or(
-				cmp.Compare(len(authored[d]), len(authored[top])),
-				cmp.Compare(changes[d], changes[top]),
-				cmp.Compare(top, d), // ties in the tool fall to HashMap order; here to the smaller key
-			) > 0 {
-				top, chosen = d, true
+		removed = append(removed, d)
+		for _, i := range authored[d] {
+			if left[i]--; left[i] == 0 {
+				cov--
 			}
 		}
-		removed = append(removed, top)
-		delete(authored, top)
 	}
-	res.CoveredAfter = covered(authored)
+	res.CoveredAfter = cov
 
 	// Pruning: a TF developer who authors under 10% of the files of the top TF developer does not
 	// count.
 	topFiles := 0
 	for _, d := range removed {
-		topFiles = max(topFiles, sizes[d])
+		topFiles = max(topFiles, len(authored[d]))
 	}
 	for _, d := range removed {
-		if float32(sizes[d])/float32(topFiles) >= minPercentage {
+		if float32(len(authored[d]))/float32(topFiles) >= minPercentage {
 			res.TFDevs = append(res.TFDevs, d)
 		}
 	}
@@ -251,15 +255,4 @@ func doa(path string, entries []entry, dev func(*facts.Commit) string) fileAutho
 	}
 	slices.Sort(f.authors)
 	return f
-}
-
-// covered counts the files that have an author.
-func covered(authored map[string]map[string]bool) int {
-	files := map[string]bool{}
-	for _, fs := range authored {
-		for f := range fs {
-			files[f] = true
-		}
-	}
-	return len(files)
 }

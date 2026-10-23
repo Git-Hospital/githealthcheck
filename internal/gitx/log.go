@@ -28,12 +28,14 @@ func LogArgs(head string) []string {
 	return []string{"log", "--no-merges", "--find-renames=100%", "--name-status", "-z", logFormat, head}
 }
 
-// ErrTooLarge is returned when the history lists more than MaxChanges changed paths. Parsed, each
-// costs several times its bytes in memory, so the 512 MiB output cap alone does not bound it.
+// ErrTooLarge is returned when the history lists more than MaxChanges changed paths. Each costs about
+// 80 bytes once parsed and indexed, so the 512 MiB output cap alone does not bound the memory: a
+// pack of half a megabyte can list 20 million.
 var ErrTooLarge = errors.New("git log: too many changes")
 
-// MaxChanges is far above real repositories: the Linux kernel has about 3 million.
-var MaxChanges = 20_000_000
+// MaxChanges bounds the memory at a few hundred megabytes. Flask's history has about 9 thousand; one
+// of hundreds of thousands of commits can be over it and gets too_large.
+var MaxChanges = 5_000_000
 
 // Log reads the history reachable from head.
 func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, error) {
@@ -50,6 +52,16 @@ func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, erro
 func ParseLog(out []byte) ([]facts.Commit, error) {
 	var commits []facts.Commit
 	changes := 0
+	// A path is changed by many commits; one copy of it serves all of them.
+	paths := map[string]string{}
+	intern := func(b []byte) string {
+		if s, ok := paths[string(b)]; ok {
+			return s
+		}
+		s := string(b)
+		paths[s] = s
+		return s
+	}
 	pos := 0 // where the next field starts; past len(out) once the last one was taken
 	next := func() ([]byte, bool) {
 		if pos > len(out) {
@@ -101,13 +113,13 @@ func ParseLog(out []byte) ([]facts.Commit, error) {
 				if !ok1 || !ok2 {
 					return nil, fmt.Errorf("git log: commit %s: rename cut short", hash)
 				}
-				ch.Old, ch.Path = string(old), string(path)
+				ch.Old, ch.Path = intern(old), intern(path)
 			case 'A', 'M', 'D', 'T', 'U', 'X', 'B':
 				path, ok := next()
 				if !ok {
 					return nil, fmt.Errorf("git log: commit %s: change cut short", hash)
 				}
-				ch.Path = string(path)
+				ch.Path = intern(path)
 			default:
 				return nil, fmt.Errorf("git log: commit %s: unknown status %q", hash, truncate(status))
 			}

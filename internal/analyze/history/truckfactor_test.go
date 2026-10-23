@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 )
@@ -255,5 +256,26 @@ func TestTruckFactorTooLarge(t *testing.T) {
 	}
 	if _, err := TruckFactor(context.Background(), commits, []string{"y.py", "z.py"}, byEmail); !errors.Is(err, ErrTooLarge) {
 		t.Errorf("3+2 entries over 4: %v", err)
+	}
+}
+
+// The greedy step is linear in authorships: 30 thousand developers who each add one file, half of
+// them removed, took a minute when each step recounted every file.
+func TestGreedyCostIsLinear(t *testing.T) {
+	const n = 30_000
+	commits := make([]facts.Commit, n)
+	paths := make([]string, n)
+	for i := range commits {
+		paths[i] = fmt.Sprintf("%06d.py", i)
+		commits[i] = facts.Commit{Email: fmt.Sprintf("d%06d", i), Time: int64(i), Changes: []facts.Change{{Status: 'A', Path: paths[i]}}}
+	}
+	slices.Sort(paths)
+	start := time.Now()
+	r := tf(t, commits, paths...)
+	if r.TF != n/2+1 || r.CoveredAfter != n/2-1 {
+		t.Errorf("TF %d, covered after %d", r.TF, r.CoveredAfter)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Errorf("took %v", d)
 	}
 }
