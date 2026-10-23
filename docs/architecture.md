@@ -22,12 +22,16 @@ It is not a linter. It does not report style, and it does not find bugs. It does
 
 ## 2. Principles
 
-- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `too_large`). Default constants presented as measurements are a bug class, and the tests target it (§7).
+- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `too_large`, `not_implemented`, `tool_crashed`). Paths that are not read at all are listed in `skipped[]` with their own reasons: `symlink`, `too_large`, `nested_repository`, `unreadable`. Default constants presented as measurements are a bug class, and the tests target it (§7).
 - **Facts once, metrics many.** Files are parsed once into `FileFacts`, and analyzers read facts, not files. This is what makes "no file cap" (D23) affordable.
 - **Explainable findings, comparable scores.** A finding cites a documented threshold and a location. A score is a percentile against a pinned corpus (D18, D19).
 - **The scanned repository is untrusted input.** Repository code and configuration are never executed by default (D22). This includes git's own configuration in the scanned `.git/config`, which can run commands through `core.fsmonitor`, `diff.external` or textconv drivers.
   - `execx` runs git with these environment variables: `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_OPTIONAL_LOCKS=0` and `GIT_TERMINAL_PROMPT=0`.
   - It passes these options: `-c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat`, plus `--no-ext-diff --no-textconv` on log and diff.
+  - The overrides also cover `log.showSignature=false` and `protocol.allow=never`, and the environment sets `GIT_NO_LAZY_FETCH=1`. Without them, a repository could make `git log` run `gpg.program`, or make a partial clone fetch over the network.
+  - `GIT_CEILING_DIRECTORIES` is set to the parent of the root, and the root must equal `rev-parse --show-toplevel`. This stops git from falling back to an enclosing repository.
+  - `-c safe.directory=<root>` trusts only the scanned root. The command scope counts as protected configuration in git.
+  - Arguments that would undo the safety flags are rejected: `--ext-diff`, `--textconv`, `--show-signature`, `-c`, `--git-dir` and `--work-tree`.
   - git is used only to read history. Commands that refresh the index, such as `status` or work-tree diffs, are never used.
   - Symlinks are never followed: files are checked with lstat, and symlinks are listed in `skipped[]`.
   - Source files over 1 MiB and coverage reports over 50 MiB are skipped with the reason `too_large`.
