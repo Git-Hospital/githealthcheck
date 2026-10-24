@@ -48,16 +48,20 @@ its first character. Each `line` of a class is one statement, as coverage.py cou
 coverage equals coverage.py's `line-rate` for the same files; lines repeated under `methods`, as other
 Cobertura writers list them, are not counted again. Branch data is not read. A file name is relative to
 one of the report's `source` paths, which are absolute paths on the machine that ran the tests: the
-name joined with each source in turn, and then on its own, is matched against the commit by its
-longest suffix that is a path of the commit, so `/home/ci/work/proj/src` with `pkg/mod.py` is
-`src/pkg/mod.py`. Every file the report lists counts in `moduleFiles`, since Cobertura has no module
+source joined with the name ends with the repository path. Of its suffixes that keep the name whole,
+over every source and the name on its own, the longest that is a path of the commit is the file, so
+`/home/ci/work/proj/src` with `pkg/mod.py` is `src/pkg/mod.py`. The name itself is never cut: a file
+`old/util.py` that is gone from the commit does not become `util.py`. An absolute name keeps at least
+its base name. Every file the report lists counts in `moduleFiles`, since Cobertura has no module
 paths, and the freshness checks are those above: 90% of them at HEAD, and no line past the end of its
 file. Test files are left out of the statistics, as SonarSource leaves them out of coverage. A package
-is a directory.
+is a directory. None of this needs python3: without it, Python's complexity is not analysed, but its
+coverage and test files are.
 
 The XML is read with Go's `encoding/xml`, which expands no entities other than XML's own and reads no
-DTD; a report that uses another entity, nests elements more than 32 deep, or lists more than 64 sources
-is invalid.
+DTD. A report is invalid when it uses another entity, nests elements more than 32 deep, lists more
+than 16 sources, has a source or file name over 1024 bytes, or needs more than about two million
+lookups to map its files to the commit (a real one needs a few per file).
 
 ## Fix
 

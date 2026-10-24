@@ -2,9 +2,11 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // in returns a resolver for a commit of the given paths.
@@ -74,6 +76,8 @@ func TestParseCoberturaPaths(t *testing.T) {
 		"absolute file name":      {"", "/home/ci/proj/pkg/mod.py", []string{"pkg/mod.py"}, "pkg/mod.py"},
 		"relative files, no root": {"<source>.</source>", "pkg/mod.py", []string{"pkg/mod.py"}, "pkg/mod.py"},
 		"not in the commit":       {"<source>/x</source>", "gone.py", []string{"pkg/mod.py"}, ""},
+		"name kept whole":         {"<source>/ci/proj</source>", "old/util.py", []string{"util.py"}, ""},
+		"longest over sources":    {"<source>/ci/proj/lib</source><source>/ci/proj/src</source>", "pkg/mod.py", []string{"pkg/mod.py", "src/pkg/mod.py"}, "src/pkg/mod.py"},
 		"no escape upwards":       {"<source>/x</source>", "../../etc/passwd", []string{"etc/passwd"}, "etc/passwd"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -96,6 +100,55 @@ func TestParseCoberturaPaths(t *testing.T) {
 	}
 }
 
+// One file written two ways is one file; a source outside sources is not a source.
+func TestParseCoberturaCounts(t *testing.T) {
+	data := `<coverage><sources><source>/ci/proj</source></sources><packages><package><classes>
+<source>/elsewhere</source>
+<class filename="pkg\\mod.py"><lines><line number="1" hits="1"/></lines></class>
+<class filename="pkg/mod.py"><lines><line number="2" hits="0"/></lines></class>
+</classes></package></packages></coverage>`
+	p, err := parseCobertura(context.Background(), []byte(data), in("pkg/mod.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, c := covered(p, "pkg/mod.py"); p.files != 1 || s != 2 || c != 1 {
+		t.Errorf("files %d, %d of %d covered", p.files, c, s)
+	}
+}
+
+// A crafted report cannot make the mapping slow: long names are refused, each name is mapped once,
+// the lookups have a budget, and the deadline is checked for each class.
+func TestParseCoberturaCost(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<coverage><sources>")
+	for i := range maxSources {
+		fmt.Fprintf(&b, "<source>/s%d</source>", i)
+	}
+	b.WriteString("</sources><packages><package><classes>")
+	deep := strings.Repeat("d/", 120)
+	for i := range 3000 {
+		fmt.Fprintf(&b, `<class filename="%sf%d.py"><lines/></class>`, deep, i%50)
+	}
+	b.WriteString("</classes></package></packages></coverage>")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	start := time.Now()
+	if _, err := parseCobertura(ctx, []byte(b.String()), in("x.py")); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("took %v", d)
+	}
+	long := `<coverage><packages><package><classes><class filename="` + strings.Repeat("a", maxNameBytes+1) + `"/></classes></package></packages></coverage>`
+	if _, err := parseCobertura(context.Background(), []byte(long), in()); err == nil {
+		t.Error("parsed a file name over the bound")
+	}
+	budget := 3
+	if _, ok := find("a/b/c/d.py", []string{"/x/y/z"}, in(), &budget); ok || budget >= 0 {
+		t.Errorf("budget %d after a search past it", budget)
+	}
+}
+
 func TestParseCoberturaRejects(t *testing.T) {
 	for name, data := range map[string]string{
 		"not xml":         "<coverage><unclosed>",
@@ -106,7 +159,7 @@ func TestParseCoberturaRejects(t *testing.T) {
 		"negative hits":   `<coverage><packages><package><classes><class filename="a.py"><lines><line number="1" hits="-1"/></lines></class></classes></package></packages></coverage>`,
 		"entity":          `<!DOCTYPE coverage [<!ENTITY x "a">]><coverage><sources><source>&x;</source></sources></coverage>`,
 		"external entity": `<!DOCTYPE coverage [<!ENTITY x SYSTEM "file:///etc/passwd">]><coverage><sources><source>&x;</source></sources></coverage>`,
-		"long source":     "<coverage><sources><source>" + strings.Repeat("a", maxLineBytes+1) + "</source></sources></coverage>",
+		"long source":     "<coverage><sources><source>" + strings.Repeat("a", maxNameBytes+1) + "</source></sources></coverage>",
 		"many sources":    "<coverage><sources>" + strings.Repeat("<source>a</source>", maxSources+1) + "</sources></coverage>",
 		"deep":            "<coverage>" + strings.Repeat("<a>", 20000) + strings.Repeat("</a>", 20000) + "</coverage>",
 	} {

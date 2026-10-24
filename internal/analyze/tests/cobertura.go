@@ -28,11 +28,14 @@ import (
 // one of the sources, which are absolute paths on the machine that ran the tests. Other Cobertura
 // writers also list each method's lines under methods, which repeat the class's.
 
-// Bounds far above anything coverage.py writes, whose elements nest six deep.
+// Bounds far above anything coverage.py writes, whose elements nest six deep. maxLookups bounds the
+// work of mapping the report's files to the commit: a few per file in a real report.
 const (
-	maxSources = 64
-	maxLine    = 1 << 24
-	maxDepth   = 32
+	maxSources   = 16
+	maxNameBytes = 1024
+	maxLine      = 1 << 24
+	maxDepth     = 32
+	maxLookups   = 1 << 21
 )
 
 // isCobertura reports whether a coverage report is XML rather than a Go profile.
@@ -56,7 +59,13 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 	var stack []string
 	var text strings.Builder
 	var lines map[blockKey]*block // the lines of the current class, nil when its file is not in the commit
-	seen := map[string]bool{}
+	type found struct {
+		rel string
+		ok  bool
+	}
+	seen := map[string]found{} // each file of the report, as it resolved
+	budget := maxLookups
+	inSource := false
 	sawRoot := false
 	for n := 0; ; n++ {
 		if n%4096 == 0 && ctx.Err() != nil {
@@ -88,17 +97,29 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 				sawRoot = true
 			case name == "source" && parent == "sources":
 				text.Reset()
+				inSource = true
 			case name == "class":
-				file := attr(t, "filename")
-				if file == "" {
-					return nil, fmt.Errorf("line %d: class without a filename", lineOf(d))
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
 				}
-				rel, ok := find(file, sources, resolve)
-				if !seen[file] {
-					seen[file] = true
+				file := strings.ReplaceAll(attr(t, "filename"), `\`, "/")
+				if file != "" {
+					file = path.Clean(file) // one file however it is written
+				}
+				if file == "" || len(file) > maxNameBytes {
+					return nil, fmt.Errorf("line %d: class without a filename, or one longer than %d bytes", lineOf(d), maxNameBytes)
+				}
+				r, known := seen[file]
+				if !known {
+					r.rel, r.ok = find(file, sources, resolve, &budget)
+					if budget < 0 {
+						return nil, fmt.Errorf("line %d: the report's files cost more than %d lookups to map", lineOf(d), maxLookups)
+					}
+					seen[file] = r
 					p.files++
 					p.inModules++
 				}
+				rel, ok := r.rel, r.ok
 				lines = nil
 				if ok {
 					if lines = p.blocks[rel]; lines == nil {
@@ -123,19 +144,20 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 				}
 			}
 		case xml.CharData:
-			if len(stack) > 0 && stack[len(stack)-1] == "source" {
-				if text.Len()+len(t) > maxLineBytes {
-					return nil, fmt.Errorf("line %d: source longer than %d bytes", lineOf(d), maxLineBytes)
+			if inSource {
+				if text.Len()+len(t) > maxNameBytes {
+					return nil, fmt.Errorf("line %d: source longer than %d bytes", lineOf(d), maxNameBytes)
 				}
 				text.Write(t)
 			}
 		case xml.EndElement:
 			if len(stack) > 0 {
-				if stack[len(stack)-1] == "source" {
+				if inSource && stack[len(stack)-1] == "source" {
+					inSource = false
 					if len(sources) == maxSources {
 						return nil, fmt.Errorf("more than %d sources", maxSources)
 					}
-					sources = append(sources, strings.TrimSpace(text.String()))
+					sources = append(sources, strings.ReplaceAll(strings.TrimSpace(text.String()), `\`, "/"))
 				}
 				if stack[len(stack)-1] == "class" {
 					lines = nil
@@ -164,31 +186,63 @@ func lineOf(d *xml.Decoder) int {
 	return line
 }
 
-// find resolves a file of the report to a path in the commit. The file joined with a source is a path
-// on the machine that ran the tests, which ends with the repository path: of its suffixes, the longest
-// that is in the commit is taken, trying each source in turn, then the file on its own.
-func find(file string, sources []string, resolve pathResolver) (string, bool) {
-	file = strings.ReplaceAll(file, `\`, "/")
-	for _, s := range append(sources, "") {
-		full := file
-		if !path.IsAbs(file) && !isDrive(file) {
-			full = path.Join(strings.ReplaceAll(s, `\`, "/"), file)
+// find resolves a file of the report to a path in the commit. A relative file name is relative to one
+// of the sources, absolute paths on the machine that ran the tests: the source joined with the name
+// ends with the repository path, and each of its suffixes that keeps the name whole is a candidate.
+// An absolute name is its own source and keeps at least its base name. Of the candidates in the
+// commit, over every source, the longest is taken. The name's own parts are never dropped, so a file
+// missing from the commit does not land on another file with the same tail. Each lookup costs one of
+// budget.
+func find(file string, sources []string, resolve pathResolver, budget *int) (string, bool) {
+	type base struct {
+		full string
+		keep int // the parts at the end that must stay
+	}
+	var bases []base
+	if path.IsAbs(file) || isDrive(file) {
+		bases = []base{{file, 1}}
+	} else {
+		keep := 0
+		for p := range strings.SplitSeq(path.Clean(file), "/") {
+			if p != ".." && p != "." {
+				keep++
+			}
 		}
-		parts := strings.Split(strings.TrimPrefix(path.Clean("/"+full), "/"), "/")
-		if len(parts) > maxPathSegments {
+		for _, s := range sources {
+			bases = append(bases, base{path.Join(s, file), keep})
+		}
+		bases = append(bases, base{file, keep})
+	}
+	best := ""
+	for _, b := range bases {
+		full := strings.TrimPrefix(path.Clean("/"+b.full), "/")
+		parts := strings.Count(full, "/") + 1
+		if b.keep == 0 || full == "" || parts > maxPathSegments {
 			continue
 		}
-		for i := range parts {
-			cand := strings.Join(parts[i:], "/")
-			if cand == "" || cand == "." || strings.HasPrefix(cand, "../") {
-				continue
+		// Suffixes from the longest: full itself, then past each slash, while the name stays whole.
+		for i, drop := 0, 0; drop <= parts-b.keep; drop++ {
+			cand := full[i:]
+			if len(cand) <= len(best) {
+				break // the rest are shorter than what was found
 			}
-			if rel, ok := resolve(cand); ok {
-				return rel, true
+			if *budget--; *budget < 0 {
+				return "", false
 			}
+			if cand != "." && !strings.HasPrefix(cand, "../") {
+				if rel, ok := resolve(cand); ok {
+					best = rel
+					break
+				}
+			}
+			next := strings.IndexByte(full[i:], '/')
+			if next < 0 {
+				break
+			}
+			i += next + 1
 		}
 	}
-	return "", false
+	return best, best != ""
 }
 
 // isDrive reports a Windows path such as C:/work/x.py.

@@ -78,9 +78,15 @@ func TestRunPython(t *testing.T) {
 
 func TestRunWithoutGo(t *testing.T) {
 	ctx := context.Background()
-	py := facts.File{Path: "a.py", Language: "python", Lines: 10}
-	if r := (Analyzer{}).Run(ctx, repoOf(py)); r.Measured || r.Reason != report.UnsupportedLanguage {
-		t.Errorf("python not analysed: %+v", r)
+	rs := facts.File{Path: "a.rs", Language: "rust", Lines: 10}
+	if r := (Analyzer{}).Run(ctx, repoOf(rs)); r.Measured || r.Reason != report.UnsupportedLanguage {
+		t.Errorf("rust: %+v", r)
+	}
+	// Python needs no python3 here: its package and test flag come from its path.
+	code := facts.File{Path: "a.py", Language: "python", Package: ".", Lines: 10}
+	test := facts.File{Path: "tests/test_a.py", Language: "python", Package: "tests", Lines: 5, Test: true}
+	if r := (Analyzer{}).Run(ctx, repoOf(code, test)); !r.Measured || value(t, r.Metrics[TestCodeLineRatio]) != 0.5 {
+		t.Errorf("python without python3: %+v", r)
 	}
 	vendored := goFile("vendor/x/x.go", 10, 1)
 	vendored.Vendored = true

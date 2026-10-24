@@ -65,12 +65,13 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		return analyze.Result{Reason: report.Timeout}
 	}
 	analysed := false
-	// The repository's own code in the languages analysed: not vendored, generated or ignored by the
-	// go command.
+	// The repository's own code in the languages the family reads: not vendored, generated or
+	// ignored by the go command. The family needs only a file's package and whether it is a test,
+	// which a Python file has without python3.
 	own := map[string]*facts.File{}
 	for i := range rf.Files {
 		f := &rf.Files[i]
-		if !f.Analysed {
+		if !f.Analysed && f.Language != "python" {
 			continue
 		}
 		analysed = true
