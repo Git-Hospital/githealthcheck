@@ -45,3 +45,33 @@ jobs:
       # root.
       - name: safe.directory test as root
         run: sudo -E env "PATH=$PATH" go test -count=1 -run TestSafeDirectoryForOtherOwner -v ./internal/execx/
+
+  release-config:
+    name: goreleaser check and snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          args: check
+      # Builds every archive without publishing, so a broken release config fails here and not on a tag.
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          args: release --snapshot --clean --skip=before
+      - name: the snapshot binary runs and scans this repository
+        run: |
+          bin=$(find dist -path '*linux_amd64*' -name githealthcheck -type f | head -1)
+          "$bin" version
+          "$bin" scan --format json . > /dev/null || [ $? -eq 1 ]

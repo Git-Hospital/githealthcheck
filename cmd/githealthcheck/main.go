@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -35,8 +36,15 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
-// version is set at release time with -ldflags "-X main.version=...".
+// version is set at release time with -ldflags "-X main.version=...". A build by go install has the
+// module version instead, which init reads.
 var version = "dev"
+
+func init() {
+	if bi, ok := debug.ReadBuildInfo(); ok && version == "dev" && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+}
 
 const usage = `usage:
   githealthcheck scan [flags] <path>   measure the repository whose root is <path>
