@@ -17,7 +17,7 @@ when called. Code generators leave them when asked for more than they write (ADR
 The whole body, after the docstring, is one of:
 
 - `raise NotImplementedError` in a function that is not a method; in a method it is how a base class
-  asks for an override, and is not judged;
+  asks for an override, and is not judged, whatever its message, unless the message is a TODO;
 - a `raise` whose message says the function is not implemented or is a TODO, as for Go;
 - `pass` or `...` with a `# TODO` or `# FIXME` comment in the function.
 

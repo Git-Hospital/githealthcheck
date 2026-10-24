@@ -27,29 +27,21 @@ type Filled struct {
 }
 
 // Set is the language supports of one scan. Go is read in this process; Python by a pool of python3
-// helpers, which Open starts and Close stops.
+// helpers, started for the first Python file and stopped by Close.
 type Set struct {
+	ctx    context.Context
 	py     *python.Pool
 	status map[string]Status
 }
 
-// Open starts the supports of a scan. A language whose tool cannot be started is not analysed, with
-// the reason in its Status.
+// Open prepares the supports of a scan.
 func Open(ctx context.Context) *Set {
-	s := &Set{status: map[string]Status{"go": {Analysed: true}}}
-	py, err := python.Start(ctx)
-	switch {
-	case err == nil:
-		s.py = py
-		s.status["python"] = Status{Analysed: true, Tool: &report.Tool{Name: "python3", Version: py.Version()}}
-	default:
-		s.status["python"] = Status{Reason: python.Reason(err)}
-	}
-	return s
+	return &Set{ctx: ctx, status: map[string]Status{"go": {Analysed: true}}}
 }
 
 // Status returns the status of a language: not analysed, with no reason, for a language this build
-// has no support for.
+// has no support for or that the scan has not met. A language whose tool could not be started is not
+// analysed, with the reason.
 func (s *Set) Status(name string) Status { return s.status[name] }
 
 // Tools lists the external tools the scan reads code with.
@@ -72,9 +64,20 @@ func (s *Set) Fill(i int, f *facts.File, src []byte) bool {
 		golang.Support{}.Fill(f, src)
 		f.Analysed = true
 		return true
-	case f.Language == "python" && s.py != nil:
-		s.py.Submit(i, *f, src)
-		return false
+	case f.Language == "python":
+		if _, met := s.status["python"]; !met {
+			py, err := python.Start(s.ctx)
+			if err != nil {
+				s.status["python"] = Status{Reason: python.Reason(err)}
+			} else {
+				s.py = py
+				s.status["python"] = Status{Analysed: true, Tool: &report.Tool{Name: "python3", Version: py.Version()}}
+			}
+		}
+		if s.py != nil {
+			s.py.Submit(i, *f, src)
+			return false
+		}
 	}
 	return true
 }

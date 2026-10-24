@@ -42,9 +42,12 @@ const (
 	// MaxResponse bounds the facts a helper may send back for one file: a 1 MiB file of one-character
 	// tokens gives about 15 MiB.
 	MaxResponse = 64 << 20
-	// maxRestarts is the number of times in a row a helper may die before its files are left
-	// unread.
-	maxRestarts = 3
+	// startTimeout bounds the wait for a new helper's greeting.
+	startTimeout = 5 * time.Second
+	// maxStartFailures is the number of times in a row a helper may fail to start before the
+	// worker's files are left unread: python3 itself is broken. A helper that dies on a file is
+	// replaced however often it happens, since that is the file's doing.
+	maxStartFailures = 3
 )
 
 // fileTimeout is FileTimeout, lowered by tests.
@@ -62,6 +65,8 @@ func Reason(err error) report.NullReason {
 		return report.ToolNotFound
 	case errors.Is(err, errTooOld):
 		return report.ToolTooOld
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return report.Timeout
 	}
 	return report.ToolCrashed
 }
@@ -96,6 +101,9 @@ func Start(ctx context.Context) (*Pool, error) {
 	path, err := exec.LookPath(Interpreter)
 	if err != nil {
 		return nil, errNotFound
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 	p := &Pool{ctx: ctx, path: path}
 	first, err := p.spawn()
@@ -162,47 +170,48 @@ func (p *Pool) Close() {
 	}
 }
 
-// work fills the files of the queue with one helper, restarting it when it dies or hangs.
+// work fills the files of the queue with one helper, replacing it when it dies, hangs or runs out of
+// memory. A file the helper did not answer for is partial and not analysed: it counts in no
+// measurement.
 func (p *Pool) work(h *proc) {
 	defer p.wg.Done()
-	failures := 0
+	startFailures := 0
 	for j := range p.jobs {
 		f := j.file
 		prepare(&f, j.src)
 		if strings.HasSuffix(f.Path, ".pyi") {
 			// A type stub holds signatures with ... for bodies: it is counted, not measured.
-			f.Analysed = true
 			p.publish(j.index, f)
 			continue
 		}
 		tokens := wantTokens(&f)
-		if h == nil && failures < maxRestarts && p.ctx.Err() == nil {
+		if h == nil && startFailures < maxStartFailures && p.ctx.Err() == nil {
 			var err error
 			if h, err = p.spawn(); err != nil {
-				failures++
+				startFailures++
+			} else {
+				startFailures = 0
 			}
 		}
-		var resp []byte
-		var err error = errors.New("no helper")
-		if h != nil {
-			resp, err = h.ask(p.ctx, j.src, tokens)
+		if h == nil {
+			f.Partial = true
+			p.publish(j.index, f)
+			continue
 		}
-		switch {
-		case err != nil:
-			// The helper died, hung or answered past the limit: it is replaced for the next file,
-			// and this one is partial.
-			if h != nil {
-				h.kill()
-				h = nil
-				failures++
-			}
-			f.Analysed, f.Partial = true, true
-		default:
-			failures = 0
-			if err := fill(&f, resp, tokens); err != nil {
-				f.Partial = true
-			}
-			f.Analysed = true
+		resp, err := h.ask(p.ctx, j.src, tokens)
+		if err != nil {
+			// The helper died, hung or answered past the limit: it is replaced for the next file.
+			h.kill()
+			h = nil
+			f.Partial = true
+			p.publish(j.index, f)
+			continue
+		}
+		restart, err := fill(&f, resp, tokens)
+		f.Analysed, f.Partial = err == nil, f.Partial || err != nil
+		if restart {
+			h.kill()
+			h = nil
 		}
 		p.publish(j.index, f)
 	}
@@ -250,6 +259,8 @@ func (p *Pool) spawn() (*proc, error) {
 	}
 	h := &proc{cmd: cmd, stdin: stdin, lines: make(chan line, 1), wait: sync.OnceFunc(func() { cmd.Wait() })}
 	go h.read(bufio.NewReaderSize(stdout, 64<<10))
+	timer := time.NewTimer(startTimeout)
+	defer timer.Stop()
 	select {
 	case l := <-h.lines:
 		v, ok := strings.CutPrefix(strings.TrimSpace(string(l.data)), "githealthcheck-python ")
@@ -259,9 +270,12 @@ func (p *Pool) spawn() (*proc, error) {
 		}
 		h.version = v
 		return h, nil
-	case <-time.After(fileTimeout):
+	case <-timer.C:
 		h.kill()
 		return nil, fmt.Errorf("python3 helper did not start")
+	case <-p.ctx.Done():
+		h.kill()
+		return nil, p.ctx.Err()
 	}
 }
 

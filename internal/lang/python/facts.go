@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path"
 	"regexp"
 	"strings"
@@ -64,6 +65,7 @@ func generated(src []byte) bool {
 type response struct {
 	Error   string `json:"error"`
 	Partial bool   `json:"partial"`
+	Parsed  bool   `json:"parsed"` // ast read the file: without it there are no functions to measure
 	Funcs   []struct {
 		Name       string   `json:"n"`
 		Line       int      `json:"l"`
@@ -98,13 +100,18 @@ type response struct {
 const MaxSmells = 1000
 
 // fill sets f's facts from the helper's response. A file that did not parse comes back with what the
-// tokenizer got and Partial set.
-func fill(f *facts.File, resp []byte, tokens bool) error {
+// tokenizer got and Partial set. restart says the helper ran out of memory and is better replaced.
+func fill(f *facts.File, resp []byte, tokens bool) (restart bool, err error) {
 	var r response
 	if err := json.Unmarshal(resp, &r); err != nil {
-		return err
+		return true, err
 	}
-	f.Partial = r.Partial || r.Error != ""
+	restart = r.Error == "MemoryError"
+	if r.Error != "" || !r.Parsed {
+		// Nothing was measured: the file counts in no measurement, as one that was not read.
+		return restart, fmt.Errorf("python3 helper: not parsed (%s)", r.Error)
+	}
+	f.Partial = r.Partial
 	for _, fn := range r.Funcs {
 		f.Funcs = append(f.Funcs, facts.Function{Name: fn.Name, Line: fn.Line, EndLine: fn.EndLine, Lines: fn.Lines,
 			Statements: fn.Statements, Cognitive: fn.Cognitive, Cyclomatic: fn.Cyclomatic, Nesting: fn.Nesting,
@@ -138,7 +145,7 @@ func fill(f *facts.File, resp []byte, tokens bool) error {
 			f.Funcs[i].Span = [2]int32{}
 		}
 	}
-	return nil
+	return restart, nil
 }
 
 // wantTokens reports whether duplication is looked for in a file: the repository's own code, not

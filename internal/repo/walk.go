@@ -121,8 +121,6 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 	defer r.Close()
 	ls := lang.Open(ctx)
 	defer ls.Close()
-	t.Languages = map[string]lang.Status{"go": ls.Status("go"), "python": ls.Status("python")}
-	t.Tools = ls.Tools()
 	tokens, dropped := 0, false
 	// keep bounds the token streams across the repository: past the bound none is kept. It runs once
 	// a file's facts are final, which for a file read by a helper is when the helper returns it.
@@ -144,7 +142,11 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 		}
 	}
 	// Files a helper has not returned by the deadline are left with what the walk knows.
-	defer func() { collect(ls.Wait()) }()
+	defer func() {
+		collect(ls.Wait())
+		t.Languages = map[string]lang.Status{"go": ls.Status("go"), "python": ls.Status("python")}
+		t.Tools = ls.Tools()
+	}()
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			// The files read so far are still returned, so a timed-out run can report what it did

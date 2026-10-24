@@ -1,8 +1,8 @@
 # The githealthcheck Python helper. githealthcheck runs it as `python3 -I -S -B -X utf8 -c <this>`
 # and sends it source files on stdin, each as a header line "<length> <flags>\n" followed by that
-# many bytes; flags hold "t" when the file's tokens are wanted and "s" for a type stub. For each file
-# it writes one line of JSON with the file's facts. It only parses: nothing it is sent is run,
-# imported or compiled to bytecode. It uses the standard library only.
+# many bytes; flags hold "t" when the file's tokens are wanted. For each file it writes one line of
+# JSON with the file's facts. It only parses: nothing it is sent is run, imported or compiled to
+# bytecode. It uses the standard library only.
 
 import ast
 import io
@@ -14,6 +14,10 @@ import token
 import tokenize
 
 sys.setrecursionlimit(4000)
+
+# The address space a helper may use. A crafted file of 1 MiB can make ast take about 1 GB; past the
+# bound the file gets a MemoryError and the helper is replaced. Only Linux enforces it.
+MAX_MEMORY = 1 << 30
 
 LOCAL = 1 << 30
 FIXED = 1 << 31
@@ -44,7 +48,19 @@ def fnv32(data):
     return h
 
 
+def limit_memory():
+    try:
+        import resource
+
+        _, hard = resource.getrlimit(resource.RLIMIT_AS)
+        soft = MAX_MEMORY if hard == resource.RLIM_INFINITY else min(MAX_MEMORY, hard)
+        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+    except (ImportError, ValueError, OSError):
+        pass
+
+
 def main():
+    limit_memory()
     out = sys.stdout
     out.write("githealthcheck-python %d.%d.%d\n" % sys.version_info[:3])
     out.flush()
@@ -62,7 +78,7 @@ def main():
                 return
             src += chunk
         try:
-            resp = File(src, b"t" in flags, b"s" in flags).facts()
+            resp = File(src, b"t" in flags).facts()
         except (RecursionError, MemoryError) as e:
             resp = {"error": type(e).__name__}
         except Exception as e:  # a helper bug must not stop the scan; the file is partial
@@ -73,10 +89,9 @@ def main():
 
 
 class File:
-    def __init__(self, src, want_tokens, stub):
+    def __init__(self, src, want_tokens):
         self.src = src
         self.want_tokens = want_tokens
-        self.stub = stub
         self.partial = False
         self.toks = []  # every token tokenize gives, until it stops
         try:
@@ -99,19 +114,19 @@ class File:
         self.blines = src.split(b"\n")
 
     def facts(self):
-        resp = {"partial": self.partial}
+        resp = {"partial": self.partial, "parsed": self.tree is not None}
         if self.tree is not None:
             parents = {}
             for node in ast.walk(self.tree):
                 for child in ast.iter_child_nodes(node):
                     parents[child] = node
             self.parents = parents
+            self.scan_scopes()
             resp["i"] = self.imports()
             resp["r"] = self.refs()
-            if not self.stub:
-                funcs = self.functions()
-                resp["f"] = [self.measure(fn, name, method) for fn, name, method in funcs]
-                resp["sm"] = self.smells(funcs)
+            funcs = self.functions()
+            resp["f"] = [self.measure(fn, name, method) for fn, name, method in funcs]
+            resp["sm"] = self.smells(funcs)
         if self.want_tokens:
             k, n, l, pos = self.tokens()
             resp["tk"], resp["tn"], resp["tl"] = k, n, l
@@ -157,7 +172,7 @@ class File:
             "s": len(body),
             "cog": cognitive(fn, self.blines),
             "cyc": cyclomatic(fn),
-            "nest": nesting(fn.body, 0),
+            "nest": nesting(fn.body, 0, self.blines),
             "m": method,
             "x": not short.startswith("_") or (short.startswith("__") and short.endswith("__")),
         }
@@ -181,10 +196,10 @@ class File:
         ImportError or broader, or in a with contextlib.suppress(ImportError)."""
         child, parent = node, self.parents.get(node)
         while parent is not None:
-            if isinstance(parent, ast.Try) and child in parent.body:
+            if isinstance(parent, ast.Try) and self.in_body(child, parent):
                 if any(catches_import_error(h.type) for h in parent.handlers):
                     return True
-            if isinstance(parent, (ast.With, ast.AsyncWith)) and child in parent.body:
+            if isinstance(parent, (ast.With, ast.AsyncWith)) and self.in_body(child, parent):
                 for item in parent.items:
                     c = item.context_expr
                     if isinstance(c, ast.Call) and dotted(c.func).endswith("suppress") and any(
@@ -196,18 +211,21 @@ class File:
             child, parent = parent, self.parents.get(parent)
         return False
 
+    def in_body(self, child, parent):
+        """Whether child is a statement of parent's body, in constant time: a try of 30,000 imports
+        would otherwise cost 30,000 squared comparisons."""
+        ids = self.bodies.get(id(parent))
+        if ids is None:
+            ids = self.bodies[id(parent)] = {id(c) for c in parent.body}
+        return id(child) in ids
+
     def refs(self):
         """Every name the file uses that could name a function: identifiers, attribute names, names
         imported from a module, and strings that are identifiers (__all__, getattr). A function's
         calls of itself do not count."""
-        seen = set()
+        seen = set(self.used_names)
         for node in ast.walk(self.tree):
-            if isinstance(node, ast.Name):
-                fn = self.enclosing_function(node)
-                if fn is not None and fn.name == node.id:
-                    continue
-                seen.add(node.id)
-            elif isinstance(node, ast.Attribute):
+            if isinstance(node, ast.Attribute):
                 seen.add(node.attr)
             elif isinstance(node, ast.alias):
                 seen.add(node.name.split(".")[0])
@@ -220,11 +238,32 @@ class File:
                 seen.add(node.value)
         return sorted(seen)
 
-    def enclosing_function(self, node):
-        p = self.parents.get(node)
-        while p is not None and not isinstance(p, FUNCS):
-            p = self.parents.get(p)
-        return p
+    def scan_scopes(self):
+        """One pass over the tree, top down, for what needs the functions around each name: the
+        positions of the names that are a parameter or local of a function (or lambda) around them,
+        and the names used other than by a function calling itself. A pass from each name up its
+        parents would cost the depth of the tree for every name, which a long expression makes
+        quadratic."""
+        local, used = set(), set()
+        self.bodies = {}
+        stack = [(self.tree, ())]
+        while stack:
+            node, scopes = stack.pop()
+            if isinstance(node, ast.Name):
+                for sc in reversed(scopes):
+                    if node.id in scope_locals(sc):
+                        local.add((node.lineno, node.col_offset))
+                        break
+                fn = next((sc for sc in reversed(scopes) if isinstance(sc, FUNCS)), None)
+                if fn is None or fn.name != node.id:
+                    used.add(node.id)
+            elif isinstance(node, ast.arg):
+                local.add((node.lineno, node.col_offset))
+            inner = scopes + (node,) if isinstance(node, SCOPES) else scopes
+            for c in ast.iter_child_nodes(node):
+                stack.append((c, inner))
+        LOCALS_CACHE.clear()  # it holds the file's tree
+        self.local_names, self.used_names = local, used
 
     # Smells (D32)
 
@@ -265,12 +304,14 @@ class File:
         s = body[0]
         if isinstance(s, ast.Raise) and s.exc is not None:
             exc = s.exc.func if isinstance(s.exc, ast.Call) else s.exc
-            if not method and isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
+            messages = [a.value for a in getattr(s.exc, "args", []) if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            if isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
+                # In a method it is how a base class asks for an override, whatever it says, unless
+                # it says TODO.
+                if method:
+                    return any(TODO_MESSAGE.search(m) for m in messages)
                 return True
-            if isinstance(s.exc, ast.Call):
-                return any(isinstance(a, ast.Constant) and isinstance(a.value, str) and NOT_IMPLEMENTED.search(a.value)
-                           for a in s.exc.args)
-            return False
+            return any(NOT_IMPLEMENTED.search(m) for m in messages)
         if isinstance(s, ast.Pass) or (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant) and s.value.value is Ellipsis):
             return any(TODO.search(self.comments[n]) for n in range(fn.lineno, fn.end_lineno + 1) if n in self.comments)
         return False
@@ -324,8 +365,7 @@ class File:
                     skip.append(((node.lineno, node.col_offset), (node.end_lineno, node.end_col_offset)))
                 elif isinstance(node, ast.keyword) and node.arg is not None:
                     fixed.add((node.lineno, node.col_offset))
-            locals_ = self.local_positions()
-            LOCALS_CACHE.clear()  # it holds the file's tree
+            locals_ = self.local_names
         skip.sort()
         kinds, names, lines, pos = [], [], [], []
         si = 0
@@ -344,9 +384,13 @@ class File:
                 continue
             if t.type in SKIPPED or (t.type == token.OP and t.string == ";"):
                 continue
-            while si < len(skip) and skip[si][1] <= t.start:
+            # tokenize counts columns in characters, ast in bytes of UTF-8.
+            start = t.start
+            if not t.line.isascii():
+                start = (start[0], len(t.line[:start[1]].encode("utf-8", "replace")))
+            while si < len(skip) and skip[si][1] <= start:
                 si += 1
-            if si < len(skip) and skip[si][0] <= t.start < skip[si][1]:
+            if si < len(skip) and skip[si][0] <= start < skip[si][1]:
                 continue
             name = 0
             if t.type == token.NAME:
@@ -356,7 +400,7 @@ class File:
                     kind = KIND_IDENT
                     h = fnv32(t.string.encode("utf-8", "replace")) & MASK
                     is_attr = prev is not None and prev.type == token.OP and prev.string == "."
-                    if not is_attr and t.start not in fixed and t.start in locals_:
+                    if not is_attr and start not in fixed and start in locals_:
                         name = h | LOCAL
                     else:
                         name = h | FIXED
@@ -377,29 +421,9 @@ class File:
             kinds.append(kind)
             names.append(name)
             lines.append(t.start[0])
-            pos.append(t.start)
+            pos.append(start)
             prev = t
         return kinds, names, lines, pos
-
-    def local_positions(self):
-        """The positions of the identifiers that name a parameter or local of the function (or
-        lambda) they are in, or of a function around it."""
-        out = set()
-        for node in ast.walk(self.tree):
-            if not isinstance(node, ast.Name):
-                continue
-            scope = self.parents.get(node)
-            while scope is not None:
-                if isinstance(scope, SCOPES):
-                    if node.id in scope_locals(scope):
-                        out.add((node.lineno, node.col_offset))
-                        break
-                scope = self.parents.get(scope)
-        # Parameters themselves are ast.arg nodes.
-        for node in ast.walk(self.tree):
-            if isinstance(node, ast.arg):
-                out.add((node.lineno, node.col_offset))
-        return out
 
 
 LOCALS_CACHE = {}
@@ -515,6 +539,7 @@ def ignores(body):
 
 NOT_IMPLEMENTED = re.compile(r"(?i)\b(not (yet )?implemented|unimplemented|implement me)\b|^\s*todo\s*($|[:.!-])")
 TODO = re.compile(r"(?i)^#\s*(todo|fixme)\b")
+TODO_MESSAGE = re.compile(r"(?i)^\s*todo\s*($|[:.!-])")
 DIRECTIVE = re.compile(
     r"#\s*(type:|noqa|pylint:|fmt:|pragma|isort:|mypy:|pyright:|ruff:|flake8|nosec|coding[:=]|-\*-|%%|:)")
 
@@ -681,8 +706,7 @@ class Cognitive:
                             self.expr(gc, level)
 
     def is_elif(self, node):
-        line = self.lines[node.lineno - 1] if node.lineno <= len(self.lines) else b""
-        return line[node.col_offset:node.col_offset + 4] == b"elif"
+        return is_elif(self.lines, node)
 
     def expr(self, e, level):
         if e is None:
@@ -768,38 +792,46 @@ def cyclomatic(fn):
 NESTS = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.Try, ast.With, ast.AsyncWith)
 
 
-def nesting(body, d):
+def nesting(body, d, lines):
     """The deepest nesting of if, for, while, try and with statements, as SonarSource's python:S134
     counts it: an elif, else or except is part of its statement, match adds nothing, and a nested
     function continues the count."""
     deepest = d
     for s in body:
-        deepest = max(deepest, nest_of(s, d))
+        deepest = max(deepest, nest_of(s, d, lines))
     return deepest
 
 
-def nest_of(s, d):
+def nest_of(s, d, lines):
     if isinstance(s, ast.If):
-        deepest = max(d + 1, nesting(s.body, d + 1))
+        deepest = max(d + 1, nesting(s.body, d + 1, lines))
         orelse = s.orelse
-        while len(orelse) == 1 and isinstance(orelse[0], ast.If):
-            deepest = max(deepest, nesting(orelse[0].body, d + 1))
+        # An elif continues the if; an if alone in an else block is nested in it.
+        while len(orelse) == 1 and isinstance(orelse[0], ast.If) and is_elif(lines, orelse[0]):
+            deepest = max(deepest, nesting(orelse[0].body, d + 1, lines))
             orelse = orelse[0].orelse
-        return max(deepest, nesting(orelse, d + 1))
+        return max(deepest, nesting(orelse, d + 1, lines))
     if isinstance(s, NESTS) or isinstance(s, getattr(ast, "TryStar", ast.Try)):
         deepest = d + 1
         for field in ("body", "orelse", "finalbody"):
-            deepest = max(deepest, nesting(getattr(s, field, []), d + 1))
+            deepest = max(deepest, nesting(getattr(s, field, []), d + 1, lines))
         for h in getattr(s, "handlers", []):
-            deepest = max(deepest, nesting(h.body, d + 1))
+            deepest = max(deepest, nesting(h.body, d + 1, lines))
         for c in getattr(s, "cases", []):
-            deepest = max(deepest, nesting(c.body, d + 1))
+            deepest = max(deepest, nesting(c.body, d + 1, lines))
         return deepest
     if isinstance(s, ast.Match):
-        return max([d] + [nesting(c.body, d) for c in s.cases])
+        return max([d] + [nesting(c.body, d, lines) for c in s.cases])
     if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        return nesting(s.body, d)
+        return nesting(s.body, d, lines)
     return d
+
+
+def is_elif(lines, node):
+    """Whether an If node of an orelse was written elif, which ast does not record. lines are the
+    source's lines as bytes, as col_offset counts."""
+    line = lines[node.lineno - 1] if node.lineno <= len(lines) else b""
+    return line[node.col_offset:node.col_offset + 4] == b"elif"
 
 
 main()

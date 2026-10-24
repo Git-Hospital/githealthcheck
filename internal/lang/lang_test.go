@@ -29,6 +29,10 @@ func TestSet(t *testing.T) {
 	if !s.Fill(1, &r, []byte("fn main() {}\n")) || r.Analysed {
 		t.Errorf("rust file: %+v", r)
 	}
+	// python3 is started only for a Python file, and listed only then.
+	if st := s.Status("python"); st != (Status{}) || len(s.Tools()) != 0 {
+		t.Errorf("python before any Python file: %+v, tools %v", st, s.Tools())
+	}
 }
 
 // Without python3, Python is counted but not analysed, and says why.
@@ -37,12 +41,12 @@ func TestSetWithoutPython(t *testing.T) {
 	python.Interpreter = "githealthcheck-no-such-python"
 	s := Open(context.Background())
 	defer s.Close()
-	if st := s.Status("python"); st.Analysed || st.Reason != report.ToolNotFound || len(s.Tools()) != 0 {
-		t.Errorf("python: %+v, tools %v", st, s.Tools())
-	}
 	f := facts.File{Path: "a.py", Language: "python"}
 	if !s.Fill(0, &f, []byte("def f():\n    pass\n")) || f.Analysed {
 		t.Errorf("python file without python3: %+v", f)
+	}
+	if st := s.Status("python"); st.Analysed || st.Reason != report.ToolNotFound || len(s.Tools()) != 0 {
+		t.Errorf("python: %+v, tools %v", st, s.Tools())
 	}
 	if got := s.Wait(); len(got) != 0 {
 		t.Errorf("results without python3: %v", got)

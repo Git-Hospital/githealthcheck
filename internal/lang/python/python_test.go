@@ -84,7 +84,7 @@ if os.name == "nt":
         pass
 `
 	all := run(t, map[string]string{"pkg/m.py": src, "pkg/m.pyi": "def plain(a: int, b: int) -> int: ...\n"}, "pkg/m.py", "pkg/m.pyi")
-	if stub := all[1]; !stub.Analysed || len(stub.Funcs) != 0 {
+	if stub := all[1]; stub.Analysed || len(stub.Funcs) != 0 {
 		t.Errorf("type stub: %+v", stub)
 	}
 	f := all[0]
@@ -237,8 +237,9 @@ x = 1  # y = 2
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
-// Code that does not parse comes back partial, with what was read; crafted input does not stop the
-// helper: deep nesting, null bytes, a bad encoding, an unterminated string.
+// Code that does not parse comes back partial and not analysed, so it counts in no measurement;
+// crafted input does not stop the helper: deep nesting, null bytes, a bad encoding, an unterminated
+// string.
 func TestHostileInput(t *testing.T) {
 	needPython(t)
 	deep := strings.Repeat("(", 5000) + "1" + strings.Repeat(")", 5000) + "\n"
@@ -258,11 +259,11 @@ func TestHostileInput(t *testing.T) {
 	order := []string{"deep.py", "nested.py", "null.py", "enc.py", "open.py", "ok.py"}
 	got := run(t, files, order...)
 	for i, f := range got[:5] {
-		if !f.Analysed || !f.Partial && order[i] != "nested.py" {
+		if f.Analysed || !f.Partial {
 			t.Errorf("%s: %+v", order[i], f)
 		}
 	}
-	if ok := got[5]; ok.Partial || len(ok.Funcs) != 1 {
+	if ok := got[5]; !ok.Analysed || ok.Partial || len(ok.Funcs) != 1 {
 		t.Errorf("after hostile input: %+v", ok)
 	}
 }
@@ -289,22 +290,24 @@ func TestTooOld(t *testing.T) {
 	}
 }
 
-// A helper that dies or hangs costs its file, not the scan: the file is partial and the next file is
-// read by a new helper.
+// A helper that dies or hangs costs its file, not the scan: the file is partial and not analysed,
+// and the next file is read by a new helper, however many files before it killed one.
 func TestHelperDies(t *testing.T) {
 	needPython(t)
 	dir := t.TempDir()
-	// The fake interpreter greets like the helper, then dies on a file that holds "die" and hangs on
-	// one that holds "hang".
+	// The fake interpreter greets like the helper and answers each file, but dies on a file that
+	// holds "die" and hangs on one that holds "hang".
 	fake := filepath.Join(dir, "python3")
 	script := `#!/bin/sh
 echo 'githealthcheck-python 3.12.0'
-read -r header
-read -r body
-case "$body" in
-*die*) exit 1 ;;
-esac
-exec sleep 60
+while read -r header; do
+	read -r body
+	case "$body" in
+	*die*) exit 1 ;;
+	*hang*) exec sleep 60 ;;
+	esac
+	echo '{"partial":false,"parsed":true,"f":[{"n":"ok","l":1,"e":1,"c":1,"s":1}]}'
+done
 `
 	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -315,15 +318,115 @@ exec sleep 60
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Submit(0, facts.File{Path: "a.py", Language: "python"}, []byte("die\n"))
-	p.Submit(1, facts.File{Path: "b.py", Language: "python"}, []byte("hang\n"))
+	const bad = 16 // four for each of up to four helpers, past any bound on restarts
+	p.Submit(0, facts.File{Path: "hang.py", Language: "python"}, []byte("hang\n"))
+	for i := 1; i <= bad; i++ {
+		p.Submit(i, facts.File{Path: "die.py", Language: "python"}, []byte("die\n"))
+	}
+	for i := bad + 1; i <= bad+8; i++ {
+		p.Submit(i, facts.File{Path: "ok.py", Language: "python"}, []byte("ok\n"))
+	}
 	got := map[int]facts.File{}
 	for _, r := range p.Wait() {
 		got[r.Index] = r.File
 	}
-	for i := range 2 {
-		if f := got[i]; !f.Analysed || !f.Partial {
-			t.Errorf("file %d: %+v", i, f)
+	for i := 0; i <= bad+8; i++ {
+		f := got[i]
+		if ok := i > bad; f.Analysed != ok || f.Partial == ok || ok && len(f.Funcs) != 1 {
+			t.Errorf("file %d (%s): analysed %v partial %v functions %d", i, f.Path, f.Analysed, f.Partial, len(f.Funcs))
 		}
+	}
+}
+
+// A helper that is cancelled while it starts gives up at once.
+func TestStartCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := Start(ctx); err == nil {
+		t.Error("started after cancel")
+	}
+}
+
+// A method that raises NotImplementedError asks for an override whatever its message says, unless it
+// says TODO; an else block holding an if nests it, as an elif does not.
+func TestReviewCases(t *testing.T) {
+	needPython(t)
+	src := `class A:
+    def m(self):
+        raise NotImplementedError("not implemented")
+
+    def n(self):
+        raise NotImplementedError("subclasses implement this")
+
+
+def deep(a, b, c, d, e):
+    if a:
+        pass
+    else:
+        if b:
+            if c:
+                if d:
+                    if e:
+                        return 1
+    return 0
+
+
+def flat(a, b, c, d, e):
+    if a:
+        pass
+    elif b:
+        if c:
+            if d:
+                if e:
+                    return 1
+    return 0
+`
+	f := run(t, map[string]string{"m.py": src}, "m.py")[0]
+	if len(f.Smells) != 0 {
+		t.Errorf("smells: %+v", f.Smells)
+	}
+	nest := map[string]int{}
+	for _, fn := range f.Funcs {
+		nest[fn.Name] = fn.Nesting
+	}
+	if nest["deep"] != 5 || nest["flat"] != 4 {
+		t.Errorf("nesting %v, want deep 5 and flat 4", nest)
+	}
+}
+
+// ast counts columns in bytes and tokenize in characters: after a non-ASCII character on a line, the
+// locals are still locals, so a renamed copy is still a copy.
+func TestNonASCIIColumns(t *testing.T) {
+	needPython(t)
+	src := "def f(a):\n    b = \"\u00e9\u00e9\u00e9\"; return a + b\n"
+	f := run(t, map[string]string{"m.py": src}, "m.py")[0]
+	if len(f.Funcs) != 1 {
+		t.Fatalf("functions: %+v", f.Funcs)
+	}
+	locals := 0
+	for i, k := range f.Tokens.Kind {
+		if k == 4 && f.Tokens.Name[i]&(1<<30|1<<31) == 1<<30 {
+			locals++
+		}
+	}
+	// a in the signature, b twice, a once more: four locals; f is the function's name.
+	if locals != 4 {
+		t.Errorf("%d locals, want 4", locals)
+	}
+}
+
+// A file that makes the parser quadratic would cost the per-file timeout: a try of many imports, and a
+// long expression, stay linear.
+func TestLinearInCraftedFiles(t *testing.T) {
+	needPython(t)
+	imports := "try:\n" + strings.Repeat("    import a\n", 30000) + "except ImportError:\n    pass\n"
+	expr := "def f(a):\n    return " + strings.Repeat("a + ", 20000) + "a\n"
+	start := time.Now()
+	got := run(t, map[string]string{"i.py": imports, "e.py": expr}, "i.py", "e.py")
+	if d := time.Since(start); d > 10*time.Second {
+		t.Errorf("took %v", d)
+	}
+	if !got[0].Analysed || len(got[0].Imports) != 30000 || !got[0].Imports[0].Optional {
+		t.Errorf("imports: analysed %v, %d imports", got[0].Analysed, len(got[0].Imports))
 	}
 }

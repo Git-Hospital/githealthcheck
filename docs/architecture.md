@@ -83,7 +83,7 @@ Settled with the first two families (tests and history, v0.2.0):
 // lang: the languages of one scan. The walk calls Fill once per file, with the source it read. Go is
 // filled in place; Python goes to a pool of python3 helpers and comes back from Done or Wait.
 type Set struct{ ... }
-func Open(ctx context.Context) *Set       // starts the helpers; a missing tool is a Status reason
+func Open(ctx context.Context) *Set       // python3 starts at the first Python file; a missing tool is a Status reason
 func (s *Set) Status(lang string) Status  // Analysed, Reason (tool_not_found, tool_too_old), Tool
 func (s *Set) Fill(i int, f *facts.File, src []byte) (filled bool)
 func (s *Set) Done() []Filled             // files filled since the last call, by walk index
