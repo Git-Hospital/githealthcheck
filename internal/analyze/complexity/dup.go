@@ -3,7 +3,8 @@ package complexity
 import (
 	"context"
 	"fmt"
-	"slices"
+	"hash/maphash"
+	"sort"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
@@ -15,12 +16,12 @@ const (
 	// (D34).
 	MinCloneTokens = 100
 	MinCloneLines  = 10
-	// MaxDupTokens bounds the tokens duplication is looked for in, about two and a half million
-	// lines of Go; a larger repository gets no duplication result.
-	MaxDupTokens = 20_000_000
 	// MinCloneNames is the number of identifiers a block needs: one with fewer is a table of
 	// literals, data rather than code.
 	MinCloneNames = MinCloneTokens / 10
+	// candidates is the number of earlier places a block is compared with, among those that look
+	// the same to the hash.
+	candidates = 8
 )
 
 // The flags of facts.Tokens.Name.
@@ -30,23 +31,32 @@ const (
 	nameLiteral = nameLocal | nameFixed
 )
 
-// dupLimit is MaxDupTokens, lowered by tests.
-var dupLimit = MaxDupTokens
-
 // clone is one repeated block: the later copy, and the earlier one it repeats.
 type clone struct {
 	file, from, to int // the later copy: a file of the input and a token range
 	orig, ofrom    int // the earlier copy
 }
 
+// value is what the hash and the first comparison see of a token: its kind, and for a name that may
+// not change (a function, field, type or constant) the name too. Locals and literals are kinds only.
+func value(t *facts.Tokens, i int) uint64 {
+	if n := t.Name[i]; n&nameLiteral == nameFixed {
+		return 1<<32 | uint64(n)
+	}
+	return uint64(t.Kind[i]) + 1
+}
+
 // clones finds the blocks of at least MinCloneTokens tokens over at least MinCloneLines lines that
 // repeat an earlier block, up to a consistent renaming of the functions' own parameters and locals
 // and any change of literals (a Type-2 clone in the terms of Roy, Cordy and Koschke 2009, checked with
-// Baker's parameterised match); other names must be the same. Blocks start at the first token of a line. Each block is reported once, against the first
-// place its first MinCloneTokens tokens occur, in the order of files.
+// Baker's parameterised match); other names must be the same. Blocks start at the first token of a
+// line and end with a whole line. Each block is reported once, against the first of up to candidates
+// earlier places, in the order of files, where its first MinCloneTokens tokens occur.
 func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
 	type at struct{ file, tok int32 }
-	first := map[uint64]at{}
+	// A base chosen per run: a crafted repository cannot plant blocks whose hashes collide.
+	base := new(maphash.Hash).Sum64() | 1
+	first := map[uint64][]at{}
 	var out []clone
 	for fi, f := range files {
 		if err := ctx.Err(); err != nil {
@@ -57,42 +67,28 @@ func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
 		if n < MinCloneTokens {
 			continue
 		}
-		hashes := windowHashes(t.Kind, MinCloneTokens)
+		hashes := windowHashes(t, MinCloneTokens, base)
 		covered := 0 // tokens before this are already in a reported copy
 		for i := 0; i+MinCloneTokens <= n; i++ {
 			if i > 0 && t.Line[i] == t.Line[i-1] {
 				continue // blocks start at a line
 			}
 			h := hashes[i]
-			o, seen := first[h]
-			if !seen {
-				first[h] = at{int32(fi), int32(i)}
-				continue
+			seen := first[h]
+			if len(seen) < candidates {
+				first[h] = append(seen, at{int32(fi), int32(i)})
 			}
 			if i < covered {
 				continue
 			}
-			of := &files[o.file].Tokens
-			oi := int(o.tok)
-			// The copies may not overlap: a block that repeats right after itself stops where the
-			// later copy starts.
-			limit := min(n-i, len(of.Kind)-oi)
-			if int(o.file) == fi {
-				limit = min(limit, i-oi)
-			}
-			l := 0
-			for l < limit && t.Kind[i+l] == of.Kind[oi+l] {
-				l++
-			}
-			if l < MinCloneTokens {
-				continue // a hash collision, or an overlap
-			}
-			covered = i + l
-			for _, r := range consistentRuns(of, oi, t, i, l) {
-				if r[1]-r[0] >= MinCloneTokens && names(t.Name[i+r[0]:i+r[1]]) >= MinCloneNames &&
-					distinctLines(t.Line[i+r[0]:i+r[1]]) >= MinCloneLines &&
-					distinctLines(of.Line[oi+r[0]:oi+r[1]]) >= MinCloneLines {
-					out = append(out, clone{file: fi, from: i + r[0], to: i + r[1], orig: int(o.file), ofrom: oi + r[0]})
+			for _, o := range seen {
+				c, l, ok := compare(files, int(o.file), int(o.tok), fi, i)
+				if l >= MinCloneTokens {
+					covered = max(covered, i+l)
+				}
+				if ok {
+					out = append(out, c...)
+					break
 				}
 			}
 		}
@@ -100,19 +96,61 @@ func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
 	return out, nil
 }
 
-// windowHashes returns, for each position, a polynomial hash of the w kinds from it.
-func windowHashes(kind []uint8, w int) []uint64 {
-	const base = 1099511628211
+// compare extends the match of the block at i in file fi with the earlier one at oi in file of, and
+// returns the blocks it reports, the length of the match, and whether there were any.
+func compare(files []*facts.File, of, oi, fi, i int) ([]clone, int, bool) {
+	t, ot := &files[fi].Tokens, &files[of].Tokens
+	// The copies may not overlap: a block that repeats right after itself stops where the later
+	// copy starts.
+	limit := min(len(t.Kind)-i, len(ot.Kind)-oi)
+	if of == fi {
+		limit = min(limit, i-oi)
+	}
+	l := 0
+	for l < limit && value(t, i+l) == value(ot, oi+l) {
+		l++
+	}
+	if l < MinCloneTokens {
+		return nil, l, false // a hash collision, or an overlap
+	}
+	var out []clone
+	for _, r := range consistentRuns(ot, oi, t, i, l) {
+		from, to := wholeLines(t, i+r[0], i+r[1])
+		ofrom, oto := oi+from-i, oi+to-i
+		if f2, t2 := wholeLines(ot, ofrom, oto); f2 != ofrom || t2 != oto {
+			continue // the lines of the copies do not line up
+		}
+		if to-from >= MinCloneTokens && names(t.Name[from:to]) >= MinCloneNames &&
+			distinctLines(t.Line[from:to]) >= MinCloneLines && distinctLines(ot.Line[ofrom:oto]) >= MinCloneLines {
+			out = append(out, clone{file: fi, from: from, to: to, orig: of, ofrom: ofrom})
+		}
+	}
+	return out, l, len(out) > 0
+}
+
+// wholeLines narrows a token range to the lines it holds in full.
+func wholeLines(t *facts.Tokens, from, to int) (int, int) {
+	for from < to && from > 0 && t.Line[from] == t.Line[from-1] {
+		from++
+	}
+	for to > from && to < len(t.Line) && t.Line[to] == t.Line[to-1] {
+		to--
+	}
+	return from, to
+}
+
+// windowHashes returns, for each position, a polynomial hash of the values of the w tokens from it.
+func windowHashes(t *facts.Tokens, w int, base uint64) []uint64 {
 	pow := uint64(1)
 	for range w {
 		pow *= base
 	}
-	hashes := make([]uint64, len(kind)-w+1)
+	hashes := make([]uint64, len(t.Kind)-w+1)
 	var h uint64
-	for i, k := range kind {
-		h = h*base + uint64(k) + 1
+	for i := range t.Kind {
+		h = h*base + value(t, i)
 		if i >= w {
-			h -= pow * (uint64(kind[i-w]) + 1)
+			h -= pow * value(t, i-w)
 		}
 		if i >= w-1 {
 			hashes[i-w+1] = h
@@ -121,32 +159,34 @@ func windowHashes(kind []uint8, w int) []uint64 {
 	return hashes
 }
 
-// consistentRuns splits a stretch of l tokens with equal kinds, at a in x and b in y, into the runs in
-// which the identifiers of one copy map one to one onto those of the other. Where a name would map to
-// two names, a run ends and the next starts there.
+// consistentRuns splits a stretch of l tokens with equal values, at a in x and b in y, into the runs
+// in which the locals of one copy map one to one onto those of the other. Where a local would map to
+// two names, a run ends and the next starts there, with a fresh mapping.
 func consistentRuns(x *facts.Tokens, a int, y *facts.Tokens, b, l int) [][2]int {
 	var runs [][2]int
 	fwd, back := map[uint32]uint32{}, map[uint32]uint32{}
 	start := 0
 	for k := 0; k < l; k++ {
 		p, q := x.Name[a+k], y.Name[b+k]
-		if p == 0 || p&nameLiteral == nameLiteral {
-			continue // a literal may change
+		if p&nameLiteral != nameLocal || q&nameLiteral != nameLocal {
+			if p&nameLiteral == nameLocal || q&nameLiteral == nameLocal {
+				// A local of one copy where the other has a fixed name.
+				runs = append(runs, [2]int{start, k})
+				clear(fwd)
+				clear(back)
+				start = k + 1
+			}
+			continue // equal fixed names, a literal, or no name
 		}
 		mp, okp := fwd[p]
 		mq, okq := back[q]
-		// A fixed name (a function, field, type or constant) must be kept; a local may be renamed,
-		// consistently.
-		fixed := p&nameFixed != 0 || q&nameFixed != 0
-		if fixed && p != q || !fixed && (okp && mp != q || okq && mq != p) {
+		if okp && mp != q || okq && mq != p {
 			runs = append(runs, [2]int{start, k})
 			clear(fwd)
 			clear(back)
 			start = k
 		}
-		if !fixed {
-			fwd[p], back[q] = q, p
-		}
+		fwd[p], back[q] = q, p
 	}
 	return append(runs, [2]int{start, l})
 }
@@ -177,104 +217,110 @@ func distinctLines(lines []int32) int {
 // two statements, as SonarSource's S4144 has it.
 const MinIdenticalStatements = 2
 
-// sameBodies groups the functions of files whose bodies are equal up to a consistent renaming of
-// their own parameters and locals, and returns, for each function after the first of its
+type fnRef struct{ file, fn int }
+
+// sameBodies groups the functions of files whose signatures and bodies are equal up to a consistent
+// renaming of their own parameters and locals, and returns, for each function after the first of its
 // group, its index and the first one's. A function needs a body of at least MinIdenticalStatements
 // statements.
 func sameBodies(files []*facts.File) [][2]fnRef {
-	first := map[uint64]fnRef{}
+	first := map[uint64][]fnRef{}
 	var out [][2]fnRef
 	for fi, f := range files {
 		t := &f.Tokens
 		for gi, fn := range f.Funcs {
-			from, to := int(fn.Body[0]), int(fn.Body[1])
+			from, to := int(fn.Span[0]), int(fn.Span[1])
 			if fn.Statements < MinIdenticalStatements || to <= from || to > len(t.Kind) {
 				continue
 			}
-			h := bodyHash(t, from, to)
+			h := spanHash(t, from, to)
 			ref := fnRef{fi, gi}
-			o, seen := first[h]
-			if !seen {
-				first[h] = ref
-				continue
+			found := false
+			for _, o := range first[h] {
+				of := files[o.file]
+				if !platformVariants(of, of.Funcs[o.fn], f, fn) && equalSpans(&of.Tokens, of.Funcs[o.fn].Span, t, fn.Span) {
+					out = append(out, [2]fnRef{ref, o})
+					found = true
+					break
+				}
 			}
-			if platformVariants(files[o.file], files[o.file].Funcs[o.fn], f, fn) {
-				continue
-			}
-			if equalBodies(&files[o.file].Tokens, files[o.file].Funcs[o.fn].Body, t, fn.Body) {
-				out = append(out, [2]fnRef{ref, o})
+			if !found && len(first[h]) < candidates {
+				first[h] = append(first[h], ref)
 			}
 		}
 	}
 	return out
 }
 
-type fnRef struct{ file, fn int }
-
-// platformVariants reports two functions of one name in one package. Go allows that only in files that
-// never build together, under different build constraints (one for each platform), where repeating
-// the body is how the code is meant to be written.
+// platformVariants reports two functions of one name, other than init and _, in one package. Go
+// allows that only in files that never build together, under different build constraints (one for
+// each platform), where repeating the body is how the code is meant to be written.
 func platformVariants(f *facts.File, fn facts.Function, g *facts.File, gn facts.Function) bool {
-	return f.Package == g.Package && fn.Name == gn.Name && f.Path != g.Path
+	return f.Package == g.Package && fn.Name == gn.Name && f.Path != g.Path && fn.Name != "init" && fn.Name != "_"
 }
 
-// bodyHash hashes a body with each local name numbered by its first occurrence, so that bodies that
-// rename consistently hash equal, and every other name as it is.
-func bodyHash(t *facts.Tokens, from, to int) uint64 {
+// spanHash hashes a function's span with each local numbered by its first occurrence, so that
+// functions that rename consistently hash equal, and every other name and literal as it is.
+func spanHash(t *facts.Tokens, from, to int) uint64 {
 	const base = 1099511628211
 	seen := map[uint32]uint64{}
 	h := uint64(14695981039346656037)
 	for k := from; k < to; k++ {
 		v := uint64(t.Kind[k]) + 1
-		if name := t.Name[k]; name&nameFixed != 0 {
-			v = 1<<33 + uint64(name) // a fixed name or a literal, as it is
-		} else if name != 0 {
+		if name := t.Name[k]; name&nameLiteral == nameLocal {
 			id, ok := seen[name]
 			if !ok {
 				id = uint64(len(seen)) + 1
 				seen[name] = id
 			}
 			v = 256 + id
+		} else if name != 0 {
+			v = 1<<33 + uint64(name) // a fixed name or a literal, as it is
 		}
 		h = h*base + v
 	}
 	return h
 }
 
-// equalBodies reports whether two bodies have equal kinds and identifiers that map one to one.
-func equalBodies(x *facts.Tokens, xb [2]int32, y *facts.Tokens, yb [2]int32) bool {
-	a, b := int(xb[0]), int(yb[0])
-	l := int(xb[1] - xb[0])
-	if l != int(yb[1]-yb[0]) || !slices.Equal(x.Kind[a:a+l], y.Kind[b:b+l]) {
+// equalSpans reports whether two functions have equal values, equal literals, and locals that map one
+// to one.
+func equalSpans(x *facts.Tokens, xs [2]int32, y *facts.Tokens, ys [2]int32) bool {
+	a, b := int(xs[0]), int(ys[0])
+	l := int(xs[1] - xs[0])
+	if l != int(ys[1]-ys[0]) {
 		return false
 	}
 	for k := range l {
+		if value(x, a+k) != value(y, b+k) {
+			return false
+		}
 		if p := x.Name[a+k]; p&nameLiteral == nameLiteral && p != y.Name[b+k] {
 			return false // a function's literals are part of what it does
 		}
 	}
-	return len(consistentRuns(x, a, y, b, l)) == 1
+	runs := consistentRuns(x, a, y, b, l)
+	return len(runs) == 1
 }
 
 // duplication runs both engines over the repository's own code that is not a test, and returns their
 // findings and the share of lines in a repeated block, either copy, as SonarSource's
-// duplicated_lines_density counts them: over all the lines of those files.
+// duplicated_lines_density counts them: over all the lines of those files. Blocks inside functions
+// written once per platform are neither findings nor counted.
 func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, report.Measurement, error) {
 	var files []*facts.File
-	total, lines := 0, 0
+	lines := 0
 	for _, f := range own {
+		if f.TokensDropped {
+			return nil, report.Null(report.TooLarge), nil
+		}
 		if f.Test {
 			continue
 		}
 		files = append(files, f)
-		total += len(f.Tokens.Kind)
 		lines += f.Lines
 	}
 	if lines == 0 {
 		return nil, report.Null(report.InsufficientInput), nil
-	}
-	if total > dupLimit {
-		return nil, report.Null(report.TooLarge), nil
 	}
 	found, err := clones(ctx, files)
 	if err != nil {
@@ -289,7 +335,8 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		f, o := files[p[0].file], files[p[1].file]
 		fn, ofn := f.Funcs[p[0].fn], o.Funcs[p[1].fn]
 		out = append(out, report.Finding{RuleID: IdenticalFunctions, Path: f.Path, Line: fn.Line,
-			Message: fmt.Sprintf("%s has the body of %s at %s:%d, up to the names of its locals", fn.Name, ofn.Name, o.Path, ofn.Line)})
+			Message: fmt.Sprintf("%s has the signature and body of %s at %s:%d, up to the names of its parameters and locals",
+				fn.Name, ofn.Name, o.Path, ofn.Line)})
 	}
 	dup := make([]map[int32]bool, len(files))
 	mark := func(fi int, t *facts.Tokens, from, to int) {
@@ -304,10 +351,13 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		f, o := files[c.file], files[c.orig]
 		t, ot := &f.Tokens, &o.Tokens
 		oto := c.ofrom + c.to - c.from
+		in, oin := enclosing(f, c.file, t.Line[c.from], t.Line[c.to-1]), enclosing(o, c.orig, ot.Line[c.ofrom], ot.Line[oto-1])
+		if in.fn >= 0 && oin.fn >= 0 && platformVariants(f, f.Funcs[in.fn], o, o.Funcs[oin.fn]) {
+			continue
+		}
 		mark(c.file, t, c.from, c.to)
 		mark(c.orig, ot, c.ofrom, oto)
-		in, oin := enclosing(f, c.file, t.Line[c.from], t.Line[c.to-1]), enclosing(o, c.orig, ot.Line[c.ofrom], ot.Line[oto-1])
-		if pair[[2]fnRef{in, oin}] || in.fn >= 0 && oin.fn >= 0 && platformVariants(f, f.Funcs[in.fn], o, o.Funcs[oin.fn]) {
+		if pair[[2]fnRef{in, oin}] {
 			continue
 		}
 		where := o.Path
@@ -325,12 +375,12 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 	return out, report.Measured(float64(n)/float64(lines), len(files)), nil
 }
 
-// enclosing returns the function of f whose declaration spans the lines from to to, or {-1, -1}.
+// enclosing returns the function of f whose declaration spans the lines from to to, or {-1, -1}. The
+// functions are in source order and do not nest.
 func enclosing(f *facts.File, fi int, from, to int32) fnRef {
-	for gi, fn := range f.Funcs {
-		if int32(fn.Line) <= from && to <= int32(fn.EndLine) {
-			return fnRef{fi, gi}
-		}
+	i := sort.Search(len(f.Funcs), func(i int) bool { return int32(f.Funcs[i].Line) > from }) - 1
+	if i >= 0 && to <= int32(f.Funcs[i].EndLine) {
+		return fnRef{fi, i}
 	}
 	return fnRef{-1, -1}
 }

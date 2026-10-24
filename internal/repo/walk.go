@@ -105,6 +105,9 @@ func validPath(p string) bool {
 //
 // Everything is opened through an os.Root, which refuses any path that leaves root, even through a
 // directory swapped for a symlink.
+// maxTokens is facts.MaxTokens, lowered by tests.
+var maxTokens = facts.MaxTokens
+
 func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte) string) (*Tree, error) {
 	t := &Tree{Root: root}
 	r, err := os.OpenRoot(root)
@@ -112,6 +115,7 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 		return nil, err
 	}
 	defer r.Close()
+	tokens, dropped := 0, false
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			// The files read so far are still returned, so a timed-out run can report what it did
@@ -157,6 +161,16 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 		}
 		if s := lang.For(name); s != nil {
 			s.Fill(&f, src)
+		}
+		// The token streams are bounded across the repository: past the bound none is kept.
+		if tokens += len(f.Tokens.Kind); tokens > maxTokens {
+			if !dropped {
+				for i := range t.Files {
+					t.Files[i].Tokens, t.Files[i].TokensDropped = facts.Tokens{}, true
+				}
+				dropped = true
+			}
+			f.Tokens, f.TokensDropped = facts.Tokens{}, true
 		}
 		t.Files = append(t.Files, f)
 	}

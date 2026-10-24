@@ -26,8 +26,8 @@ func F(n int) {
 	if len(tk.Kind) != 25 || tk.Line[0] != 9 || tk.Line[len(tk.Line)-1] != 12 {
 		t.Fatalf("%d tokens, lines %v", len(tk.Kind), tk.Line)
 	}
-	if fn := f.Funcs[0]; fn.Body != [2]int32{7, 24} {
-		t.Errorf("body %v, want the tokens between the braces", fn.Body)
+	if fn := f.Funcs[0]; fn.Span != [2]int32{2, 24} {
+		t.Errorf("span %v, want the tokens from the signature to the closing brace", fn.Span)
 	}
 	kinds := map[int]string{}
 	for i, name := range tk.Name {

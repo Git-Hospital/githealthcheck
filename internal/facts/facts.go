@@ -27,13 +27,19 @@ type File struct {
 	Smells        []Smell
 	SmellsDropped map[SmellKind]int
 	// Tokens is the token stream that duplication is found in: the repository's own code only, not
-	// tests, vendored or generated files.
-	Tokens Tokens
+	// tests, vendored or generated files. The walk drops every file's stream once the repository has
+	// more than MaxTokens, and sets TokensDropped.
+	Tokens        Tokens
+	TokensDropped bool
 	// Refs holds every name the file uses that could refer to a function of its package: identifiers
 	// other than the names of the declarations themselves, and the names that //export and
 	// //go:linkname directives make reachable from outside. Sorted, without duplicates.
 	Refs []string
 }
+
+// MaxTokens bounds the tokens kept for duplication, about two and a half million lines of Go and
+// 200 MB; past it duplication is not looked for.
+const MaxTokens = 20_000_000
 
 // Tokens is a file's tokens after its imports, without comments, as parallel slices.
 type Tokens struct {
@@ -90,9 +96,9 @@ type Function struct {
 	Nesting    int // deepest nesting of control-flow statements; an else if does not nest
 	Method     bool
 	Exported   bool
-	// Body is the range of the body's tokens in the file's Tokens, braces excluded; empty when the
-	// file has no tokens.
-	Body [2]int32
+	// Span is the range of its tokens in the file's Tokens, from the one after its name (the
+	// signature) to the closing brace, excluded; empty when the file has no tokens.
+	Span [2]int32
 }
 
 // Module is a Go module in the tree: the directory of a go.mod file and the module path it declares.

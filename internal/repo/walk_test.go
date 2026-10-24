@@ -403,3 +403,30 @@ func TestReadPath(t *testing.T) {
 		t.Fatal("ReadPath blocked on a FIFO")
 	}
 }
+
+// Past the bound on token streams, no file keeps one, so memory does not grow with the repository.
+func TestWalkBoundsTokens(t *testing.T) {
+	defer func(n int) { maxTokens = n }(maxTokens)
+	maxTokens = 30
+	root := t.TempDir()
+	write(t, root, "a/a.go", "package a\n\nfunc F(x int) int { return x + 1 }\n")
+	write(t, root, "b/b.go", "package b\n\nfunc G(x int) int { return x + 2 }\n")
+	write(t, root, "c/c.go", "package c\n\nfunc H(x int) int { return x + 3 }\n")
+	tree, err := Walk(context.Background(), root, committed(t, root, "a/a.go", "b/b.go", "c/c.go"), sha1ID(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range tree.Files {
+		if len(f.Tokens.Kind) != 0 || !f.TokensDropped {
+			t.Errorf("%s: %d tokens, dropped %v", f.Path, len(f.Tokens.Kind), f.TokensDropped)
+		}
+	}
+	maxTokens = 1000
+	tree, err = Walk(context.Background(), root, committed(t, root, "a/a.go", "b/b.go", "c/c.go"), sha1ID(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := tree.Files[0]; len(f.Tokens.Kind) == 0 || f.TokensDropped {
+		t.Errorf("under the bound: %+v", f.Tokens)
+	}
+}

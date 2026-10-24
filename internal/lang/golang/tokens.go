@@ -24,62 +24,102 @@ const (
 )
 
 // locals returns the offsets of the identifiers of a function that name its own parameters, results,
-// receiver and locals, or labels. Without types this goes by name: an identifier counts when the
-// function declares that name, and it is not a field or method after a dot.
+// receiver, type parameters and locals, or labels. Without types this goes by name and position: an
+// identifier counts when the function declares that name at or before it, and it is not a field or
+// method after a dot, nor the key of a composite literal (a struct field).
 func locals(fd *ast.FuncDecl, offset func(token.Pos) int) map[int]bool {
-	declared := map[string]bool{}
+	declared := map[string]int{} // the offset of a name's first declaration
+	declare := func(id *ast.Ident) {
+		if id == nil || id.Name == "_" {
+			return
+		}
+		if o, ok := declared[id.Name]; !ok || offset(id.Pos()) < o {
+			declared[id.Name] = offset(id.Pos())
+		}
+	}
 	fields := func(fl *ast.FieldList) {
 		if fl != nil {
 			for _, f := range fl.List {
 				for _, id := range f.Names {
-					declared[id.Name] = true
+					declare(id)
 				}
 			}
 		}
 	}
-	fields(fd.Recv)
+	if fd.Recv != nil {
+		fields(fd.Recv)
+		// The type parameters of a generic receiver, T in (s *Stack[T]).
+		for _, f := range fd.Recv.List {
+			t := f.Type
+			if st, ok := t.(*ast.StarExpr); ok {
+				t = st.X
+			}
+			switch x := t.(type) {
+			case *ast.IndexExpr:
+				if id, ok := x.Index.(*ast.Ident); ok {
+					declare(id)
+				}
+			case *ast.IndexListExpr:
+				for _, e := range x.Indices {
+					if id, ok := e.(*ast.Ident); ok {
+						declare(id)
+					}
+				}
+			}
+		}
+	}
 	ast.Inspect(fd, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncType:
+			fields(x.TypeParams)
 			fields(x.Params)
 			fields(x.Results)
 		case *ast.AssignStmt:
 			if x.Tok == token.DEFINE {
 				for _, l := range x.Lhs {
 					if id, ok := l.(*ast.Ident); ok {
-						declared[id.Name] = true
+						declare(id)
 					}
 				}
 			}
 		case *ast.ValueSpec:
 			for _, id := range x.Names {
-				declared[id.Name] = true
+				declare(id)
 			}
+		case *ast.TypeSpec:
+			declare(x.Name)
 		case *ast.RangeStmt:
 			if x.Tok == token.DEFINE {
 				for _, e := range []ast.Expr{x.Key, x.Value} {
 					if id, ok := e.(*ast.Ident); ok {
-						declared[id.Name] = true
+						declare(id)
 					}
 				}
 			}
 		case *ast.LabeledStmt:
-			declared[x.Label.Name] = true
+			declare(x.Label)
 		}
 		return true
 	})
-	delete(declared, "_")
 	out := map[int]bool{}
-	sel := map[*ast.Ident]bool{}
+	fixed := map[*ast.Ident]bool{}
 	ast.Inspect(fd, func(n ast.Node) bool {
 		if n == fd.Name {
 			return false
 		}
 		switch x := n.(type) {
 		case *ast.SelectorExpr:
-			sel[x.Sel] = true
+			fixed[x.Sel] = true
+		case *ast.CompositeLit:
+			for _, e := range x.Elts {
+				if kv, ok := e.(*ast.KeyValueExpr); ok {
+					if id, ok := kv.Key.(*ast.Ident); ok {
+						fixed[id] = true
+					}
+				}
+			}
 		case *ast.Ident:
-			if declared[x.Name] && !sel[x] {
+			if o, ok := declared[x.Name]; ok && !fixed[x] && offset(x.Pos()) >= o {
 				out[offset(x.Pos())] = true
 			}
 		}
@@ -89,7 +129,7 @@ func locals(fd *ast.FuncDecl, offset func(token.Pos) int) map[int]bool {
 }
 
 // tokens returns the token stream of a file after its package clause and imports, without comments or
-// the semicolons the scanner inserts, and sets the body range of each function in funcs. Every
+// semicolons, and sets the span of each function in funcs. Every
 // identifier is one kind and every literal another; each keeps a hash of its text, flagged as a
 // literal, or as a name local to its function (a copy may rename it) or fixed (a copy must keep it).
 func tokens(fset *token.FileSet, src []byte, file *ast.File, funcs []facts.Function) facts.Tokens {
@@ -119,8 +159,8 @@ func tokens(fset *token.FileSet, src []byte, file *ast.File, funcs []facts.Funct
 			break
 		}
 		off := tf.Offset(pos)
-		if off < start || tok == token.SEMICOLON && lit == "\n" {
-			continue
+		if off < start || tok == token.SEMICOLON {
+			continue // a semicolon, written or inserted, only separates
 		}
 		kind, name := uint8(tok), uint32(0)
 		switch {
@@ -151,12 +191,15 @@ func tokens(fset *token.FileSet, src []byte, file *ast.File, funcs []facts.Funct
 		if i == len(funcs) {
 			break
 		}
-		from, _ := slices.BinarySearch(offsets, int32(offset(fd.Body.Lbrace))+1)
+		// From the token after the name, so the signature counts, to the closing brace.
+		from, _ := slices.BinarySearch(offsets, int32(offset(fd.Name.End())))
 		to, _ := slices.BinarySearch(offsets, int32(offset(fd.Body.Rbrace)))
 		if from <= to {
-			funcs[i].Body = [2]int32{int32(from), int32(to)}
+			funcs[i].Span = [2]int32{int32(from), int32(to)}
 		}
 		i++
 	}
+	// Exact sizes: the stream is kept for the whole run.
+	t.Kind, t.Name, t.Line = slices.Clone(t.Kind), slices.Clone(t.Name), slices.Clone(t.Line)
 	return t
 }

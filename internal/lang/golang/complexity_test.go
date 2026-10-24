@@ -128,7 +128,7 @@ func guards(f func() error) error {
 	}
 	for name, w := range want {
 		g := got[name]
-		g.Line, g.EndLine, g.Body, g.Statements = 0, 0, [2]int32{}, 0 // checked by TestTokens and TestDuplication
+		g.Line, g.EndLine, g.Span, g.Statements = 0, 0, [2]int32{}, 0 // checked by TestTokens and TestDuplication
 		if !reflect.DeepEqual(g, w) {
 			t.Errorf("%s:\n got  %+v\n want %+v", name, g, w)
 		}
