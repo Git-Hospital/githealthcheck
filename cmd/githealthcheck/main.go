@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
@@ -170,7 +171,7 @@ var walk = repo.Walk
 
 // analyzers are the families implemented in this build. A family without one is null with the reason
 // not_implemented.
-var analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}}
+var analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}, complexity.Analyzer{}}
 
 func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, error) {
 	git, err := execx.NewGit(ctx, path)
@@ -336,7 +337,7 @@ func modules(ctx context.Context, root string, entries []repo.Entry) ([]facts.Mo
 			continue
 		}
 		if p := golang.ModulePath(src); p != "" {
-			mods = append(mods, facts.Module{Dir: golang.Package(e.Path), Path: p})
+			mods = append(mods, facts.Module{Dir: golang.Package(e.Path), Path: p, Requires: golang.ModuleRequires(src), Go: golang.ModuleGo(src)})
 		}
 	}
 	slices.SortStableFunc(mods, func(a, b facts.Module) int {
@@ -504,10 +505,13 @@ func text(r *report.Report) string {
 		fmt.Fprintf(&b, "\nFindings (%d)\n", findings)
 		for _, f := range r.Families {
 			for _, fd := range f.Findings {
-				if fd.Path == "" {
-					fmt.Fprintf(&b, "  %s  %s\n", fd.RuleID, fd.Message)
-				} else {
-					fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), fd.Message)
+				switch {
+				case fd.Path == "":
+					fmt.Fprintf(&b, "  %s  %s\n", fd.RuleID, printable(fd.Message))
+				case fd.Line > 0:
+					fmt.Fprintf(&b, "  %s  %s:%d: %s\n", fd.RuleID, printable(fd.Path), fd.Line, printable(fd.Message))
+				default:
+					fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), printable(fd.Message))
 				}
 			}
 		}

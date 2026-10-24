@@ -132,7 +132,7 @@ Documentation analysis is out of scope for v1. The old README/docstring heuristi
 - [ ] Download the OSV database and query it locally.
 
 #### D17. Duplication
-- [x] **Token-based.** Each file is lexed into tokens, with identifiers and literals normalised. Repeated runs of 50 or more tokens are found with rolling hashes, the PMD CPD method. One engine serves all three languages, each with its own small lexer.
+- [x] **Token-based.** Each file is lexed into tokens, with identifiers and literals normalised. Repeated runs of 100 or more tokens (D34) are found with rolling hashes, the PMD CPD method. One engine serves all three languages, each with its own small lexer.
 - [ ] Line matching.
 - [ ] Later.
 
@@ -232,6 +232,9 @@ No file is written unless `-o` asks for one. Today's silent `health_report.json`
 
 > **Known gap:** until a second person reviews, criterion C1 below ("reviewed by another person") is only partly met.
 
+*Amended 2026-10-24 (Kadirhan):* until the tool reaches the Helmbulance level, a PR whose CI is green
+and whose review findings are fixed is merged without waiting for Kadirhan.
+
 #### D30. Who builds it
 - [x] **One builder, agents only where they fit.** *(changed on acceptance)*
   - The main session writes all of the code. No agent writes production code.
@@ -248,6 +251,39 @@ No file is written unless `-o` asks for one. Today's silent `health_report.json`
   - **Later:** Python and JS/TS, SARIF and Markdown, the Action, the image and calibration arrive in v0.3 to v0.5.
 - [ ] Horizontal: three languages, two families.
 - [ ] Everything at once as v1.0.
+
+*Amended 2026-10-24 (Kadirhan):* v0.2.0 is released once tests, history and complexity (with
+duplication and the D32 smells) work on Go; the architecture family follows in a later release.
+
+#### D32. Smells of generated code (2026-10-24)
+Code written by language models has failure patterns of its own. The complexity family also reports:
+- [x] **Swallowed errors**: an error that is caught or returned and then dropped, such as an empty
+  `except`/`catch`, `except Exception: pass`, or a Go error assigned to `_` or never checked.
+- [x] **Imports that do not resolve**: an import that is neither in the repository nor declared in
+  its dependency files (`go.mod`, requirements, `package.json`). A model can invent a package name,
+  and an attacker can register it. Checked offline.
+- [x] **Dead code**: functions nothing calls, blocks of commented-out code, and placeholder bodies
+  (`pass`, `panic("not implemented")`, `throw new Error("not implemented")`).
+- [x] **Near-identical functions**: functions with different names and the same body after
+  normalisation, reported per function from the D17 duplication engine.
+
+#### D33. Language order (2026-10-24)
+- [x] Each rule lands on Go first (read exactly with `go/ast`), then Python, then JS/TS.
+- [ ] Python first.
+- [ ] All three at once.
+
+#### D34. Complexity thresholds (2026-10-24)
+- [x] **Cognitive complexity as SonarSource counts it**, over 15 (S3776). An error check without an
+  `else` adds nothing, as in sonar-go; the paper's count is kept for the gocognit oracle.
+- [x] **Long function: over 90 lines of code**, halfway between funlen's 60 and go:S138's 120.
+  - [ ] 60 (funlen).
+  - [ ] 120 (go:S138).
+- [x] **Deep nesting: over 4** (go:S134).
+- [x] **Duplication: at least 100 tokens over at least 10 lines**, SonarSource's rule for a
+  duplicated block. It replaces the unsourced 50 tokens of D17.
+
+*Amended 2026-10-24 (D32, Go):* `if err != nil {}` and `if err != nil { return nil }` are
+reported; an error assigned to `_` is not, since telling an error result from any other needs types.
 
 ## Exit criteria for v1.0.0
 

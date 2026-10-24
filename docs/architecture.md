@@ -59,7 +59,7 @@ internal/
     tests/                 test files, test/code ratio, coverage report readers
     history/               DOA truck factor, abandonment, bot list; later churn and hotspots
                            (churn x complexity)
-    complexity/            cognitive + cyclomatic, long functions, deep nesting
+    complexity/            cognitive + cyclomatic, long functions, deep nesting, D32 smells
     duplication/           token-window rolling hash (CPD method)
     architecture/          import cycles, fan-in/fan-out, instability; dependency vulns (--online):
                            pip-audit only as `-r <file> --no-deps --disable-pip` on fully pinned files,
@@ -129,7 +129,7 @@ type Result struct {
 
 ## 5. Scoring
 
-- **Findings.** Each rule has a literature threshold, documented in `docs/rules/<ID>.md` with its source. Examples: cognitive complexity per function > 15; a function longer than 80 logical lines; an import cycle of any length; a duplicated block of 50 or more tokens; a file with DOA owners = 1 inside a hotspot.
+- **Findings.** Each rule has a literature threshold, documented in `docs/rules/<ID>.md` with its source. Examples: cognitive complexity per function > 15; a function with more than 90 lines of code; an import cycle of any length; a duplicated block of 100 or more tokens over 10 lines; a file with DOA owners = 1 inside a hotspot.
 - **Family score.** Each family reduces its metrics to one statistic per repository, for example the share of functions over the threshold, or the truck factor relative to the number of active files. The statistic is converted to 0-10 by its percentile in the calibration distribution for that language. Mixed-language repositories weight the per-language results by analysed lines.
 - **Overall score.** The weighted mean of the measured families. The weights are fixed per schema version and printed in the report. The report always shows the families measured out of 4.
 - **Suppressed findings** (D21) are shown but do not count against the score.
