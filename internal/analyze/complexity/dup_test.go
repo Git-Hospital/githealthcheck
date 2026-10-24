@@ -241,7 +241,9 @@ func TestDuplicationEdges(t *testing.T) {
 		decoys = append(decoys, parsed(fmt.Sprintf("a%d/d.go", k), head+src))
 	}
 	real := append(decoys, parsed("m/m.go", head+work("Sum", "total", "v", "min")), parsed("z/z.go", head+work("Add", "acc", "x", "min")))
-	if r := dupRun(t, real...); !slices.ContainsFunc(r.got, func(s string) bool { return strings.Contains(s, "z/z.go:3 Add has the signature and body of Sum at m/m.go:3") }) {
+	if r := dupRun(t, real...); !slices.ContainsFunc(r.got, func(s string) bool {
+		return strings.Contains(s, "z/z.go:3 Add has the signature and body of Sum at m/m.go:3")
+	}) {
 		t.Errorf("behind decoys: %q", r.got)
 	}
 	// Platform files: nothing between them is reported or counted, also across two functions.
