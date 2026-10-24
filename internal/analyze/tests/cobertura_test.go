@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 // in returns a resolver for a commit of the given paths.
@@ -74,6 +73,9 @@ func TestParseCoberturaPaths(t *testing.T) {
 		"second source":           {"<source>/a/b</source><source>/w/proj/lib</source>", "m.py", []string{"lib/m.py"}, "lib/m.py"},
 		"windows":                 {`<source>C:\work\proj\src</source>`, `pkg\mod.py`, []string{"src/pkg/mod.py"}, "src/pkg/mod.py"},
 		"absolute file name":      {"", "/home/ci/proj/pkg/mod.py", []string{"pkg/mod.py"}, "pkg/mod.py"},
+		"absolute, gone":          {"", "/ci/proj/old/__init__.py", []string{"__init__.py"}, ""},
+		"absolute under a source": {"<source>/ci/proj</source>", "/ci/proj/old/__init__.py", []string{"__init__.py", "x/old/__init__.py"}, ""},
+		"absolute, source prefix": {"<source>/ci/proj</source>", "/ci/proj/pkg/mod.py", []string{"pkg/mod.py"}, "pkg/mod.py"},
 		"relative files, no root": {"<source>.</source>", "pkg/mod.py", []string{"pkg/mod.py"}, "pkg/mod.py"},
 		"not in the commit":       {"<source>/x</source>", "gone.py", []string{"pkg/mod.py"}, ""},
 		"name kept whole":         {"<source>/ci/proj</source>", "old/util.py", []string{"util.py"}, ""},
@@ -100,19 +102,31 @@ func TestParseCoberturaPaths(t *testing.T) {
 	}
 }
 
-// One file written two ways is one file; a source outside sources is not a source.
+// One file written several ways is one file; a source outside coverage/sources is not a source, nor
+// is text inside an element within a source; a source after a class still maps it.
 func TestParseCoberturaCounts(t *testing.T) {
-	data := `<coverage><sources><source>/ci/proj</source></sources><packages><package><classes>
-<source>/elsewhere</source>
+	data := `<coverage><sources><source>/ci/<x>other</x>proj</source></sources><packages><package><classes>
+<sources><source>/elsewhere</source></sources>
 <class filename="pkg\\mod.py"><lines><line number="1" hits="1"/></lines></class>
 <class filename="pkg/mod.py"><lines><line number="2" hits="0"/></lines></class>
-</classes></package></packages></coverage>`
-	p, err := parseCobertura(context.Background(), []byte(data), in("pkg/mod.py"))
+<class filename="/ci/proj/pkg/mod.py"><lines><line number="3" hits="0"/></lines></class>
+<class filename="lib.py"><lines><line number="1" hits="1"/></lines></class>
+</classes></package></packages>
+<sources><source>/ci/proj/src</source></sources>
+<packages><package><classes><class filename="lib.py"><lines><line number="2" hits="1"/></lines></class></classes></package></packages>
+</coverage>`
+	p, err := parseCobertura(context.Background(), []byte(data), in("pkg/mod.py", "src/lib.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s, c := covered(p, "pkg/mod.py"); p.files != 1 || s != 2 || c != 1 {
-		t.Errorf("files %d, %d of %d covered", p.files, c, s)
+	if s, c := covered(p, "pkg/mod.py"); s != 3 || c != 1 {
+		t.Errorf("pkg/mod.py: %d of %d covered", c, s)
+	}
+	if s, c := covered(p, "src/lib.py"); s != 1 || c != 1 {
+		t.Errorf("src/lib.py: %d of %d covered", c, s)
+	}
+	if p.inModules != len(p.blocks) {
+		t.Errorf("%d files count, %d found", p.inModules, len(p.blocks))
 	}
 }
 
@@ -130,14 +144,15 @@ func TestParseCoberturaCost(t *testing.T) {
 		fmt.Fprintf(&b, `<class filename="%sf%d.py"><lines/></class>`, deep, i%50)
 	}
 	b.WriteString("</classes></package></packages></coverage>")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	start := time.Now()
-	if _, err := parseCobertura(ctx, []byte(b.String()), in("x.py")); err != nil {
+	// Each name is mapped once, whatever the number of classes: 50 names, each with at most two
+	// candidates per base.
+	lookups := 0
+	resolve := func(full string) (string, bool) { lookups++; return full, false }
+	if _, err := parseCobertura(context.Background(), []byte(b.String()), resolve); err != nil {
 		t.Fatal(err)
 	}
-	if d := time.Since(start); d > time.Second {
-		t.Errorf("took %v", d)
+	if max := 50 * (maxSources + 1) * 2; lookups > max {
+		t.Errorf("%d lookups, want at most %d", lookups, max)
 	}
 	long := `<coverage><packages><package><classes><class filename="` + strings.Repeat("a", maxNameBytes+1) + `"/></classes></package></packages></coverage>`
 	if _, err := parseCobertura(context.Background(), []byte(long), in()); err == nil {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ import (
 // Bounds far above anything coverage.py writes, whose elements nest six deep. maxLookups bounds the
 // work of mapping the report's files to the commit: a few per file in a real report.
 const (
-	maxSources   = 16
+	maxSources   = 64
 	maxNameBytes = 1024
 	maxLine      = 1 << 24
 	maxDepth     = 32
@@ -63,7 +64,8 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 		rel string
 		ok  bool
 	}
-	seen := map[string]found{} // each file of the report, as it resolved
+	names := map[string]bool{} // each file name of the report
+	seen := map[string]found{} // how a name resolved, with the sources so far
 	budget := maxLookups
 	inSource := false
 	sawRoot := false
@@ -95,7 +97,8 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 					return nil, fmt.Errorf("root element %q, not coverage", name)
 				}
 				sawRoot = true
-			case name == "source" && parent == "sources":
+			case name == "source" && len(stack) == 3 && stack[1] == "sources":
+				// Only coverage/sources/source: a sources element elsewhere names nothing.
 				text.Reset()
 				inSource = true
 			case name == "class":
@@ -116,8 +119,7 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 						return nil, fmt.Errorf("line %d: the report's files cost more than %d lookups to map", lineOf(d), maxLookups)
 					}
 					seen[file] = r
-					p.files++
-					p.inModules++
+					names[file] = true
 				}
 				rel, ok := r.rel, r.ok
 				lines = nil
@@ -144,7 +146,7 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 				}
 			}
 		case xml.CharData:
-			if inSource {
+			if inSource && len(stack) == 3 {
 				if text.Len()+len(t) > maxNameBytes {
 					return nil, fmt.Errorf("line %d: source longer than %d bytes", lineOf(d), maxNameBytes)
 				}
@@ -152,12 +154,14 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 			}
 		case xml.EndElement:
 			if len(stack) > 0 {
-				if inSource && stack[len(stack)-1] == "source" {
+				if inSource && len(stack) == 3 {
 					inSource = false
 					if len(sources) == maxSources {
 						return nil, fmt.Errorf("more than %d sources", maxSources)
 					}
 					sources = append(sources, strings.ReplaceAll(strings.TrimSpace(text.String()), `\`, "/"))
+					// A name that was not found is tried again with this source.
+					maps.DeleteFunc(seen, func(_ string, r found) bool { return !r.ok })
 				}
 				if stack[len(stack)-1] == "class" {
 					lines = nil
@@ -168,6 +172,15 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 	}
 	if !sawRoot {
 		return nil, fmt.Errorf("no coverage element")
+	}
+	// One file written two ways is one file: the files that count are those found, each once, and
+	// the names that were not.
+	p.files = len(names)
+	p.inModules = len(p.blocks)
+	for n := range names {
+		if !seen[n].ok {
+			p.inModules++
+		}
 	}
 	return p, nil
 }
@@ -189,10 +202,10 @@ func lineOf(d *xml.Decoder) int {
 // find resolves a file of the report to a path in the commit. A relative file name is relative to one
 // of the sources, absolute paths on the machine that ran the tests: the source joined with the name
 // ends with the repository path, and each of its suffixes that keeps the name whole is a candidate.
-// An absolute name is its own source and keeps at least its base name. Of the candidates in the
-// commit, over every source, the longest is taken. The name's own parts are never dropped, so a file
-// missing from the commit does not land on another file with the same tail. Each lookup costs one of
-// budget.
+// An absolute name under a source is that source and a relative name; one under none keeps its last
+// two parts (its directory and base name). Of the candidates in the commit, over every source, the
+// longest is taken. The name's own parts are never dropped, so a file missing from the commit does
+// not land on another file with the same tail. Each lookup costs one of budget.
 func find(file string, sources []string, resolve pathResolver, budget *int) (string, bool) {
 	type base struct {
 		full string
@@ -200,7 +213,14 @@ func find(file string, sources []string, resolve pathResolver, budget *int) (str
 	}
 	var bases []base
 	if path.IsAbs(file) || isDrive(file) {
-		bases = []base{{file, 1}}
+		for _, s := range sources {
+			if rest, ok := strings.CutPrefix(file, strings.TrimSuffix(s, "/")+"/"); ok && s != "" {
+				bases = append(bases, base{file, len(strings.Split(path.Clean(rest), "/"))})
+			}
+		}
+		if bases == nil {
+			bases = []base{{file, min(2, strings.Count(strings.Trim(file, "/"), "/")+1)}}
+		}
 	} else {
 		keep := 0
 		for p := range strings.SplitSeq(path.Clean(file), "/") {
