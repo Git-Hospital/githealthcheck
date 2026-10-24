@@ -21,7 +21,7 @@ func goFile(path string, lines, functions int) facts.File {
 	if dir == "" {
 		dir = "."
 	}
-	return facts.File{Path: path, Language: "go", Lines: lines, Functions: functions, Package: dir,
+	return facts.File{Path: path, Language: "go", Analysed: true, Lines: lines, Functions: functions, Package: dir,
 		Test: strings.HasSuffix(path, "_test.go")}
 }
 
@@ -54,11 +54,33 @@ func value(t *testing.T, m report.Measurement) float64 {
 	return *m.Value
 }
 
+// Python that was analysed counts in the line ratio and coverage, not in the untested packages; test
+// files are left out of coverage.
+func TestRunPython(t *testing.T) {
+	code := facts.File{Path: "pkg/mod.py", Language: "python", Analysed: true, Package: "pkg", Lines: 10, Functions: 2}
+	test := facts.File{Path: "tests/test_mod.py", Language: "python", Analysed: true, Package: "tests", Lines: 5, Functions: 1, Test: true}
+	rf := repoOf(code, test)
+	rf.Coverage = &facts.Coverage{Name: "coverage.xml", Data: []byte(`<coverage><sources><source>/ci/proj</source></sources><packages><package><classes>
+<class filename="pkg/mod.py"><lines><line number="1" hits="1"/><line number="2" hits="1"/><line number="3" hits="0"/><line number="4" hits="1"/></lines></class>
+<class filename="tests/test_mod.py"><lines><line number="1" hits="0"/></lines></class>
+</classes></package></packages></coverage>`)}
+	r := (Analyzer{}).Run(context.Background(), rf)
+	if !r.Measured || value(t, r.Metrics[TestCodeLineRatio]) != 0.5 || value(t, r.Metrics[StatementCoverage]) != 0.75 {
+		t.Fatalf("%+v", r)
+	}
+	if m := r.Metrics[UntestedPackageShare]; m.Reason != report.UnsupportedLanguage || len(r.Findings) != 0 {
+		t.Errorf("untested packages %+v, findings %v", m, ids(r.Findings))
+	}
+	if r.Coverage == nil || r.Coverage.Format != "cobertura" || *r.Coverage.FilesAtHead != 2 {
+		t.Errorf("input %+v", r.Coverage)
+	}
+}
+
 func TestRunWithoutGo(t *testing.T) {
 	ctx := context.Background()
 	py := facts.File{Path: "a.py", Language: "python", Lines: 10}
 	if r := (Analyzer{}).Run(ctx, repoOf(py)); r.Measured || r.Reason != report.UnsupportedLanguage {
-		t.Errorf("python only: %+v", r)
+		t.Errorf("python not analysed: %+v", r)
 	}
 	vendored := goFile("vendor/x/x.go", 10, 1)
 	vendored.Vendored = true

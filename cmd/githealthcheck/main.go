@@ -510,7 +510,10 @@ func text(r *report.Report) string {
 			tracked = "tracked"
 		}
 		fmt.Fprintf(&b, "\nCoverage report %s (%s)", printable(c.Path), tracked)
-		if c.Files != nil {
+		switch {
+		case c.Files != nil && c.Format == "cobertura":
+			fmt.Fprintf(&b, ": %d of the %d files it lists are in the commit", *c.FilesAtHead, *c.Files)
+		case c.Files != nil:
 			fmt.Fprintf(&b, ": %d of the %d files it lists under the repository's modules are in the commit (%d files listed)",
 				*c.FilesAtHead, *c.ModuleFiles, *c.Files)
 		}

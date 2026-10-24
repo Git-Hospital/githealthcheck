@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Added
 
 - **Python** is analysed by the complexity family: GHC-CPLX-001 to 004 and 007 to 010, with Python's forms of each rule (an `except` that catches everything and does nothing for 004). The code is parsed with the `ast` and `tokenize` modules of the python3 on `PATH` (3.10 or later), never run; without one, Python is counted and reported as not analysed with the reason `tool_not_found` or `tool_too_old`. Cognitive complexity equals SonarSource's expected values on its own test file (25 functions), and cyclomatic complexity equals radon's on six repositories (37,993 functions, one difference). `scripts/py-oracle.sh` reruns both checks.
+- **Python coverage**: the tests family reads coverage.py's Cobertura XML (`coverage.xml` at the root, or `--coverage`), with GHC-TEST-002 and 003 and `statement_coverage` equal to coverage.py's `line-rate`; `test_code_line_ratio` counts Python's test files (pytest's names, and `tests/` directories). GHC-TEST-001 stays Go-only.
 - The report lists the tools code was read with (`inputs.tools`) and, for a language that was not analysed, why (`languages[].reason`).
 
 ### Changed

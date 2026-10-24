@@ -193,8 +193,8 @@ type CoverageInput struct {
 	Tracked bool   `json:"tracked"`          // the report is a file in the scanned commit
 	Format  string `json:"format,omitempty"` // absent when the report could not be parsed
 	// Files is the number of source files the report lists, ModuleFiles those under one of the
-	// repository's module paths (the rest are the standard library and dependencies), and FilesAtHead
-	// those that exist in the commit. Below 90% of ModuleFiles at HEAD, coverage is null with the
+	// repository's module paths (the rest are the standard library and dependencies; for a Cobertura
+	// report, which has no module paths, every file), and FilesAtHead those that exist in the commit. Below 90% of ModuleFiles at HEAD, coverage is null with the
 	// reason stale_coverage_report. All three are absent when the report was not parsed.
 	Files       *int `json:"files,omitempty"`
 	ModuleFiles *int `json:"moduleFiles,omitempty"`

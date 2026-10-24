@@ -1,6 +1,6 @@
 # GHC-TEST-003: file with no statement covered
 
-**Family:** tests. **Languages:** Go. **Needs:** a fresh coverage report.
+**Family:** tests. **Languages:** Go, Python. **Needs:** a fresh coverage report.
 
 A file has at least one statement in the coverage report, and none of them ran in the tests.
 
