@@ -178,7 +178,7 @@ func (p *Pool) work(h *proc) {
 	startFailures := 0
 	for j := range p.jobs {
 		f := j.file
-		prepare(&f, j.src)
+		Prepare(&f, j.src)
 		if strings.HasSuffix(f.Path, ".pyi") {
 			// A type stub holds signatures with ... for bodies: it is counted, not measured.
 			p.publish(j.index, f)

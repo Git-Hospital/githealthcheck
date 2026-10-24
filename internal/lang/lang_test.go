@@ -41,8 +41,8 @@ func TestSetWithoutPython(t *testing.T) {
 	python.Interpreter = "githealthcheck-no-such-python"
 	s := Open(context.Background())
 	defer s.Close()
-	f := facts.File{Path: "a.py", Language: "python"}
-	if !s.Fill(0, &f, []byte("def f():\n    pass\n")) || f.Analysed {
+	f := facts.File{Path: "tests/test_a.py", Language: "python"}
+	if !s.Fill(0, &f, []byte("def f():\n    pass\n")) || f.Analysed || !f.Test || f.Package != "tests" {
 		t.Errorf("python file without python3: %+v", f)
 	}
 	if st := s.Status("python"); st.Analysed || st.Reason != report.ToolNotFound || len(s.Tools()) != 0 {

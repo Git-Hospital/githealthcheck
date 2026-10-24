@@ -65,6 +65,9 @@ func (s *Set) Fill(i int, f *facts.File, src []byte) bool {
 		f.Analysed = true
 		return true
 	case f.Language == "python":
+		// Its package and whether it is a test need no python3: the tests family counts the file
+		// even when python3 is missing.
+		python.Prepare(f, src)
 		if _, met := s.status["python"]; !met {
 			py, err := python.Start(s.ctx)
 			if err != nil {

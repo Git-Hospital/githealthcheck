@@ -41,6 +41,17 @@ FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 
 
+def utf8_lines(src):
+    """The source's lines as ast counts them: lines end at \n, \r or \r\n, and a column is a byte
+    offset in the line encoded as UTF-8, whatever the file's own encoding."""
+    try:
+        enc, _ = tokenize.detect_encoding(io.BytesIO(src).readline)
+        text = src.decode(enc, "replace")
+    except (SyntaxError, ValueError, LookupError):
+        text = src.decode("utf-8", "replace")
+    return text.encode("utf-8", "replace").splitlines()
+
+
 def fnv32(data):
     h = 0x811C9DC5
     for b in data:
@@ -111,7 +122,7 @@ class File:
                 self.comments[t.start[0]] = t.string
             elif t.type not in SKIPPED and t.type not in (token.INDENT, token.DEDENT):
                 self.code.update(range(t.start[0], t.end[0] + 1))
-        self.blines = src.split(b"\n")
+        self.blines = utf8_lines(src)
 
     def facts(self):
         resp = {"partial": self.partial, "parsed": self.tree is not None}
@@ -368,6 +379,9 @@ class File:
             locals_ = self.local_names
         skip.sort()
         kinds, names, lines, pos = [], [], [], []
+        # The byte offset of each character of the line being read, computed once per line: a long
+        # line of non-ASCII text would otherwise cost the length of the line for every token.
+        row, offsets = 0, None
         si = 0
         prev = None
         depth = 0
@@ -386,8 +400,15 @@ class File:
                 continue
             # tokenize counts columns in characters, ast in bytes of UTF-8.
             start = t.start
-            if not t.line.isascii():
-                start = (start[0], len(t.line[:start[1]].encode("utf-8", "replace")))
+            if start[0] != row:
+                row, offsets = start[0], None
+                first = t.line.split("\n", 1)[0]
+                if not first.isascii():
+                    offsets = [0]
+                    for ch in first:
+                        offsets.append(offsets[-1] + len(ch.encode("utf-8", "replace")))
+            if offsets is not None and start[1] < len(offsets):
+                start = (start[0], offsets[start[1]])
             while si < len(skip) and skip[si][1] <= start:
                 si += 1
             if si < len(skip) and skip[si][0] <= start < skip[si][1]:

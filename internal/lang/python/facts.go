@@ -12,9 +12,9 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 )
 
-// prepare sets the facts that follow from a file's path and header: its package (directory), whether
-// it is a test, and whether it is generated.
-func prepare(f *facts.File, src []byte) {
+// Prepare sets the facts that follow from a file's path and header, without python3: its package (a
+// directory), whether it is a test, and whether it is generated.
+func Prepare(f *facts.File, src []byte) {
 	f.Package = path.Dir(f.Path)
 	f.Test = isTest(f.Path)
 	f.Generated = generated(src)

@@ -2,6 +2,7 @@ package python
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -421,18 +422,37 @@ func TestNonASCIIColumns(t *testing.T) {
 	}
 }
 
-// A file that makes the parser quadratic would cost the per-file timeout: a try of many imports, and a
-// long expression, stay linear.
+// Lines end at \r too, as ast reads them: an elif chain in a file with CR line endings is not nested.
+func TestCRLineEndings(t *testing.T) {
+	needPython(t)
+	src := "def f(a):\r    if a == 1:\r        return 1\r    elif a == 2:\r        return 2\r    elif a == 3:\r        return 3\r    return 0\r"
+	f := run(t, map[string]string{"m.py": src}, "m.py")[0]
+	if len(f.Funcs) != 1 || f.Funcs[0].Nesting != 1 || f.Funcs[0].Cognitive != 3 {
+		t.Errorf("functions: %+v", f.Funcs)
+	}
+}
+
+// A file that makes the parser quadratic would cost the per-file timeout: a try of many imports, a
+// long expression, and a long line of non-ASCII text, stay linear.
 func TestLinearInCraftedFiles(t *testing.T) {
 	needPython(t)
 	imports := "try:\n" + strings.Repeat("    import a\n", 30000) + "except ImportError:\n    pass\n"
 	expr := "def f(a):\n    return " + strings.Repeat("a + ", 20000) + "a\n"
+	var line strings.Builder
+	line.WriteString("X = [")
+	for i := range 60000 {
+		fmt.Fprintf(&line, "\"\u00e9%d\", ", i)
+	}
+	line.WriteString("]\n")
 	start := time.Now()
-	got := run(t, map[string]string{"i.py": imports, "e.py": expr}, "i.py", "e.py")
+	got := run(t, map[string]string{"i.py": imports, "e.py": expr, "u.py": line.String()}, "i.py", "e.py", "u.py")
 	if d := time.Since(start); d > 10*time.Second {
 		t.Errorf("took %v", d)
 	}
 	if !got[0].Analysed || len(got[0].Imports) != 30000 || !got[0].Imports[0].Optional {
 		t.Errorf("imports: analysed %v, %d imports", got[0].Analysed, len(got[0].Imports))
+	}
+	if !got[2].Analysed || len(got[2].Tokens.Kind) < 120000 {
+		t.Errorf("long line: analysed %v, %d tokens", got[2].Analysed, len(got[2].Tokens.Kind))
 	}
 }
