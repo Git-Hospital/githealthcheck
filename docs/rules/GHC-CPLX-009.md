@@ -25,8 +25,9 @@ and Near-Duplication in Large Software Systems", WCRE 1995):
 - every literal may differ;
 - a parameter, result, receiver, type parameter or local of the function may be renamed, as long as
   each name of one copy stands for one name of the other throughout. Without types, a name is local
-  from where the function declares it on; before that it names whatever it names outside;
-- any other name (a function, method, field, struct key in a composite literal, type, package or
+  from where the function declares it to the end of the block that holds the declaration; elsewhere
+  it names whatever it names outside;
+- any other name (a function, method, field, key of a struct literal, type, package or
   constant) must be the same. Where a copy changes one, or renames a local inconsistently, the block
   ends there, and each part is judged on its own size.
 
@@ -37,14 +38,16 @@ share of copy-pasted lines rising from 8.3% to 12.3% (ADR 0001, D32).
 
 A block starts at the first token of a line and ends with the last token of a line, in both copies.
 Each copy is reported once, against the first earlier place in the repository, by path, that it
-repeats; up to eight earlier places that look the same to the hash are tried, and the hash is chosen
-anew on every run, so a crafted file cannot make one block hide another. Three copies give two
+repeats. Earlier places are found by a hash of the block's first 100 tokens and of the pattern of its
+locals, so only places that are the same up to a consistent renaming are compared; up to eight are
+kept for each, the hash is chosen anew on every run, and a comparison that fails hides nothing after
+it. Three copies give two
 findings. A copy does not overlap the block it repeats. A block with fewer than 10 identifiers is a table of literals, data
 rather than code, and is not reported.
 
 The metric `duplicated_line_share` is the share of lines, in all the files duplication is looked in, that
 are in a repeated block, either copy, each line counted once: the blocks reported, and those inside two
-functions [GHC-CPLX-010](GHC-CPLX-010.md) reports, but not those inside functions written once per
+functions [GHC-CPLX-010](GHC-CPLX-010.md) reports, but not those between files written once per
 platform. It is SonarSource's
 `duplicated_lines_density`, whose denominator is also all lines (sonarqube `DuplicationMeasures.java`).
 
@@ -52,8 +55,9 @@ platform. It is SonarSource's
 
 Test files, as SonarSource leaves them out of duplication; vendored and generated code; what the go
 command ignores; the package clause and imports. A block inside two functions that
-[GHC-CPLX-010](GHC-CPLX-010.md) reports as the same is not reported again, nor a block inside two
-functions of one name in one package, which differ by build constraints (see GHC-CPLX-010). Past 20
+[GHC-CPLX-010](GHC-CPLX-010.md) reports as the same is not reported again, nor a block between two
+files of one package that declare a function of the same name: Go allows that only in files under
+different build constraints, one per platform (see GHC-CPLX-010). Past 20
 million tokens in the repository, about two and a half million lines, no token stream is kept,
 duplication is not looked for and the metric is `null` with the reason `too_large`. At most 50 findings are listed per file.
 

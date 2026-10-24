@@ -37,8 +37,9 @@ type File struct {
 	Refs []string
 }
 
-// MaxTokens bounds the tokens kept for duplication, about two and a half million lines of Go and
-// 200 MB; past it duplication is not looked for.
+// MaxTokens bounds the tokens kept for duplication, about two and a half million lines of Go; past
+// it duplication is not looked for. The streams take 9 bytes a token, and finding clones in them up
+// to about 40 more: a crafted repository of 14.5 million tokens peaked at 670 MB.
 const MaxTokens = 20_000_000
 
 // Tokens is a file's tokens after its imports, without comments, as parallel slices.

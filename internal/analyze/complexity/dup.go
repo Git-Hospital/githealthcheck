@@ -51,12 +51,21 @@ func value(t *facts.Tokens, i int) uint64 {
 // and any change of literals (a Type-2 clone in the terms of Roy, Cordy and Koschke 2009, checked with
 // Baker's parameterised match); other names must be the same. Blocks start at the first token of a
 // line and end with a whole line. Each block is reported once, against the first of up to candidates
-// earlier places, in the order of files, where its first MinCloneTokens tokens occur.
+// earlier places, in the order of files, whose first MinCloneTokens tokens are the same up to a
+// consistent renaming.
 func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
 	type at struct{ file, tok int32 }
 	// A base chosen per run: a crafted repository cannot plant blocks whose hashes collide.
 	base := new(maphash.Hash).Sum64() | 1
-	first := map[uint64][]at{}
+	// Places are keyed by the window's values and by the pattern of its locals, so only windows that
+	// are the same up to a consistent renaming meet, and up to candidates places are kept per key.
+	// The pattern costs a pass over the window, so it is computed only once a second window with
+	// the same values appears: until then the first waits in lone.
+	lone := map[uint64]at{}
+	places := map[uint64][]at{}
+	key := func(h uint64, o at) uint64 {
+		return h ^ localsHash(&files[o.file].Tokens, int(o.tok), base)
+	}
 	var out []clone
 	for fi, f := range files {
 		if err := ctx.Err(); err != nil {
@@ -69,31 +78,73 @@ func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
 		}
 		hashes := windowHashes(t, MinCloneTokens, base)
 		covered := 0 // tokens before this are already in a reported copy
+		// failed holds, for an alignment of this file with an earlier place (its file and the
+		// difference of positions), how far a comparison that reported nothing reached: a later
+		// start on that alignment is the same comparison.
+		failed := map[[2]int]int{}
 		for i := 0; i+MinCloneTokens <= n; i++ {
 			if i > 0 && t.Line[i] == t.Line[i-1] {
 				continue // blocks start at a line
 			}
-			h := hashes[i]
-			seen := first[h]
-			if len(seen) < candidates {
-				first[h] = append(seen, at{int32(fi), int32(i)})
+			h, here := hashes[i], at{int32(fi), int32(i)}
+			switch o, ok := lone[h]; {
+			case !ok:
+				lone[h] = here
+				continue
+			case o.file >= 0:
+				places[key(h, o)] = []at{o}
+				lone[h] = at{-1, -1} // no longer alone
+			}
+			k := key(h, here)
+			cands := places[k]
+			if len(cands) < candidates {
+				places[k] = append(cands, here)
 			}
 			if i < covered {
 				continue
 			}
-			for _, o := range seen {
-				c, l, ok := compare(files, int(o.file), int(o.tok), fi, i)
-				if l >= MinCloneTokens {
-					covered = max(covered, i+l)
+			for _, o := range cands {
+				align := [2]int{int(o.file), int(o.tok) - i}
+				if failed[align] > i {
+					continue
 				}
+				c, l, ok := compare(files, int(o.file), int(o.tok), fi, i)
 				if ok {
+					for _, x := range c {
+						covered = max(covered, x.to)
+					}
 					out = append(out, c...)
 					break
 				}
+				failed[align] = i + max(l, 1)
 			}
 		}
 	}
 	return out, nil
+}
+
+// localsHash hashes the pattern of the locals in the MinCloneTokens tokens from i: each numbered by
+// its first occurrence in the window, so two windows that rename consistently hash equal.
+func localsHash(t *facts.Tokens, i int, base uint64) uint64 {
+	var seen [MinCloneTokens]uint32
+	n := 0
+	h := uint64(0)
+	for k := i; k < i+MinCloneTokens; k++ {
+		name := t.Name[k]
+		if name&nameLiteral != nameLocal {
+			continue
+		}
+		id := 0
+		for id < n && seen[id] != name {
+			id++
+		}
+		if id == n && n < len(seen) {
+			seen[n] = name
+			n++
+		}
+		h = h*base + uint64(k-i)<<8 + uint64(id) + 1
+	}
+	return h * base
 }
 
 // compare extends the match of the block at i in file fi with the earlier one at oi in file of, and
@@ -259,6 +310,37 @@ func platformVariants(f *facts.File, fn facts.Function, g *facts.File, gn facts.
 	return f.Package == g.Package && fn.Name == gn.Name && f.Path != g.Path && fn.Name != "init" && fn.Name != "_"
 }
 
+// exclusiveFiles returns a test for two files of one package that declare a function of the same name
+// (other than init and _): files that never build together, one for each platform.
+func exclusiveFiles(files []*facts.File) func(a, b int) bool {
+	memo := map[[2]int]bool{}
+	return func(a, b int) bool {
+		if a == b || files[a].Package != files[b].Package {
+			return false
+		}
+		if a > b {
+			a, b = b, a
+		}
+		key := [2]int{a, b}
+		if v, ok := memo[key]; ok {
+			return v
+		}
+		declared := map[string]bool{}
+		for _, fn := range files[a].Funcs {
+			declared[fn.Name] = true
+		}
+		v := false
+		for _, fn := range files[b].Funcs {
+			if declared[fn.Name] && fn.Name != "init" && fn.Name != "_" {
+				v = true
+				break
+			}
+		}
+		memo[key] = v
+		return v
+	}
+}
+
 // spanHash hashes a function's span with each local numbered by its first occurrence, so that
 // functions that rename consistently hash equal, and every other name and literal as it is.
 func spanHash(t *facts.Tokens, from, to int) uint64 {
@@ -304,7 +386,7 @@ func equalSpans(x *facts.Tokens, xs [2]int32, y *facts.Tokens, ys [2]int32) bool
 
 // duplication runs both engines over the repository's own code that is not a test, and returns their
 // findings and the share of lines in a repeated block, either copy, as SonarSource's
-// duplicated_lines_density counts them: over all the lines of those files. Blocks inside functions
+// duplicated_lines_density counts them: over all the lines of those files. Blocks between files
 // written once per platform are neither findings nor counted.
 func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, report.Measurement, error) {
 	var files []*facts.File
@@ -338,6 +420,7 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 			Message: fmt.Sprintf("%s has the signature and body of %s at %s:%d, up to the names of its parameters and locals",
 				fn.Name, ofn.Name, o.Path, ofn.Line)})
 	}
+	excl := exclusiveFiles(files)
 	dup := make([]map[int32]bool, len(files))
 	mark := func(fi int, t *facts.Tokens, from, to int) {
 		if dup[fi] == nil {
@@ -351,10 +434,10 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		f, o := files[c.file], files[c.orig]
 		t, ot := &f.Tokens, &o.Tokens
 		oto := c.ofrom + c.to - c.from
-		in, oin := enclosing(f, c.file, t.Line[c.from], t.Line[c.to-1]), enclosing(o, c.orig, ot.Line[c.ofrom], ot.Line[oto-1])
-		if in.fn >= 0 && oin.fn >= 0 && platformVariants(f, f.Funcs[in.fn], o, o.Funcs[oin.fn]) {
-			continue
+		if excl(c.file, c.orig) {
+			continue // files written once per platform
 		}
+		in, oin := enclosing(f, c.file, t.Line[c.from], t.Line[c.to-1]), enclosing(o, c.orig, ot.Line[c.ofrom], ot.Line[oto-1])
 		mark(c.file, t, c.from, c.to)
 		mark(c.orig, ot, c.ofrom, oto)
 		if pair[[2]fnRef{in, oin}] {

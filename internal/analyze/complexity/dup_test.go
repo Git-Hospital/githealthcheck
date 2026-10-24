@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -207,6 +209,58 @@ func TestDuplicationEdges(t *testing.T) {
 	if r := dupRun(t, parsed("a/x_linux.go", "//go:build linux\n\n"+head+work("Sum", "total", "v", "min")),
 		parsed("a/x_darwin.go", "//go:build darwin\n\n"+head+work("Sum", "n", "v", "min"))); r.got != nil || *r.share.Value != 0 {
 		t.Errorf("platform share: %+v", r)
+	}
+
+	// Re-check cases. A near-copy that fails the comparison hides nothing after it; decoys that are
+	// the same shape but rename inconsistently cannot use up the places a block is compared with.
+	z := parsed("z/z.go", head+work("A1", "total", "v", "min")+"\n"+work("A2", "total", "v", "max"))
+	inconsistent := func(src string) string {
+		n := 0
+		return regexp.MustCompile(`\btotal\b`).ReplaceAllStringFunc(src, func(string) string {
+			if n++; n%2 == 0 {
+				return "weight"
+			}
+			return "total"
+		})
+	}
+	d := parsed("d/d.go", head+inconsistent(work("A1", "total", "v", "min")+"\n"+work("A2", "total", "v", "max")))
+	o := parsed("o/o.go", head+strings.Replace(work("A2", "acc", "x", "max"), "\treturn acc\n", "\tacc++\n\treturn acc\n", 1))
+	if r := dupRun(t, d, z, o); len(r.got) != 1 || !strings.Contains(r.got[0], "o/o.go") || !strings.Contains(r.got[0], "of z/z.go") {
+		t.Errorf("after a failed comparison: %q", r.got)
+	}
+	var decoys []facts.File
+	for k := range candidates + 1 {
+		src := work("Sum", "total", "v", "min")
+		m := 0
+		src = regexp.MustCompile(`\btotal\b`).ReplaceAllStringFunc(src, func(string) string {
+			if m++; m == k+2 {
+				return "other"
+			}
+			return "total"
+		})
+		decoys = append(decoys, parsed(fmt.Sprintf("a%d/d.go", k), head+src))
+	}
+	real := append(decoys, parsed("m/m.go", head+work("Sum", "total", "v", "min")), parsed("z/z.go", head+work("Add", "acc", "x", "min")))
+	if r := dupRun(t, real...); !slices.ContainsFunc(r.got, func(s string) bool { return strings.Contains(s, "z/z.go:3 Add has the signature and body of Sum at m/m.go:3") }) {
+		t.Errorf("behind decoys: %q", r.got)
+	}
+	// Platform files: nothing between them is reported or counted, also across two functions.
+	two := head + "const limit = 3\n\n" + work("Sum", "total", "v", "min") + "\n" + work("Max", "best", "v", "max")
+	if r := dupRun(t, parsed("a/x_linux.go", "//go:build linux\n\n"+two), parsed("a/x_darwin.go", "//go:build darwin\n\n"+two)); r.got != nil || *r.share.Value != 0 {
+		t.Errorf("platform files: %+v", r)
+	}
+	// A local declared in a closed block does not make a later use of the name local; map keys are
+	// expressions, so a local there may be renamed.
+	for name, c := range map[string]struct {
+		src  string
+		want int
+	}{
+		"closed block": {"func g(n int) int { return n * 2 }\n\nfunc h(n int) int { return n - 7 }\n\nfunc A(n int) int {\n\tif n > 9 {\n\t\tg := n / 2\n\t\tn = g\n\t}\n\treturn g(n)\n}\n\nfunc B(n int) int {\n\tif n > 9 {\n\t\th := n / 2\n\t\tn = h\n\t}\n\treturn h(n)\n}\n", 0},
+		"map keys":     {"func A(n int) map[int]bool {\n\tk := n + 1\n\tm := map[int]bool{k: true}\n\treturn m\n}\n\nfunc B(n int) map[int]bool {\n\tj := n + 1\n\tm := map[int]bool{j: true}\n\treturn m\n}\n", 1},
+	} {
+		if r := dupRun(t, parsed("a/a.go", head+c.src)); len(r.got) != c.want {
+			t.Errorf("%s: %q", name, r.got)
+		}
 	}
 
 	// When the walk dropped the token streams, duplication is not looked for.

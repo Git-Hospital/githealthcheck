@@ -24,30 +24,36 @@ const (
 )
 
 // locals returns the offsets of the identifiers of a function that name its own parameters, results,
-// receiver, type parameters and locals, or labels. Without types this goes by name and position: an
-// identifier counts when the function declares that name at or before it, and it is not a field or
-// method after a dot, nor the key of a composite literal (a struct field).
+// receiver, type parameters and locals, or labels. Without types this goes by name and scope: an
+// identifier counts when the function declares that name before it in a scope that holds it, and it
+// is not a field or method after a dot, nor the key of a composite literal other than a map.
 func locals(fd *ast.FuncDecl, offset func(token.Pos) int) map[int]bool {
-	declared := map[string]int{} // the offset of a name's first declaration
-	declare := func(id *ast.Ident) {
-		if id == nil || id.Name == "_" {
-			return
-		}
-		if o, ok := declared[id.Name]; !ok || offset(id.Pos()) < o {
-			declared[id.Name] = offset(id.Pos())
+	scopes := map[string][][2]int{} // where each name is local: from its declaration to its scope's end
+	whole := [2]int{offset(fd.Pos()), offset(fd.End())}
+	var stack []ast.Node // the scopes the walk is in
+	declare := func(id *ast.Ident, in [2]int) {
+		if id != nil && id.Name != "_" {
+			scopes[id.Name] = append(scopes[id.Name], in)
 		}
 	}
-	fields := func(fl *ast.FieldList) {
+	here := func(id *ast.Ident) [2]int {
+		end := whole[1]
+		if len(stack) > 0 {
+			end = offset(stack[len(stack)-1].End())
+		}
+		return [2]int{offset(id.Pos()), end}
+	}
+	fields := func(fl *ast.FieldList, in [2]int) {
 		if fl != nil {
 			for _, f := range fl.List {
 				for _, id := range f.Names {
-					declare(id)
+					declare(id, in)
 				}
 			}
 		}
 	}
 	if fd.Recv != nil {
-		fields(fd.Recv)
+		fields(fd.Recv, whole)
 		// The type parameters of a generic receiver, T in (s *Stack[T]).
 		for _, f := range fd.Recv.List {
 			t := f.Type
@@ -57,48 +63,60 @@ func locals(fd *ast.FuncDecl, offset func(token.Pos) int) map[int]bool {
 			switch x := t.(type) {
 			case *ast.IndexExpr:
 				if id, ok := x.Index.(*ast.Ident); ok {
-					declare(id)
+					declare(id, whole)
 				}
 			case *ast.IndexListExpr:
 				for _, e := range x.Indices {
 					if id, ok := e.(*ast.Ident); ok {
-						declare(id)
+						declare(id, whole)
 					}
 				}
 			}
 		}
 	}
 	ast.Inspect(fd, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
 		switch x := n.(type) {
 		case *ast.FuncType:
-			fields(x.TypeParams)
-			fields(x.Params)
-			fields(x.Results)
+			// Parameters hold for the function or literal the type belongs to.
+			in := whole
+			if len(stack) > 0 {
+				if fl, ok := stack[len(stack)-1].(*ast.FuncLit); ok {
+					in = [2]int{offset(fl.Pos()), offset(fl.End())}
+				}
+			}
+			fields(x.TypeParams, in)
+			fields(x.Params, in)
+			fields(x.Results, in)
 		case *ast.AssignStmt:
 			if x.Tok == token.DEFINE {
 				for _, l := range x.Lhs {
 					if id, ok := l.(*ast.Ident); ok {
-						declare(id)
+						declare(id, here(id))
 					}
 				}
 			}
 		case *ast.ValueSpec:
 			for _, id := range x.Names {
-				declare(id)
+				declare(id, here(id))
 			}
 		case *ast.TypeSpec:
-			declare(x.Name)
+			declare(x.Name, here(x.Name))
 		case *ast.RangeStmt:
 			if x.Tok == token.DEFINE {
 				for _, e := range []ast.Expr{x.Key, x.Value} {
 					if id, ok := e.(*ast.Ident); ok {
-						declare(id)
+						declare(id, [2]int{offset(id.Pos()), offset(x.End())})
 					}
 				}
 			}
 		case *ast.LabeledStmt:
-			declare(x.Label)
+			declare(x.Label, whole)
 		}
+		stack = append(stack, n)
 		return true
 	})
 	out := map[int]bool{}
@@ -111,16 +129,19 @@ func locals(fd *ast.FuncDecl, offset func(token.Pos) int) map[int]bool {
 		case *ast.SelectorExpr:
 			fixed[x.Sel] = true
 		case *ast.CompositeLit:
-			for _, e := range x.Elts {
-				if kv, ok := e.(*ast.KeyValueExpr); ok {
-					if id, ok := kv.Key.(*ast.Ident); ok {
-						fixed[id] = true
+			if _, isMap := x.Type.(*ast.MapType); !isMap {
+				for _, e := range x.Elts {
+					if kv, ok := e.(*ast.KeyValueExpr); ok {
+						if id, ok := kv.Key.(*ast.Ident); ok {
+							fixed[id] = true // a struct field
+						}
 					}
 				}
 			}
 		case *ast.Ident:
-			if o, ok := declared[x.Name]; ok && !fixed[x] && offset(x.Pos()) >= o {
-				out[offset(x.Pos())] = true
+			off := offset(x.Pos())
+			if !fixed[x] && slices.ContainsFunc(scopes[x.Name], func(r [2]int) bool { return r[0] <= off && off < r[1] }) {
+				out[off] = true
 			}
 		}
 		return true
