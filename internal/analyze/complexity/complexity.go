@@ -15,14 +15,16 @@ import (
 
 // Rule IDs; each has a page under docs/rules.
 const (
-	ComplexFunction  = "GHC-CPLX-001"
-	LongFunction     = "GHC-CPLX-002"
-	DeepNesting      = "GHC-CPLX-003"
-	SwallowedError   = "GHC-CPLX-004"
-	UnresolvedImport = "GHC-CPLX-005"
-	UnusedFunction   = "GHC-CPLX-006"
-	CommentedCode    = "GHC-CPLX-007"
-	Placeholder      = "GHC-CPLX-008"
+	ComplexFunction    = "GHC-CPLX-001"
+	LongFunction       = "GHC-CPLX-002"
+	DeepNesting        = "GHC-CPLX-003"
+	SwallowedError     = "GHC-CPLX-004"
+	UnresolvedImport   = "GHC-CPLX-005"
+	UnusedFunction     = "GHC-CPLX-006"
+	CommentedCode      = "GHC-CPLX-007"
+	Placeholder        = "GHC-CPLX-008"
+	DuplicatedBlock    = "GHC-CPLX-009"
+	IdenticalFunctions = "GHC-CPLX-010"
 )
 
 // Metric names in the report.
@@ -32,6 +34,9 @@ const (
 	MeanCyclomatic       = "mean_cyclomatic_complexity"
 	// SmellsPerKLOC counts the findings of GHC-CPLX-004 to 008 per 1000 lines of Go.
 	SmellsPerKLOC = "smells_per_kloc"
+	// DuplicatedLineShare is the share of code lines, outside tests, that are in a block of
+	// GHC-CPLX-009, either copy.
+	DuplicatedLineShare = "duplicated_line_share"
 )
 
 const (
@@ -63,6 +68,8 @@ func (Analyzer) Rules() []analyze.Rule {
 		{ID: UnusedFunction, Title: "Function nothing references"},
 		{ID: CommentedCode, Title: "Commented-out code"},
 		{ID: Placeholder, Title: "Function that only says it is not implemented"},
+		{ID: DuplicatedBlock, Title: fmt.Sprintf("Block of %d tokens or more repeated", MinCloneTokens)},
+		{ID: IdenticalFunctions, Title: "Function with the body of another"},
 	}
 }
 
@@ -129,6 +136,12 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		}
 		res.Findings = append(res.Findings, fd)
 	}
+	dups, share, err := duplication(ctx, own)
+	if err != nil {
+		return analyze.Result{Reason: report.Timeout}
+	}
+	res.Findings = append(res.Findings, dups...)
+	res.Metrics[DuplicatedLineShare] = share
 	if !anyFile {
 		return analyze.Result{Reason: report.UnsupportedLanguage}
 	}

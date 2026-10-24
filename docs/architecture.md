@@ -59,8 +59,8 @@ internal/
     tests/                 test files, test/code ratio, coverage report readers
     history/               DOA truck factor, abandonment, bot list; later churn and hotspots
                            (churn x complexity)
-    complexity/            cognitive + cyclomatic, long functions, deep nesting, D32 smells
-    duplication/           token-window rolling hash (CPD method)
+    complexity/            cognitive + cyclomatic, long functions, deep nesting, D32 smells,
+                           duplicated blocks and functions (token windows + p-match)
     architecture/          import cycles, fan-in/fan-out, instability; dependency vulns (--online):
                            pip-audit only as `-r <file> --no-deps --disable-pip` on fully pinned files,
                            otherwise a direct OSV query from the lockfile; govulncheck with GOTOOLCHAIN=local;

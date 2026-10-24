@@ -127,7 +127,9 @@ func guards(f func() error) error {
 		"jumps":       {Name: "jumps", Lines: 9, Cognitive: 3, Cyclomatic: 3, Nesting: 1},
 	}
 	for name, w := range want {
-		if g := got[name]; !reflect.DeepEqual(g, w) {
+		g := got[name]
+		g.Line, g.EndLine, g.Body, g.Statements = 0, 0, [2]int32{}, 0 // checked by TestTokens and TestDuplication
+		if !reflect.DeepEqual(g, w) {
 			t.Errorf("%s:\n got  %+v\n want %+v", name, g, w)
 		}
 	}

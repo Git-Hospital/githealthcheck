@@ -26,6 +26,7 @@ func measure(fset *token.FileSet, file *ast.File, code []bool) []facts.Function 
 			Cognitive:  cognitive(fd, true),
 			Cyclomatic: cyclomatic(fd),
 			Nesting:    nesting(fd.Body, 0),
+			Statements: len(fd.Body.List),
 			Method:     fd.Recv != nil,
 			Exported:   fd.Name.IsExported(),
 		}
