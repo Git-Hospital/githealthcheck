@@ -4,10 +4,11 @@ version: 2
 
 project_name: githealthcheck
 
+# The tests ran in CI on main, which the tag must be on; the release job, which holds a write token,
+# runs no code of the repository besides the build.
 before:
   hooks:
     - go mod verify
-    - go test ./...
 
 builds:
   - id: githealthcheck

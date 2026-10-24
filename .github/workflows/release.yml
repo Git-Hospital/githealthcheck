@@ -26,6 +26,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      # Only a commit that reached main, through a reviewed pull request and CI, is released.
+      - name: the tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "the tag is not on main"; exit 1; }
       - name: release notes from CHANGELOG.md
         run: |
           v="${GITHUB_REF_NAME#v}"
