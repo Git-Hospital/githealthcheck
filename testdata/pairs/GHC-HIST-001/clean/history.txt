@@ -1,0 +1,6 @@
+# Two developers each own half of the files: removing one leaves half with an author, so both
+# must go. Truck factor two.
+0 ann@example.com A:a.py A:b.py
+0 bob@example.com A:c.py A:d.py
+1..55/2 ann@example.com M:a.py
+2..56/2 bob@example.com M:c.py

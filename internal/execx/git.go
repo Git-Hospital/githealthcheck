@@ -92,11 +92,12 @@ var gitAllowed = map[string]struct{ exact, prefix []string }{
 			"--is-shallow-repository", "--show-object-format"},
 	},
 	"ls-tree": {exact: []string{"-r", "-z", "--full-tree"}},
+	// Renames are exact only (--find-renames=100% compares object names): scoring a similar rename
+	// inflates both blobs in full, whatever core.bigFileThreshold says.
 	"log": {
-		exact: []string{"--numstat", "--name-status", "--no-merges", "--first-parent", "--no-renames", "-M",
-			"--find-renames", "-z", "--reverse", "--topo-order", "--date-order"},
-		prefix: []string{"--format=", "--since=", "--until=", "--max-count=", "--diff-filter=", "--find-renames=",
-			"--date="},
+		exact: []string{"--numstat", "--name-status", "--no-merges", "--first-parent", "--no-renames",
+			"--find-renames=100%", "-z", "--reverse", "--topo-order", "--date-order"},
+		prefix: []string{"--format=", "--since=", "--until=", "--max-count=", "--diff-filter=", "--date="},
 	},
 }
 

@@ -33,7 +33,7 @@ It is not a linter. It does not report style, and it does not find bugs. It does
   - `protocol.allow=never` is defence in depth only: a repository's own `protocol.<name>.allow` overrides it. `GIT_ALLOW_PROTOCOL=none` and `--no-lazy-fetch` are the transport guards, and each one alone is tested to stop a lazy fetch;
   - `-c safe.directory=<root>` trusts only the scanned root, so a container or CI runner with another uid can read it. The command scope counts as protected configuration in git;
   - runs only `rev-parse`, `ls-tree` and `log`, which never refresh the index, and inserts `--no-ext-diff --no-textconv --no-show-signature --no-color --no-mailmap` after `log`;
-  - accepts only arguments on an allowlist (for `log`: `--numstat`, `--name-status`, `--no-merges`, `-M`, `-z`, `--since=`, `--max-count=` and a few more; revisions must be `HEAD` or full object names; anything after `--` is a pathspec). Patch output (`-p` and friends) is not allowed, because it inflates every blob. `log` needs exactly one `--format=format:` or `--format=tformat:`; a bare name would be looked up as the repository's own `pretty.<name>`. The format may not use `%G` (signatures), the mailmap placeholders `%aN %aE %aL %cN %cE %cL`, or `%(describe)`, with or without a `-`, `+` or space modifier. Anything outside the allowlist is a programming error and panics in tests;
+  - accepts only arguments on an allowlist (for `log`: `--numstat`, `--name-status`, `--no-merges`, `--find-renames=100%` (exact renames only: scoring a similar rename inflates both blobs in full), `-z`, `--since=`, `--max-count=` and a few more; revisions must be `HEAD` or full object names; anything after `--` is a pathspec). Patch output (`-p` and friends) is not allowed, because it inflates every blob. `log` needs exactly one `--format=format:` or `--format=tformat:`; a bare name would be looked up as the repository's own `pretty.<name>`. The format may not use `%G` (signatures), the mailmap placeholders `%aN %aE %aL %cN %cE %cL`, or `%(describe)`, with or without a `-`, `+` or space modifier. Anything outside the allowlist is a programming error and panics in tests;
   - bounds `version` and `rev-parse` with a 30-second timeout each, so a config include that names a FIFO fails as "timed out while opening" instead of stalling until `--timeout`. `log` is bounded by `--timeout`. Every command's stdout is capped at 512 MiB.
   - Only the files in HEAD's tree (`git ls-tree -r`) are read, so the counts belong to the commit the report names; untracked and ignored files are never counted. They are read from the work tree through an `os.Root`, which refuses any path that leaves the root, even through a directory swapped for a symlink during the walk. Each file's blob id is computed from the bytes read and compared with the tree; git status is never run, since it refreshes the index. Symlinks, in the tree or in the work tree, are never followed: they are listed in `skipped[]`. Files are opened without blocking (a FIFO is skipped as `not_regular_file`), and their type and size come from the open descriptor. Source files over 1 MiB and coverage reports over 50 MiB are skipped with the reason `too_large`, including a file that grows past the limit while it is read.
   - Builds for Linux, macOS and Windows. The FIFO guards apply on Unix, which has FIFOs.
@@ -53,11 +53,12 @@ internal/
                            (ruff --isolated; radon from a neutral cwd with explicit paths, so the
                            repository's pyproject/setup.cfg cannot exclude files or change limits)
     jsts/                  lexer (tokens, imports) + optional ESLint adapter
-  gitx/                    git log --numstat parsing, .mailmap, bot list, shallow detection
+  gitx/                    git log parsing, .mailmap (git's own is off, see execx)
   facts/                   FileFacts, RepoFacts: the shared model analyzers read
   analyze/                 Analyzer interface + registry
     tests/                 test files, test/code ratio, coverage report readers
-    history/               DOA truck factor, churn, hotspots (churn x complexity), abandonment
+    history/               DOA truck factor, abandonment, bot list; later churn and hotspots
+                           (churn x complexity)
     complexity/            cognitive + cyclomatic, long functions, deep nesting
     duplication/           token-window rolling hash (CPD method)
     architecture/          import cycles, fan-in/fan-out, instability; dependency vulns (--online):
@@ -77,7 +78,7 @@ Dependency direction: `cmd -> analyze, score, report -> facts <- lang, gitx, rep
 
 ## 4. Core interfaces
 
-Settled with the first family (tests, v0.2.0):
+Settled with the first two families (tests and history, v0.2.0):
 
 ```go
 // lang: one per analysed language. The walk calls Fill once per file, with the source it read.
@@ -100,6 +101,13 @@ type Repo struct {
     Paths    map[string]bool              // every path in HEAD's tree, read or not
     Modules  []Module                     // go.mod files: directory and module path
     Coverage *Coverage                    // the report found or named, unparsed; nil when none
+    History  *History                     // non-merge commits from HEAD, .mailmap applied
+}
+type History struct {
+    Commits  []Commit                     // newest first: hash, author name, email and time, changes
+    Shallow  bool
+    TooLarge bool                         // git log printed more than execx.MaxOutput or gitx.MaxChanges
+    Failed   bool                         // git log failed
 }
 
 // analyze: one per family.
@@ -128,12 +136,13 @@ type Result struct {
 
 Guards against the "measured or null" principle being bypassed:
 
-- **Minimum input.** Each statistic has a documented minimum input, for example 20 functions or 50 commits. Below it, the value is `null` with the reason `insufficient_input`, decided from `Measurement.Inputs`. Without this guard, a repository with 2 functions would score 10/10.
+- **Minimum input.** Each statistic has a documented minimum input, for example 20 functions or 50 commits. Below it, the value is `null` with the reason `insufficient_input` (`history_too_short` for the history family, D15), decided from `Measurement.Inputs`. Without this guard, a repository with 2 functions would score 10/10.
 - **Analysed share.** Each language result prints its share of the repository's code lines. A family score is `null` (`low_analysed_share`) when the analysed lines are under 50%. Without this guard, a repository that is 95% Rust would be scored from its 5% Python.
 - **Enough families.** The overall score is `null` (`insufficient_families`) when fewer than 2 families are measured.
 - **No calibration, no score.** Until the corpus exists (v0.4.0), every family score and the overall score is `null` with the reason `not_calibrated`. v0.2.0 and v0.3.0 report findings and raw metrics only.
 - **Thresholds stay fixed.** Family statistics always use the calibration thresholds. Thresholds tuned in `.githealthcheck.yml` change findings only. Excluded paths are listed with their share of the code lines.
 - **Fresh coverage only.** The report is the file named by `--coverage`, or else the first of `coverage.out`, `cover.out`, `coverage.txt`, `c.out` and `profile.cov` at the root of the work tree, tracked or not, since CI writes it just before the scan. A discovered name that is a symlink, a FIFO or over 50 MiB is not read and is listed in `skipped[]`; a `--coverage` file that cannot be read is a usage error (exit 2). `inputs.coverage` names the report, records whether it is tracked by git, how many files it lists, how many of those are under the repository's module paths (the rest are the standard library and dependencies, which `-coverpkg=all` adds) and how many of those exist at HEAD. If fewer than 90% of the module files are at HEAD, or a block of the repository's own non-generated code does not fit inside its file, coverage is `null` with the reason `stale_coverage_report`. A file that is found but is not a report of a supported format gives `invalid_coverage_report`, and the counts are then absent. A profile line over 4096 bytes, or a file name of more than 128 path segments, makes the report invalid; real profiles are far inside both. With those bounds and the 50 MiB cap, resolving a file name costs at most 128 map lookups, the deadline is checked at every new file name, and memory stays linear in the report.
+- **Full history only.** The history family reads `git log --no-merges --find-renames=100% --name-status` from HEAD once; only exact renames are followed, since scoring a similar one inflates both blobs. A shallow clone has lost the commits before its depth, so the family is `null` with the reason `history_too_short`, as it is below 50 commits by people; commits by GitHub Apps (an author ending in `[bot]`) are not counted and not authors. git's own `.mailmap` support stays off (execx): the `.mailmap` at the root of the work tree is read with the walk's guards and applied by `gitx`, matching `git check-mailmap`. Output over 512 MiB, over 5 million changed paths, or rename chains that would read over 50 million entries give `too_large`; a failing `git log` gives `tool_crashed`, and the other families still report. Known limit: the `git log` output is buffered whole before it is parsed, so a crafted repository of half a megabyte can still cost about 0.6 GB (measured) and at most about 1.2 GB before `too_large`; parsing the output as it streams would lower that and is left for a later change. Abandonment is measured against the latest commit in the history, not the clock, so a report on a commit does not change with the date it is made.
 
 ## 6. Report contract
 
@@ -165,7 +174,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 
 ## 7. Testing
 
-- **Fixture pairs.** Every rule ID has `testdata/pairs/<ID>/defect` and `.../clean`, two small git repositories built by a script, so the history is deterministic. CI asserts:
+- **Fixture pairs.** Every rule ID has `testdata/pairs/<ID>/defect` and `.../clean`, two small git repositories built by the tests, so the history is deterministic: the files of the directory as one commit, or, when it holds a `history.txt`, the commits that file lists (days, authors and changes, written with `git fast-import`). CI asserts:
   - the defect fixture yields exactly that ID;
   - the clean fixture yields none of it;
   - the exit code of each.
@@ -191,7 +200,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 
 1. **ESLint without the repository's config (D22).** Does `--no-config-lookup` with our own flat config and the typescript-eslint parser give cyclomatic complexity on TS without loading anything from the repository? If not, JS/TS complexity comes from our own lexer-level approximation, and is labelled as such.
 2. **Python cognitive complexity.** radon gives cyclomatic complexity, and ruff gives McCabe complexity. Neither gives cognitive complexity (from memory, to verify). The options are a small indentation-aware Python lexer that is enough for the cognitive rules, or reporting cognitive complexity for Python as `null` in v0.3.
-3. **The DOA constants** (Avelino et al.) and the threshold for "author" must be taken from the paper, not from memory. Before `history/` is merged, they are checked against the paper and the paper's own example results.
+3. **The DOA constants** (Avelino et al.): settled. The constants and thresholds were checked against the paper (arXiv 1604.06766) and the authors' tool, and the truck factor matches the tool on six repositories (`scripts/tf-oracle.sh`; [GHC-HIST-001](rules/GHC-HIST-001.md) lists the differences).
 4. **Performance target (D23).** Measure on kubernetes/kubernetes at a pinned SHA on a GitHub runner. The 3-minute figure is a goal, not a measurement.
 5. **Size of the lexer work.** A JS/TS lexer has to handle regex versus division, nested template literals, JSX and TS generics. Mitigations:
    - In v0.3, JS/TS imports resolve relative specifiers only. Every other import is listed as unresolved.

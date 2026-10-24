@@ -8,7 +8,12 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 
 ## What works today
 
-`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] <path>` scans the commit at HEAD. Go is analysed; other languages are counted. Of the four families, **tests** is implemented: the test-to-code line ratio, the share of packages without a test file, and statement coverage read from an existing Go coverage profile (the tool never runs your tests). Its rules are documented in [docs/rules](docs/rules). The other three families are `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: the tests family's score with the reason `not_calibrated`, and the overall score with `insufficient_families`, since it needs at least two measured families.
+`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] <path>` scans the commit at HEAD. Go is analysed; other languages are counted. Of the four families, two are implemented:
+
+- **tests**: the test-to-code line ratio, the share of packages without a test file, and statement coverage read from an existing Go coverage profile (the tool never runs your tests).
+- **history**: the truck factor of Avelino et al. (ICPC 2016), checked against the authors' own tool, the share of files with a single author, and the share of files whose authors have all stopped committing. It works on every recognised language and needs the full history (not a shallow clone) and at least 50 commits.
+
+Their rules are documented in [docs/rules](docs/rules). Complexity and architecture are `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: each measured family's score with the reason `not_calibrated`, and the overall score with `not_calibrated` once two families are measured, `insufficient_families` before that.
 
 ```sh
 go test -coverprofile=coverage.out ./...

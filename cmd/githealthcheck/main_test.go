@@ -80,6 +80,13 @@ func TestScanJSON(t *testing.T) {
 			}
 			continue
 		}
+		if f.Family == report.History {
+			// One commit is far from history.MinCommits.
+			if f.Measured || f.Reason != report.HistoryTooShort || f.Score.Reason != report.HistoryTooShort {
+				t.Errorf("history family = %+v, want null history_too_short", f)
+			}
+			continue
+		}
 		if f.Measured || !f.Score.IsNull() || f.Score.Reason != report.NotImplemented {
 			t.Errorf("family %s = %+v, want null not_implemented", f.Family, f)
 		}

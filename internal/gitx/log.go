@@ -1,0 +1,157 @@
+// Package gitx reads the history of the scanned repository through execx.Git and applies its
+// .mailmap. git's own mailmap support is switched off (execx), because a .mailmap can name a FIFO or a
+// blob that never ends; the file is read here through the walk's guards instead.
+package gitx
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/Git-Hospital/githealthcheck/internal/execx"
+	"github.com/Git-Hospital/githealthcheck/internal/facts"
+)
+
+// logFormat starts each commit with \x01 and the hash, then the author name, email and time, separated
+// by NUL. With -z, the changed paths follow after a newline as NUL-separated status and path fields,
+// and a NUL ends the commit.
+const logFormat = "--format=format:%x01%H%x00%an%x00%ae%x00%at"
+
+// LogArgs are the git arguments for the history of head: non-merge commits with their changed paths.
+// Only exact renames are detected: scoring a rename by similarity makes git inflate both blobs in
+// full, whatever core.bigFileThreshold says, so a repository of a few hundred kilobytes could make it
+// allocate gigabytes. Exact renames compare object names and read no blob.
+func LogArgs(head string) []string {
+	return []string{"log", "--no-merges", "--find-renames=100%", "--name-status", "-z", logFormat, head}
+}
+
+// ErrTooLarge is returned when the history lists more than MaxChanges changed paths. Each costs about
+// 80 bytes once parsed and indexed, so the 512 MiB output cap alone does not bound the memory: a
+// pack of half a megabyte can list 20 million.
+var ErrTooLarge = errors.New("git log: too many changes")
+
+// MaxChanges bounds the memory at a few hundred megabytes. Flask's history has about 9 thousand; one
+// of hundreds of thousands of commits can be over it and gets too_large.
+var MaxChanges = 5_000_000
+
+// Log reads the history reachable from head.
+func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, error) {
+	args := LogArgs(head)
+	out, err := git.Run(ctx, args[0], args[1:]...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLog(out)
+}
+
+// ParseLog parses the output of LogArgs. Fields are taken by position, so an author name holding \x01
+// or a newline cannot shift the records. The fields are slices of out, read in place.
+func ParseLog(out []byte) ([]facts.Commit, error) {
+	var commits []facts.Commit
+	changes := 0
+	// A path is changed by many commits; one copy of it serves all of them.
+	paths := map[string]string{}
+	intern := func(b []byte) string {
+		if s, ok := paths[string(b)]; ok {
+			return s
+		}
+		s := string(b)
+		paths[s] = s
+		return s
+	}
+	pos := 0 // where the next field starts; past len(out) once the last one was taken
+	next := func() ([]byte, bool) {
+		if pos > len(out) {
+			return nil, false
+		}
+		end := bytes.IndexByte(out[pos:], 0)
+		if end < 0 {
+			t := out[pos:]
+			pos = len(out) + 1
+			return t, true
+		}
+		t := out[pos : pos+end]
+		pos += end + 1
+		return t, true
+	}
+	for pos <= len(out) {
+		head, _ := next()
+		if len(head) == 0 && pos > len(out) {
+			break // trailing NUL
+		}
+		hash, ok := bytes.CutPrefix(head, []byte{1})
+		if !ok || !isHash(hash) {
+			return nil, fmt.Errorf("git log: expected a commit at byte %d, got %q", pos, truncate(head))
+		}
+		name, ok1 := next()
+		email, ok2 := next()
+		when, ok3 := next()
+		if !ok1 || !ok2 || !ok3 {
+			return nil, fmt.Errorf("git log: commit %s is cut short", hash)
+		}
+		ts, status, hasChanges := bytes.Cut(when, []byte{'\n'})
+		c := facts.Commit{Hash: string(hash), Name: string(name), Email: string(email)}
+		// git prints a crafted or corrupt author time as it is stored, beyond int64, or as nothing.
+		// The commit still counts; only its time is unknown.
+		t, err := strconv.ParseInt(string(ts), 10, 64)
+		c.Time, c.NoTime = t, err != nil
+		if err != nil {
+			c.Time = 0
+		}
+		for hasChanges {
+			if len(status) == 0 {
+				break // the NUL that ends the commit
+			}
+			ch := facts.Change{Status: status[0]}
+			switch ch.Status {
+			case 'R', 'C':
+				old, ok1 := next()
+				path, ok2 := next()
+				if !ok1 || !ok2 {
+					return nil, fmt.Errorf("git log: commit %s: rename cut short", hash)
+				}
+				ch.Old, ch.Path = intern(old), intern(path)
+			case 'A', 'M', 'D', 'T', 'U', 'X', 'B':
+				path, ok := next()
+				if !ok {
+					return nil, fmt.Errorf("git log: commit %s: change cut short", hash)
+				}
+				ch.Path = intern(path)
+			default:
+				return nil, fmt.Errorf("git log: commit %s: unknown status %q", hash, truncate(status))
+			}
+			if changes++; changes > MaxChanges {
+				return nil, ErrTooLarge
+			}
+			c.Changes = append(c.Changes, ch)
+			if status, hasChanges = next(); !hasChanges {
+				break
+			}
+		}
+		commits = append(commits, c)
+	}
+	return commits, nil
+}
+
+func isHash(b []byte) bool {
+	if len(b) != 40 && len(b) != 64 {
+		return false
+	}
+	for _, c := range b {
+		if !('0' <= c && c <= '9' || 'a' <= c && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func truncate(b []byte) string {
+	s := string(b)
+	if len(s) > 40 {
+		s = s[:40] + "..."
+	}
+	return strings.ToValidUTF8(s, "?")
+}

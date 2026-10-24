@@ -23,9 +23,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
+	"github.com/Git-Hospital/githealthcheck/internal/gitx"
 	"github.com/Git-Hospital/githealthcheck/internal/lang"
 	"github.com/Git-Hospital/githealthcheck/internal/lang/golang"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
@@ -168,7 +170,7 @@ var walk = repo.Walk
 
 // analyzers are the families implemented in this build. A family without one is null with the reason
 // not_implemented.
-var analyzers = []analyze.Analyzer{tests.Analyzer{}}
+var analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}}
 
 func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, error) {
 	git, err := execx.NewGit(ctx, path)
@@ -273,6 +275,11 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 			rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
 			r.Skipped = append(r.Skipped, skipped...)
 		}
+		rf.History, skipped, _ = readHistory(ctx, git, r.Repository.Head, r.Repository.Shallow) // nil only when ctx ended
+		r.Skipped = append(r.Skipped, skipped...)
+		if rf.History != nil {
+			r.Inputs.Commits = len(rf.History.Commits)
+		}
 	}
 
 	byFamily := map[report.Family]analyze.Analyzer{}
@@ -336,6 +343,43 @@ func modules(ctx context.Context, root string, entries []repo.Entry) ([]facts.Mo
 		return cmp.Or(cmp.Compare(strings.Count(a.Dir, "/"), strings.Count(b.Dir, "/")), cmp.Compare(a.Dir, b.Dir))
 	})
 	return mods, skipped
+}
+
+// readHistory reads the non-merge commits reachable from head and applies the .mailmap at the root of
+// the work tree, as git would. git's own mailmap support is off (execx): the file is read here, with
+// the walk's guards against symlinks and FIFOs. A branch with no commits has an empty history. When
+// ctx ends it returns nil; the analyzers then report the timeout.
+func readHistory(ctx context.Context, git *execx.Git, head string, shallow bool) (*facts.History, []report.Skip, error) {
+	h := &facts.History{Shallow: shallow}
+	if head == "" {
+		return h, nil, nil
+	}
+	commits, err := gitx.Log(ctx, git, head)
+	switch {
+	case errors.Is(err, execx.ErrOutputTooLarge) || errors.Is(err, gitx.ErrTooLarge):
+		h.TooLarge = true
+		return h, nil, nil
+	case err != nil && ctx.Err() != nil:
+		return nil, nil, err
+	case err != nil:
+		// The other families still report: the history is null with the reason tool_crashed. The
+		// error text is not echoed into the report, which is shared.
+		h.Failed = true
+		return h, nil, nil
+	}
+	var skipped []report.Skip
+	src, skip := repo.ReadFile(git.Root(), ".mailmap", repo.MaxSourceBytes)
+	switch {
+	case skip == nil:
+		mm := gitx.ParseMailmap(src)
+		for i := range commits {
+			commits[i].Name, commits[i].Email = mm.Map(commits[i].Name, commits[i].Email)
+		}
+	case skip.Reason != report.SkipMissing:
+		skipped = append(skipped, *skip)
+	}
+	h.Commits = commits
+	return h, skipped, nil
 }
 
 // findCoverage looks for a coverage report under the names in tests.ReportNames at the root of the work
@@ -460,7 +504,11 @@ func text(r *report.Report) string {
 		fmt.Fprintf(&b, "\nFindings (%d)\n", findings)
 		for _, f := range r.Families {
 			for _, fd := range f.Findings {
-				fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), fd.Message)
+				if fd.Path == "" {
+					fmt.Fprintf(&b, "  %s  %s\n", fd.RuleID, fd.Message)
+				} else {
+					fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), fd.Message)
+				}
 			}
 		}
 	}
@@ -482,13 +530,17 @@ func printable(s string) string {
 	return strconv.QuoteToGraphic(s)
 }
 
-// metricText prints a share or a coverage as a percentage and any other value as a plain number.
+// metricText prints a share or a coverage as a percentage, a factor as a whole number and any other
+// value as a plain number.
 func metricText(name string, m report.Measurement) string {
 	if m.IsNull() {
 		return "null (" + string(m.Reason) + ")"
 	}
-	if strings.HasSuffix(name, "_share") || strings.HasSuffix(name, "_coverage") {
+	switch {
+	case strings.HasSuffix(name, "_share") || strings.HasSuffix(name, "_coverage"):
 		return fmt.Sprintf("%.1f%%  (from %d)", 100**m.Value, m.Inputs)
+	case strings.HasSuffix(name, "_factor"):
+		return fmt.Sprintf("%.0f  (from %d)", *m.Value, m.Inputs)
 	}
 	return fmt.Sprintf("%.2f  (from %d)", *m.Value, m.Inputs)
 }

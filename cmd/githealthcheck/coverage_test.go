@@ -179,7 +179,7 @@ func TestRulePairs(t *testing.T) {
 			}
 			for kind, want := range map[string]int{"defect": report.ExitFindings, "clean": report.ExitClean} {
 				t.Run(rule.ID+"/"+kind, func(t *testing.T) {
-					dir := gitRepoWith(t, readTree(t, filepath.Join(root, "testdata", "pairs", rule.ID, kind)))
+					dir := fixtureRepo(t, filepath.Join(root, "testdata", "pairs", rule.ID, kind))
 					r, code, out := scanJSON(t, dir)
 					var got []string
 					for _, f := range r.Families {
