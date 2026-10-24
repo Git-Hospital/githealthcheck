@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
@@ -87,11 +88,19 @@ func TestScanJSON(t *testing.T) {
 			}
 			continue
 		}
+		if f.Family == report.Complexity {
+			// One function: too few for the shares, enough lines for the smell density.
+			if !f.Measured || len(f.Findings) != 0 || f.Metrics[complexity.ComplexFunctionShare].Reason != report.InsufficientInput ||
+				f.Metrics[complexity.SmellsPerKLOC].IsNull() {
+				t.Errorf("complexity family = %+v", f)
+			}
+			continue
+		}
 		if f.Measured || !f.Score.IsNull() || f.Score.Reason != report.NotImplemented {
 			t.Errorf("family %s = %+v, want null not_implemented", f.Family, f)
 		}
 	}
-	if r.Overall.Measured != 1 || r.Overall.Score.Reason != report.InsufficientFamily || r.Inputs.FilesAnalysed != 1 {
+	if r.Overall.Measured != 2 || r.Overall.Score.Reason != report.NotCalibrated || r.Inputs.FilesAnalysed != 1 {
 		t.Errorf("overall %+v, filesAnalysed %d", r.Overall, r.Inputs.FilesAnalysed)
 	}
 	if len(r.Languages) != 1 || r.Languages[0].Name != "go" || r.Languages[0].Lines != 3 || !r.Languages[0].Analysed {

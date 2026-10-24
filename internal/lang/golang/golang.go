@@ -1,10 +1,11 @@
 // Package golang extracts the facts of Go source files with the standard go/parser.
 package golang
 
+//go:generate go run gen_stdlib.go
+
 import (
 	"bufio"
 	"bytes"
-	"go/ast"
 	"go/parser"
 	"go/token"
 	"path"
@@ -25,7 +26,18 @@ func (Support) Fill(f *facts.File, src []byte) {
 	f.Test = strings.HasSuffix(f.Path, "_test.go")
 	f.Package = Package(f.Path)
 	f.Generated = generated(src)
-	f.Functions = functions(f.Path, src)
+	fset := token.NewFileSet()
+	// A file that does not parse is measured as far as the parser got.
+	file, err := parser.ParseFile(fset, f.Path, src, parser.SkipObjectResolution|parser.ParseComments)
+	f.Partial = err != nil
+	if file != nil {
+		code := codeLines(src)
+		f.Funcs = measure(fset, file, code)
+		f.Imports = imports(fset, file)
+		f.Smells = smells(fset, file, code)
+		f.Refs = refs(file)
+	}
+	f.Functions = len(f.Funcs)
 }
 
 // Package returns the directory of a Go file, or "" when the go command ignores the file: anything
@@ -38,22 +50,6 @@ func Package(rel string) string {
 		}
 	}
 	return path.Dir(rel)
-}
-
-// functions counts the function and method declarations with a body. A file that does not parse is
-// counted as far as the parser got.
-func functions(name string, src []byte) int {
-	file, _ := parser.ParseFile(token.NewFileSet(), name, src, parser.SkipObjectResolution)
-	if file == nil {
-		return 0
-	}
-	n := 0
-	for _, d := range file.Decls {
-		if fd, ok := d.(*ast.FuncDecl); ok && fd.Body != nil {
-			n++
-		}
-	}
-	return n
 }
 
 // goGenerated is the convention from https://go.dev/s/generatedcode.
@@ -99,3 +95,42 @@ func ModulePath(gomod []byte) string {
 	}
 	return ""
 }
+
+// ModuleRequires returns the module paths a go.mod requires or replaces, in file order: the first
+// field of each require line, and the left side of each replace, in single lines and in blocks.
+func ModuleRequires(gomod []byte) []string {
+	var out []string
+	block := ""
+	for line := range strings.SplitSeq(string(gomod), "\n") {
+		if i := strings.Index(line, "//"); i >= 0 {
+			line = line[:i]
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		verb := block
+		switch {
+		case block != "" && fields[0] == ")":
+			block = ""
+			continue
+		case block == "" && len(fields) == 2 && fields[1] == "(":
+			block = fields[0]
+			continue
+		case block == "":
+			verb, fields = fields[0], fields[1:]
+		}
+		if (verb == "require" || verb == "replace") && len(fields) > 0 {
+			p := fields[0]
+			if u, err := strconv.Unquote(p); err == nil {
+				p = u
+			}
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Std reports whether an import path is in the standard library of the toolchain stdlib.go was
+// generated with.
+func Std(path string) bool { return stdlib[path] }

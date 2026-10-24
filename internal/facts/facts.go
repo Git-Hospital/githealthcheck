@@ -16,13 +16,68 @@ type File struct {
 	// own tooling ignores the file, as the go command ignores testdata and directories that start
 	// with _ or .
 	Package   string
-	Functions int // function and method declarations with a body
+	Functions int  // function and method declarations with a body
+	Partial   bool // the source did not parse in full: the facts cover what the parser got
+	// Funcs describes each of them, in source order, for the languages that measure functions.
+	Funcs []Function
+	// Imports are the packages the file imports, in source order.
+	Imports []Import
+	// Smells are the places in the file that match a pattern of D32.
+	Smells []Smell
+	// Refs holds every name the file uses that could refer to a function of its package: identifiers
+	// other than the names of the declarations themselves, and the names that //export and
+	// //go:linkname directives make reachable from outside. Sorted, without duplicates.
+	Refs []string
+}
+
+// Import is one imported package.
+type Import struct {
+	Path string
+	Line int
+}
+
+// SmellKind is a pattern of D32 found in one place.
+type SmellKind string
+
+const (
+	// EmptyErrorCheck is `if err != nil {}`: the error is checked and nothing is done.
+	EmptyErrorCheck SmellKind = "empty_error_check"
+	// ErrorDropped is `if err != nil { return nil }` in a function that returns an error: the error
+	// is checked and replaced by success.
+	ErrorDropped SmellKind = "error_dropped"
+	// Placeholder is a body that only says it is not implemented.
+	Placeholder SmellKind = "placeholder"
+	// CommentedCode is a run of comment lines that parse as code.
+	CommentedCode SmellKind = "commented_code"
+)
+
+// Smell is one place that matches a pattern.
+type Smell struct {
+	Kind          SmellKind
+	Line, EndLine int
+	Func          string // the enclosing function, when there is one
+}
+
+// Function is one function or method declaration with a body.
+type Function struct {
+	Name          string // "F", or "T.M" for a method
+	Line, EndLine int    // of the declaration, 1-based
+	// Lines counts the lines of the body that hold code, between the line of the opening brace and
+	// the line of the closing one: blank lines and lines holding only comments do not count.
+	Lines      int
+	Cognitive  int // cognitive complexity (Campbell, SonarSource 2018)
+	Cyclomatic int // McCabe, counted as gocyclo counts
+	Nesting    int // deepest nesting of control-flow statements; an else if does not nest
+	Method     bool
+	Exported   bool
 }
 
 // Module is a Go module in the tree: the directory of a go.mod file and the module path it declares.
 type Module struct {
 	Dir  string // slash-separated, "." for the root
 	Path string
+	// Requires are the module paths the go.mod requires or replaces.
+	Requires []string
 }
 
 // Coverage is a coverage report found for the scan, unparsed.
