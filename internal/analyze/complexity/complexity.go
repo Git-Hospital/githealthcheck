@@ -32,7 +32,7 @@ const (
 	ComplexFunctionShare = "complex_function_share"
 	LongFunctionShare    = "long_function_share"
 	MeanCyclomatic       = "mean_cyclomatic_complexity"
-	// SmellsPerKLOC counts the findings of GHC-CPLX-004 to 008 per 1000 lines of Go.
+	// SmellsPerKLOC counts the findings of GHC-CPLX-004 to 008 per 1000 lines of analysed code.
 	SmellsPerKLOC = "smells_per_kloc"
 	// DuplicatedLineShare is the share of code lines, outside tests, that are in a block of
 	// GHC-CPLX-009, either copy.
@@ -86,7 +86,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			return analyze.Result{Reason: report.Timeout}
 		}
 		f := &rf.Files[i]
-		if f.Language != "go" {
+		if !f.Analysed {
 			continue
 		}
 		anyFile = true
@@ -182,6 +182,7 @@ const MaxPerFile = 50
 var smellRule = map[facts.SmellKind]string{
 	facts.EmptyErrorCheck: SwallowedError,
 	facts.ErrorDropped:    SwallowedError,
+	facts.ExceptIgnored:   SwallowedError,
 	facts.Placeholder:     Placeholder,
 	facts.CommentedCode:   CommentedCode,
 }

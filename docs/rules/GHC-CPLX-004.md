@@ -1,6 +1,6 @@
 # GHC-CPLX-004: error checked and then dropped
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 The code checks an error and then acts as if there was none:
 
@@ -20,6 +20,14 @@ leaves the handling out (ADR 0001, D32).
 Without types, the error is recognised by its name, as in [GHC-CPLX-001](GHC-CPLX-001.md): an
 identifier named `err`, or ending in `err` or `Err`, compared with `nil`. An error discarded with `_`
 is not caught: telling an error result from any other needs types.
+
+## Python
+
+An `except` clause that catches every exception, bare, `except Exception` or `except BaseException`
+(alone or in a tuple), and whose body is only `pass`, `...` or `continue`, with no comment in the
+clause. It is CWE-390 in Python's form: a clause that broad also catches a bug, a `KeyboardInterrupt`
+(when bare) or a `SystemExit`, and nothing is done with it. Narrow clauses, such as `except KeyError:
+pass`, say which failure is expected and are not judged; a comment in the clause is taken as meant.
 
 ## What is left out
 

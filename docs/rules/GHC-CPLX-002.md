@@ -1,6 +1,6 @@
 # GHC-CPLX-002: function with more than 90 lines of code
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A function's body has more than 90 lines that hold code.
 
@@ -17,6 +17,12 @@ counts every line it spans. go:S138 also counts lines of code, without comments 
 
 The metric `long_function_share` is the share of functions over the threshold, given from 20
 functions on.
+
+## Python
+
+The same 90 lines, counted over the body, from its first statement after the docstring to its last
+line: lines with a token other than a comment, without the docstring. SonarSource's python:S138 counts
+lines of code too, with a default of 100; githealthcheck keeps one threshold for every language.
 
 ## What is left out
 

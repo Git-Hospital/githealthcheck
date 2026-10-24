@@ -1,6 +1,6 @@
 # GHC-CPLX-003: control flow nested more than 4 deep
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A function nests `if`, `for`, `switch` or `select` statements more than 4 deep.
 
@@ -11,6 +11,11 @@ deeply" (sonar-go `TooDeeplyNestedStatementsCheck`). An `else if` continues its 
 a statement inside an `else` block does. Statements inside a function literal count from the depth of
 the literal; a literal in a statement's header (an `if` condition, a `for` clause, a `range`
 expression, a `switch` tag) sits at the depth of that statement, as in cognitive complexity.
+
+## Python
+
+`if`, `for`, `while`, `try` and `with` nest, as in SonarSource's python:S134 (default 4): an `elif`,
+`else`, `except` or `finally` continues its statement and does not nest. `match` does not count.
 
 ## What is left out
 

@@ -30,7 +30,6 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/gitx"
-	"github.com/Git-Hospital/githealthcheck/internal/lang"
 	"github.com/Git-Hospital/githealthcheck/internal/lang/golang"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
@@ -257,12 +256,13 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	}
 	r.Skipped = append(r.Skipped, tree.Skipped...)
 	r.Languages = languages(tree)
+	r.Inputs.Tools = tree.Tools
 	r.Inputs.FilesTotal = len(tree.Files)
 	for _, f := range tree.Files {
 		if f.Modified {
 			r.Repository.ModifiedFiles++
 		}
-		if lang.Analysed(f.Language) {
+		if f.Analysed {
 			r.Inputs.FilesAnalysed++
 		}
 	}
@@ -439,7 +439,8 @@ func languages(t *repo.Tree) []report.Language {
 		}
 		l := by[f.Language]
 		if l == nil {
-			l = &report.Language{Name: f.Language, Analysed: lang.Analysed(f.Language)}
+			st := t.Languages[f.Language]
+			l = &report.Language{Name: f.Language, Analysed: st.Analysed, Reason: st.Reason}
 			by[f.Language] = l
 		}
 		l.Files++
@@ -478,10 +479,16 @@ func text(r *report.Report) string {
 	b.WriteString("\n")
 	for _, l := range r.Languages {
 		status := "not analysed"
-		if l.Analysed {
+		switch {
+		case l.Analysed:
 			status = "analysed"
+		case l.Reason != "":
+			status += " (" + string(l.Reason) + ")"
 		}
 		fmt.Fprintf(&b, "  %-12s %6d files %8d lines  %s\n", l.Name, l.Files, l.Lines, status)
+	}
+	for _, t := range r.Inputs.Tools {
+		fmt.Fprintf(&b, "  read with %s %s\n", t.Name, t.Version)
 	}
 	b.WriteString("\nFamilies\n")
 	findings := 0

@@ -11,7 +11,7 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
-// smellFindings turns the D32 patterns of the repository's own Go files into findings: test files
+// smellFindings turns the D32 patterns of the repository's own files into findings: test files
 // included, since generated tests drop errors and invent imports as generated code does. It stops
 // with ctx.
 func smellFindings(ctx context.Context, rf *facts.Repo, own []*facts.File) ([]report.Finding, error) {
@@ -30,6 +30,12 @@ func smellFindings(ctx context.Context, rf *facts.Repo, own []*facts.File) ([]re
 				add(SwallowedError, f, s.Line, fmt.Sprintf("%s checks an error and does nothing with it", s.Func))
 			case facts.ErrorDropped:
 				add(SwallowedError, f, s.Line, fmt.Sprintf("%s checks an error and returns nil in its place", s.Func))
+			case facts.ExceptIgnored:
+				where := s.Func
+				if where == "" {
+					where = "module code"
+				}
+				add(SwallowedError, f, s.Line, fmt.Sprintf("%s catches every exception and does nothing with it", where))
 			case facts.Placeholder:
 				add(Placeholder, f, s.Line, fmt.Sprintf("%s only says it is not implemented", s.Func))
 			case facts.CommentedCode:
@@ -40,7 +46,7 @@ func smellFindings(ctx context.Context, rf *facts.Repo, own []*facts.File) ([]re
 				}
 			}
 		}
-		if m := moduleOf(rf.Modules, f.Path); m != nil {
+		if m := moduleOf(rf.Modules, f.Path); m != nil && f.Language == "go" {
 			for _, im := range f.Imports {
 				if !ix.resolves(m, im.Path) {
 					add(UnresolvedImport, f, im.Line, fmt.Sprintf("imports %q, which is not in the standard library, this repository or the requirements of %s",

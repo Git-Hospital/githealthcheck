@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hash/maphash"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -273,8 +275,8 @@ type fnRef struct{ file, fn int }
 // sameBodies groups the functions of files whose signatures and bodies are equal up to a consistent
 // renaming of their own parameters and locals, and returns, for each function after the first of its
 // group, its index and the first one's. A function needs a body of at least MinIdenticalStatements
-// statements.
-func sameBodies(files []*facts.File) [][2]fnRef {
+// statements. platforms leaves out Go's functions written once per platform.
+func sameBodies(files []*facts.File, platforms bool) [][2]fnRef {
 	first := map[uint64][]fnRef{}
 	var out [][2]fnRef
 	for fi, f := range files {
@@ -289,7 +291,7 @@ func sameBodies(files []*facts.File) [][2]fnRef {
 			found := false
 			for _, o := range first[h] {
 				of := files[o.file]
-				if !platformVariants(of, of.Funcs[o.fn], f, fn) && equalSpans(&of.Tokens, of.Funcs[o.fn].Span, t, fn.Span) {
+				if !(platforms && platformVariants(of, of.Funcs[o.fn], f, fn)) && equalSpans(&of.Tokens, of.Funcs[o.fn].Span, t, fn.Span) {
 					out = append(out, [2]fnRef{ref, o})
 					found = true
 					break
@@ -384,13 +386,13 @@ func equalSpans(x *facts.Tokens, xs [2]int32, y *facts.Tokens, ys [2]int32) bool
 	return len(runs) == 1
 }
 
-// duplication runs both engines over the repository's own code that is not a test, and returns their
-// findings and the share of lines in a repeated block, either copy, as SonarSource's
-// duplicated_lines_density counts them: over all the lines of those files. Blocks between files
-// written once per platform are neither findings nor counted.
+// duplication runs both engines over the repository's own code that is not a test, each language on
+// its own, and returns their findings and the share of lines in a repeated block, either copy, as
+// SonarSource's duplicated_lines_density counts them: over all the lines of those files. Blocks
+// between Go files written once per platform are neither findings nor counted.
 func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, report.Measurement, error) {
-	var files []*facts.File
-	lines := 0
+	byLang := map[string][]*facts.File{}
+	lines, n, inputs := 0, 0, 0
 	for _, f := range own {
 		if f.TokensDropped {
 			return nil, report.Null(report.TooLarge), nil
@@ -398,18 +400,35 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		if f.Test {
 			continue
 		}
-		files = append(files, f)
+		byLang[f.Language] = append(byLang[f.Language], f)
 		lines += f.Lines
+		inputs++
 	}
 	if lines == 0 {
 		return nil, report.Null(report.InsufficientInput), nil
 	}
+	var out []report.Finding
+	for _, l := range slices.Sorted(maps.Keys(byLang)) {
+		found, dup, err := duplicationIn(ctx, byLang[l], l == "go")
+		if err != nil {
+			return nil, report.Measurement{}, err
+		}
+		out = append(out, found...)
+		n += dup
+	}
+	return out, report.Measured(float64(n)/float64(lines), inputs), nil
+}
+
+// duplicationIn finds the clones among files of one language and returns them with the number of
+// lines in a repeated block. platforms says the files are Go, where two files of one package that
+// declare one function are written once per platform.
+func duplicationIn(ctx context.Context, files []*facts.File, platforms bool) ([]report.Finding, int, error) {
 	found, err := clones(ctx, files)
 	if err != nil {
-		return nil, report.Measurement{}, err
+		return nil, 0, err
 	}
 	var out []report.Finding
-	same := sameBodies(files)
+	same := sameBodies(files, platforms)
 	// A block inside two functions that are reported as the same is not reported again.
 	pair := map[[2]fnRef]bool{}
 	for _, p := range same {
@@ -420,7 +439,10 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 			Message: fmt.Sprintf("%s has the signature and body of %s at %s:%d, up to the names of its parameters and locals",
 				fn.Name, ofn.Name, o.Path, ofn.Line)})
 	}
-	excl := exclusiveFiles(files)
+	excl := func(a, b int) bool { return false }
+	if platforms {
+		excl = exclusiveFiles(files)
+	}
 	dup := make([]map[int32]bool, len(files))
 	mark := func(fi int, t *facts.Tokens, from, to int) {
 		if dup[fi] == nil {
@@ -455,7 +477,7 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 	for _, d := range dup {
 		n += len(d)
 	}
-	return out, report.Measured(float64(n)/float64(lines), len(files)), nil
+	return out, n, nil
 }
 
 // enclosing returns the function of f whose declaration spans the lines from to to, or {-1, -1}. The

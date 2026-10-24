@@ -17,6 +17,9 @@ type NullReason string
 const (
 	UnsupportedLanguage NullReason = "unsupported_language"
 	ToolNotFound        NullReason = "tool_not_found"
+	// ToolTooOld is a tool that is installed in a version too old to read the code, such as a
+	// python3 before 3.10.
+	ToolTooOld          NullReason = "tool_too_old"
 	Offline             NullReason = "offline"
 	NoCoverageReport    NullReason = "no_coverage_report"
 	StaleCoverageReport NullReason = "stale_coverage_report"
@@ -110,6 +113,8 @@ type Language struct {
 	Files    int    `json:"files"`
 	Lines    int    `json:"lines"`
 	Analysed bool   `json:"analysed"`
+	// Reason is why a language this build supports was not analysed, such as tool_not_found.
+	Reason NullReason `json:"reason,omitempty"`
 }
 
 // SkipReason says why a path was not read.
@@ -177,6 +182,9 @@ type Inputs struct {
 	ElapsedMillis int64 `json:"elapsedMillis"`
 	// Coverage is the coverage report that was found, used or not; absent when there was none.
 	Coverage *CoverageInput `json:"coverage,omitempty"`
+	// Tools are the external tools code was read with, and their versions: the results of a
+	// language read by an installed interpreter can depend on its version.
+	Tools []Tool `json:"tools,omitempty"`
 }
 
 // CoverageInput describes a coverage report, so a reader can judge whether it belongs to the commit.

@@ -71,6 +71,7 @@ The committee split on keeping the tool: one member said drop it, another said r
   - Language-independent facts are computed in pure Go: the file tree, test-file detection, git history, the import graph and tokens.
   - Go code is read with the standard `go/parser` and `go/ast`.
   - Python and JS/TS use specialist tools when they are installed. When a tool is missing, the dependent metric is `null` with the reason "tool not found".
+  - *Python, as built (v0.3):* the specialist tool is python3 itself. A fixed helper embedded in the binary reads each file with the standard `ast` and `tokenize` modules and computes the facts; radon and ruff are not needed. It runs in isolated mode (`-I -S -B`), in a temporary directory, with the source on stdin, so nothing in the repository is imported or run. Four helpers at most, each with a per-file timeout and a bound on its answer; a helper that crashes or hangs costs its file (reported partial), not the scan. Below 3.10, which `match` needs, the reason is `tool_too_old`.
 - [ ] tree-sitter for every language. It needs cgo, which complicates cross-compiling and the single-binary release.
 - [ ] Only aggregate external tools.
 - [ ] Our own regex and line heuristics (the current approach, and the source of the defects).
