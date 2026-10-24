@@ -1,0 +1,53 @@
+# Release build: static binaries for the OSes CI builds for, checksums, and a GitHub release. The
+# release workflow attests the provenance of each archive (SLSA, via GitHub's attestations).
+version: 2
+
+project_name: githealthcheck
+
+before:
+  hooks:
+    - go mod verify
+    - go test ./...
+
+builds:
+  - id: githealthcheck
+    main: ./cmd/githealthcheck
+    binary: githealthcheck
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: githealthcheck
+    ids: [githealthcheck]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - docs/rules/*.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  # The release notes are the CHANGELOG's section, written by hand.
+  disable: true
+
+release:
+  github:
+    owner: Git-Hospital
+    name: githealthcheck
+  draft: true
+  footer: |
+    Verify an archive with `gh attestation verify <archive> --repo Git-Hospital/githealthcheck`.
