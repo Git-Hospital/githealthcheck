@@ -41,9 +41,8 @@ archives:
 checksum:
   name_template: checksums.txt
 
-changelog:
-  # The release notes are the CHANGELOG's section, written by hand.
-  disable: true
+# The release notes are the CHANGELOG's section, written by hand and passed with --release-notes.
+# changelog.disable must stay unset: it drops those notes too, as it did on v0.2.0.
 
 release:
   github:
