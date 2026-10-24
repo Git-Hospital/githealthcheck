@@ -12,15 +12,15 @@ None: each function is a finding. It is the dead code that staticcheck reports a
 up calling (ADR 0001, D32).
 
 A reference is any use of the name in a file of the same directory, tests and generated files
-included, or an `//export` or `//go:linkname` directive naming it. A function calling itself does not
+included, an `//export` or `//go:linkname` directive naming it, or a `//go:wasmexport` directive on it. A function calling itself does not
 keep itself alive. Files are read whatever their build constraints, so a function used only under
 another platform counts as used.
 
 ## What is left out
 
 Methods, which an interface can call without naming them; `init`, `main` and `_`; exported functions;
-and every function of a package with a file that does not parse in full, whose references are
-incomplete. A function called only from assembly is reported, and suppressing that finding with a reason
+and every function of a package with a Go file that does not parse in full or was not read (too large,
+a symlink, unreadable), whose references are incomplete. At most 50 findings are listed per file. A function called only from assembly is reported, and suppressing that finding with a reason
 (D21) is not implemented yet.
 
 ## Fix

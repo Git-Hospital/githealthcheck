@@ -75,6 +75,9 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	res := analyze.Result{Metrics: map[string]report.Measurement{}}
 	var own []*facts.File
 	for i := range rf.Files {
+		if i%256 == 0 && ctx.Err() != nil {
+			return analyze.Result{Reason: report.Timeout}
+		}
 		f := &rf.Files[i]
 		if f.Language != "go" {
 			continue
@@ -109,8 +112,17 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			}
 		}
 	}
-	for _, fd := range smellFindings(rf, own) {
-		smells++
+	found, err := smellFindings(ctx, rf, own)
+	if err != nil {
+		return analyze.Result{Reason: report.Timeout}
+	}
+	for _, f := range own {
+		smells += f.SmellsDropped
+	}
+	for _, fd := range found {
+		if fd.RuleID != UnusedFunction {
+			smells++
+		}
 		res.Findings = append(res.Findings, fd)
 	}
 	if !anyFile {
@@ -141,5 +153,31 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
 		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))
 	})
+	res.Findings = capPerFile(res.Findings)
 	return res
+}
+
+// MaxPerFile is the number of findings of one rule listed for one file; the rest are summed up in
+// one more finding. A crafted file can otherwise make the report a hundred times its size.
+const MaxPerFile = 50
+
+// capPerFile keeps the first MaxPerFile findings of each rule in each file, of findings sorted by
+// rule and path, and replaces the rest with a count.
+func capPerFile(fs []report.Finding) []report.Finding {
+	out := fs[:0:0]
+	for i := 0; i < len(fs); {
+		j := i
+		for j < len(fs) && fs[j].RuleID == fs[i].RuleID && fs[j].Path == fs[i].Path {
+			j++
+		}
+		if j-i <= MaxPerFile {
+			out = append(out, fs[i:j]...)
+		} else {
+			out = append(out, fs[i:i+MaxPerFile]...)
+			out = append(out, report.Finding{RuleID: fs[i].RuleID, Path: fs[i].Path,
+				Message: fmt.Sprintf("%d more findings of this rule in this file are not listed", j-i-MaxPerFile)})
+		}
+		i = j
+	}
+	return out
 }

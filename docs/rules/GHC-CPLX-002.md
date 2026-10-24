@@ -20,7 +20,8 @@ functions on.
 
 ## What is left out
 
-As in [GHC-CPLX-001](GHC-CPLX-001.md#what-is-left-out).
+As in [GHC-CPLX-001](GHC-CPLX-001.md#what-is-left-out), with the same bound on findings per file.
+Lines are counted in the file as it is, whatever its `//line` directives say.
 
 ## Fix
 

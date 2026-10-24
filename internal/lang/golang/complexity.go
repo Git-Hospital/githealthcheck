@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/scanner"
 	"go/token"
+	"reflect"
 	"strings"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -20,15 +21,15 @@ func measure(fset *token.FileSet, file *ast.File, code []bool) []facts.Function 
 		}
 		f := facts.Function{
 			Name:       funcName(fd),
-			Line:       fset.Position(fd.Pos()).Line,
-			EndLine:    fset.Position(fd.End()).Line,
+			Line:       lineOf(fset, fd.Pos()),
+			EndLine:    lineOf(fset, fd.End()),
 			Cognitive:  cognitive(fd, true),
 			Cyclomatic: cyclomatic(fd),
 			Nesting:    nesting(fd.Body, 0),
 			Method:     fd.Recv != nil,
 			Exported:   fd.Name.IsExported(),
 		}
-		open, end := fset.Position(fd.Body.Lbrace).Line, fset.Position(fd.Body.Rbrace).Line
+		open, end := lineOf(fset, fd.Body.Lbrace), lineOf(fset, fd.Body.Rbrace)
 		for l := open + 1; l < end && l < len(code); l++ {
 			if code[l] {
 				f.Lines++
@@ -38,6 +39,10 @@ func measure(fset *token.FileSet, file *ast.File, code []bool) []facts.Function 
 	}
 	return out
 }
+
+// lineOf returns the line of p in the file as it is, not as a //line directive renames it: a scanned
+// file can carry such directives to move or hide what is measured.
+func lineOf(fset *token.FileSet, p token.Pos) int { return fset.PositionFor(p, false).Line }
 
 func funcName(fd *ast.FuncDecl) string {
 	if fd.Recv == nil || len(fd.Recv.List) == 0 {
@@ -85,11 +90,15 @@ func codeLines(src []byte) []bool {
 		if tok == token.SEMICOLON && lit == "\n" {
 			continue // an automatic semicolon is not in the source
 		}
-		start := tf.Line(pos)
+		start := tf.PositionFor(pos, false).Line
 		end := start
 		if tok == token.STRING && len(lit) > 0 && lit[0] == '`' {
-			// A raw string spans every line it covers.
-			end = tf.Line(pos + token.Pos(len(lit)) - 1)
+			// A raw string spans every line it covers. The scanner drops carriage returns from the
+			// literal, so its end is found in the source.
+			off := tf.Offset(pos)
+			if i := bytes.IndexByte(src[off+1:], '`'); i >= 0 {
+				end = tf.PositionFor(tf.Pos(off+1+i), false).Line
+			}
 		}
 		for l := start; l <= end && l < len(lines); l++ {
 			lines[l] = true
@@ -118,6 +127,7 @@ type cog struct {
 	guards    bool
 	total     int
 	recursive bool
+	shadow    *bool
 }
 
 func (c *cog) block(b *ast.BlockStmt, nest int) {
@@ -261,13 +271,29 @@ func flatten(e ast.Expr, ops *[]token.Token, leaves *[]ast.Expr) {
 	*leaves = append(*leaves, e)
 }
 
-// callsItself reports a direct recursive call: F(...) in func F, or r.M(...) in a method M with
-// receiver r.
+// callsItself reports a direct recursive call: F(...) or F[T](...) in func F, unless F names a local
+// of the function, or r.M(...) in a method M with receiver r. Recursion through other functions is
+// not seen: that needs the package's call graph.
 func (c *cog) callsItself(call *ast.CallExpr) bool {
 	name := c.fd.Name.Name
-	switch f := call.Fun.(type) {
+	fun := call.Fun
+	for {
+		switch f := fun.(type) {
+		case *ast.ParenExpr:
+			fun = f.X
+			continue
+		case *ast.IndexExpr:
+			fun = f.X
+			continue
+		case *ast.IndexListExpr:
+			fun = f.X
+			continue
+		}
+		break
+	}
+	switch f := fun.(type) {
 	case *ast.Ident:
-		return c.fd.Recv == nil && f.Name == name
+		return c.fd.Recv == nil && f.Name == name && !c.shadowed()
 	case *ast.SelectorExpr:
 		if c.fd.Recv == nil || len(c.fd.Recv.List) == 0 || len(c.fd.Recv.List[0].Names) == 0 {
 			return false
@@ -276,6 +302,47 @@ func (c *cog) callsItself(call *ast.CallExpr) bool {
 		return ok && f.Sel.Name == name && x.Name == c.fd.Recv.List[0].Names[0].Name && x.Name != "_"
 	}
 	return false
+}
+
+// shadowed reports whether the function declares a parameter, result or local with its own name, so
+// that a call by that name is not a call to itself.
+func (c *cog) shadowed() bool {
+	if c.shadow == nil {
+		name, found := c.fd.Name.Name, false
+		ast.Inspect(c.fd.Type, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Name == name {
+				found = true
+			}
+			return !found
+		})
+		ast.Inspect(c.fd.Body, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.AssignStmt:
+				if x.Tok == token.DEFINE {
+					for _, l := range x.Lhs {
+						if id, ok := l.(*ast.Ident); ok && id.Name == name {
+							found = true
+						}
+					}
+				}
+			case *ast.ValueSpec:
+				for _, id := range x.Names {
+					found = found || id.Name == name
+				}
+			case *ast.FuncType:
+				ast.Inspect(x, func(n ast.Node) bool {
+					if id, ok := n.(*ast.Ident); ok && id.Name == name {
+						found = true
+					}
+					return !found
+				})
+				return false
+			}
+			return !found
+		})
+		c.shadow = &found
+	}
+	return *c.shadow
 }
 
 // cyclomatic counts as gocyclo does: 1, plus 1 for each if, for, range, non-default case or select
@@ -307,43 +374,54 @@ func cyclomatic(fd *ast.FuncDecl) int {
 // nesting returns the deepest nesting of if, for, range, switch and select statements under n, from
 // depth d. The if of an else if sits at the depth of the if it continues.
 func nesting(n ast.Node, d int) int {
-	deepest := d
-	visit := func(child ast.Node, at int) {
-		deepest = max(deepest, nesting(child, at))
+	if n == nil || reflect.ValueOf(n).IsNil() {
+		return d
 	}
+	deepest := d
+	visit := func(at int, children ...ast.Node) {
+		for _, child := range children {
+			deepest = max(deepest, nesting(child, at))
+		}
+	}
+	// The headers of a statement (its init, condition and the like) sit at its own depth: a function
+	// literal there nests from it.
 	switch x := n.(type) {
 	case *ast.IfStmt:
-		visit(x.Body, d+1)
+		visit(d, x.Init, x.Cond)
+		visit(d+1, x.Body)
 		switch e := x.Else.(type) {
 		case *ast.IfStmt:
 			// The else if continues the chain: its depth is this if's.
-			visit(&ast.IfStmt{Body: e.Body, Else: e.Else}, d)
-			deepest = max(deepest, d+1)
+			visit(d, &ast.IfStmt{Init: e.Init, Cond: e.Cond, Body: e.Body, Else: e.Else})
 		case *ast.BlockStmt:
-			visit(e, d+1)
+			visit(d+1, e)
 		}
 		return max(deepest, d+1)
 	case *ast.ForStmt:
-		visit(x.Body, d+1)
+		visit(d, x.Init, x.Cond, x.Post)
+		visit(d+1, x.Body)
 		return max(deepest, d+1)
 	case *ast.RangeStmt:
-		visit(x.Body, d+1)
+		visit(d, x.X)
+		visit(d+1, x.Body)
 		return max(deepest, d+1)
 	case *ast.SwitchStmt:
-		visit(x.Body, d+1)
+		visit(d, x.Init, x.Tag)
+		visit(d+1, x.Body)
 		return max(deepest, d+1)
 	case *ast.TypeSwitchStmt:
-		visit(x.Body, d+1)
+		visit(d, x.Init, x.Assign)
+		visit(d+1, x.Body)
 		return max(deepest, d+1)
 	case *ast.SelectStmt:
-		visit(x.Body, d+1)
+		visit(d+1, x.Body)
 		return max(deepest, d+1)
 	}
 	ast.Inspect(n, func(child ast.Node) bool {
 		if child == n || child == nil {
 			return true
 		}
-		visit(child, d)
+		visit(d, child)
 		return false
 	})
 	return deepest

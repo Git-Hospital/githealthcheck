@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -44,7 +45,7 @@ func dropped(f func() error) error {
 	}
 	g := func() error {
 		if err := f(); err != nil {
-			return nil // a closure has its own results: not judged
+			return nil // a callback may return nil to skip: not judged
 		}
 		return nil
 	}
@@ -138,5 +139,52 @@ func helper() {}
 		if slices.Contains(f.Refs, name) {
 			t.Errorf("%s referenced in %v", name, f.Refs)
 		}
+	}
+}
+
+// Cases from the review of the complexity family.
+func TestSmellsEdges(t *testing.T) {
+	kinds := func(f facts.File) []string {
+		var out []string
+		for _, s := range f.Smells {
+			out = append(out, fmt.Sprintf("%s %s %d", s.Kind, s.Func, s.Line))
+		}
+		return out
+	}
+	for name, c := range map[string]struct {
+		src  string
+		want []string
+	}{
+		"closure in a goroutine": {"package a\n\nfunc f(g func() error) {\n\tgo func() {\n\t\tif err := g(); err != nil {\n\t\t}\n\t}()\n}\n",
+			[]string{"empty_error_check f 5"}},
+		"package-level function literal": {"package a\n\nvar h = func(g func() error) {\n\tif err := g(); err != nil {\n\t}\n}\n",
+			[]string{"empty_error_check a function literal 4"}},
+		"an error about a to-do item": {"package a\n\nimport \"errors\"\n\nfunc f() error { return errors.New(\"todo not found\") }\n\nfunc g() error { return errors.New(\"TODO\") }\n",
+			[]string{"placeholder g 7"}},
+		"expected output of an example": {"package a\n\nfunc ExampleF() {\n\tprintln(\"x = 1\")\n\t// Output:\n\t// x = 1\n\t// p.Close()\n}\n", nil},
+		"labelled prose":                {"package a\n\n// New makes a client.\n//\n// Example: c := New(cfg)\n// Usage: client.Do(req)\nfunc New(cfg int) int { return cfg }\n", nil},
+		"a //line directive does not move lines": {"package a\n\n//line other.go:5000\nfunc f(g func() error) {\n\tif err := g(); err != nil {\n\t}\n}\n",
+			[]string{"empty_error_check f 5"}},
+	} {
+		f := filled(t, c.src)
+		if got := kinds(f); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: got %q, want %q", name, got, c.want)
+		}
+	}
+
+	f := filled(t, "package a\n\n//go:wasmexport add\nfunc add(a, b int32) int32 { return a + b }\n")
+	if !slices.Contains(f.Refs, "add") {
+		t.Errorf("wasmexport: refs %q", f.Refs)
+	}
+
+	// The smells kept per file are bounded; the rest are counted.
+	var b strings.Builder
+	b.WriteString("package a\n\n")
+	for range MaxSmells + 7 {
+		b.WriteString("//f()\n\n")
+	}
+	f = filled(t, b.String())
+	if len(f.Smells) != MaxSmells || f.SmellsDropped != 7 {
+		t.Errorf("kept %d, dropped %d", len(f.Smells), f.SmellsDropped)
 	}
 }

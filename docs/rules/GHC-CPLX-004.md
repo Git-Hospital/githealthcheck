@@ -23,8 +23,12 @@ is not caught: telling an error result from any other needs types.
 
 ## What is left out
 
-Vendored and generated code, and what the go command ignores. Test files are judged. A function literal
-is not judged for the second form, since its results are its own.
+Vendored and generated code, and what the go command ignores. Test files are judged. A function
+literal, in a function or in a package-level variable, is judged for the first form only: a callback,
+such as the function given to `filepath.WalkDir`, returns nil on an error to skip an entry by design.
+
+At most 1000 smells are read per file and at most 50 findings of the rule are listed per file; one
+more finding gives the count of the rest, and `smells_per_kloc` counts them all.
 
 ## Fix
 

@@ -337,7 +337,7 @@ func modules(ctx context.Context, root string, entries []repo.Entry) ([]facts.Mo
 			continue
 		}
 		if p := golang.ModulePath(src); p != "" {
-			mods = append(mods, facts.Module{Dir: golang.Package(e.Path), Path: p, Requires: golang.ModuleRequires(src)})
+			mods = append(mods, facts.Module{Dir: golang.Package(e.Path), Path: p, Requires: golang.ModuleRequires(src), Go: golang.ModuleGo(src)})
 		}
 	}
 	slices.SortStableFunc(mods, func(a, b facts.Module) int {

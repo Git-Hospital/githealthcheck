@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"go/parser"
 	"go/token"
+	"go/version"
 	"path"
 	"regexp"
 	"strconv"
@@ -34,7 +35,7 @@ func (Support) Fill(f *facts.File, src []byte) {
 		code := codeLines(src)
 		f.Funcs = measure(fset, file, code)
 		f.Imports = imports(fset, file)
-		f.Smells = smells(fset, file, code)
+		f.Smells, f.SmellsDropped = smells(fset, file, code)
 		f.Refs = refs(file)
 	}
 	f.Functions = len(f.Funcs)
@@ -117,6 +118,9 @@ func ModuleRequires(gomod []byte) []string {
 		case block == "" && len(fields) == 2 && fields[1] == "(":
 			block = fields[0]
 			continue
+		case block == "" && len(fields) == 1 && strings.HasSuffix(fields[0], "("):
+			block = strings.TrimSuffix(fields[0], "(") // require( as well as require (
+			continue
 		case block == "":
 			verb, fields = fields[0], fields[1:]
 		}
@@ -134,3 +138,21 @@ func ModuleRequires(gomod []byte) []string {
 // Std reports whether an import path is in the standard library of the toolchain stdlib.go was
 // generated with.
 func Std(path string) bool { return stdlib[path] }
+
+// ModuleGo returns the Go version a go.mod declares with its go directive, such as "go1.22", or "".
+func ModuleGo(gomod []byte) string {
+	for line := range strings.SplitSeq(string(gomod), "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "go" {
+			if v := "go" + f[1]; version.IsValid(v) {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+// NewerStd reports whether a module that declares Go version v may import standard packages newer
+// than the list in stdlib.go.
+func NewerStd(v string) bool {
+	return v != "" && version.Compare(version.Lang(v), version.Lang(stdlibVersion)) > 0
+}

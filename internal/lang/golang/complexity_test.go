@@ -2,6 +2,7 @@ package golang
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -129,5 +130,39 @@ func guards(f func() error) error {
 		if g := got[name]; !reflect.DeepEqual(g, w) {
 			t.Errorf("%s:\n got  %+v\n want %+v", name, g, w)
 		}
+	}
+}
+
+// Cases from the review of the complexity family.
+func TestMeasureEdges(t *testing.T) {
+	one := func(src string) facts.Function {
+		t.Helper()
+		f := facts.File{Path: "a/a.go"}
+		Support{}.Fill(&f, []byte(src))
+		if len(f.Funcs) == 0 {
+			t.Fatalf("no function in %q", src)
+		}
+		return f.Funcs[0]
+	}
+	body := strings.Repeat("\tx++\n", 100)
+	if fn := one("package a\n\n//line other.go:5000\nfunc Long() {\n\tx := 0\n" + body + "\t_ = x\n}\n"); fn.Line != 4 || fn.Lines != 102 {
+		t.Errorf("//line: line %d, %d lines; want 4, 102", fn.Line, fn.Lines)
+	}
+	if fn := one("package a\n\n//line other.go:1\nfunc Long() {\n\tx := 0\n" + body + "//line other.go:1\n\t_ = x\n}\n"); fn.Lines != 102 {
+		t.Errorf("//line inside: %d lines; want 102", fn.Lines)
+	}
+	raw := "package a\r\n\r\nfunc F() string {\r\n\treturn `\r\n" + strings.Repeat("line\r\n", 100) + "`\r\n}\r\n"
+	if fn := one(raw); fn.Lines != 102 {
+		t.Errorf("CRLF raw string: %d lines; want 102", fn.Lines)
+	}
+	if fn := one("package a\n\nfunc f() {\n\tif func() bool { for { for { for { for { for { return true } } } } } }() {\n\t}\n}\n"); fn.Nesting != 5 {
+		// The condition sits at the if's own depth, as in cognitive complexity: the loops nest from 0.
+		t.Errorf("closure in a condition: nesting %d; want 5", fn.Nesting)
+	}
+	if fn := one("package a\n\nfunc Walk[T any](n *T, d int) int { return Walk[T](n, d-1) }\n"); fn.Cognitive != 1 {
+		t.Errorf("generic recursion: cognitive %d; want 1", fn.Cognitive)
+	}
+	if fn := one("package a\n\nfunc run() {\n\trun := func() {}\n\trun()\n}\n"); fn.Cognitive != 0 {
+		t.Errorf("a local named like the function: cognitive %d; want 0", fn.Cognitive)
 	}
 }

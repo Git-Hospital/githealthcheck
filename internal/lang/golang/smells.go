@@ -1,6 +1,7 @@
 package golang
 
 import (
+	"cmp"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -20,33 +21,34 @@ func imports(fset *token.FileSet, file *ast.File) []facts.Import {
 		if err != nil {
 			continue
 		}
-		out = append(out, facts.Import{Path: p, Line: fset.Position(is.Pos()).Line})
+		out = append(out, facts.Import{Path: p, Line: lineOf(fset, is.Pos())})
 	}
 	return out
 }
 
+// MaxSmells is the number of smells kept per file. A crafted file can hold one on every other line;
+// past this many the rest are counted, not kept.
+const MaxSmells = 1000
+
 // smells finds the D32 patterns in a file: error checks that do nothing, placeholders, and comments
-// that are code.
-func smells(fset *token.FileSet, file *ast.File, code []bool) []facts.Smell {
+// that are code. It returns at most MaxSmells of them, in line order, and the number left out.
+func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, int) {
 	var out []facts.Smell
-	line := func(p token.Pos) int { return fset.Position(p).Line }
-	for _, d := range file.Decls {
-		fd, ok := d.(*ast.FuncDecl)
-		if !ok || fd.Body == nil {
-			continue
-		}
-		name := funcName(fd)
-		if placeholder(fd.Body) {
-			out = append(out, facts.Smell{Kind: facts.Placeholder, Line: line(fd.Pos()), EndLine: line(fd.End()), Func: name})
-		}
+	line := func(p token.Pos) int { return lineOf(fset, p) }
+	// check finds the error checks in a function body. A function literal is checked under the name
+	// of the function that holds it, for empty checks only: a callback such as a filepath.WalkDir
+	// function returns nil on an error to skip an entry, by design.
+	var check func(body *ast.BlockStmt, results *ast.FieldList, name string)
+	check = func(body *ast.BlockStmt, results *ast.FieldList, name string) {
 		returnsError := false
-		if r := fd.Type.Results; r != nil && len(r.List) > 0 {
-			id, ok := r.List[len(r.List)-1].Type.(*ast.Ident)
+		if results != nil && len(results.List) > 0 {
+			id, ok := results.List[len(results.List)-1].Type.(*ast.Ident)
 			returnsError = ok && id.Name == "error"
 		}
-		ast.Inspect(fd.Body, func(n ast.Node) bool {
-			if _, ok := n.(*ast.FuncLit); ok {
-				return false // a closure has its own results
+		ast.Inspect(body, func(n ast.Node) bool {
+			if fl, ok := n.(*ast.FuncLit); ok {
+				check(fl.Body, nil, name)
+				return false
 			}
 			is, ok := n.(*ast.IfStmt)
 			if !ok || is.Else != nil || !errNotNil(is.Cond) {
@@ -63,13 +65,38 @@ func smells(fset *token.FileSet, file *ast.File, code []bool) []facts.Smell {
 			return true
 		})
 	}
+	for _, d := range file.Decls {
+		switch d := d.(type) {
+		case *ast.FuncDecl:
+			if d.Body == nil {
+				continue
+			}
+			name := funcName(d)
+			if placeholder(d.Body) {
+				out = append(out, facts.Smell{Kind: facts.Placeholder, Line: line(d.Pos()), EndLine: line(d.End()), Func: name})
+			}
+			check(d.Body, d.Type.Results, name)
+		case *ast.GenDecl:
+			// Function literals in package-level variables.
+			ast.Inspect(d, func(n ast.Node) bool {
+				if fl, ok := n.(*ast.FuncLit); ok {
+					check(fl.Body, nil, "a function literal")
+					return false
+				}
+				return true
+			})
+		}
+	}
 	for _, cg := range file.Comments {
 		for _, sp := range commentedCode(fset, cg, code) {
 			out = append(out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
 		}
 	}
-	slices.SortFunc(out, func(a, b facts.Smell) int { return a.Line - b.Line })
-	return out
+	slices.SortStableFunc(out, func(a, b facts.Smell) int { return a.Line - b.Line })
+	if len(out) > MaxSmells {
+		return out[:MaxSmells:MaxSmells], len(out) - MaxSmells
+	}
+	return out, 0
 }
 
 // errNotNil reports `err != nil` and its variants, as ErrCheck does, but only with !=.
@@ -81,16 +108,16 @@ func errNotNil(cond ast.Expr) bool {
 // commented reports whether an empty block holds a comment, which says the emptiness is meant (as
 // SonarSource's S108 treats it).
 func commented(file *ast.File, b *ast.BlockStmt) bool {
-	for _, cg := range file.Comments {
-		if cg.Pos() > b.Lbrace && cg.End() < b.Rbrace {
-			return true
-		}
-	}
-	return false
+	// The comment groups are in source order: the first after the brace decides.
+	i, _ := slices.BinarySearchFunc(file.Comments, b.Lbrace, func(cg *ast.CommentGroup, p token.Pos) int {
+		return cmp.Compare(cg.Pos(), p+1)
+	})
+	return i < len(file.Comments) && file.Comments[i].End() < b.Rbrace
 }
 
-// notImplemented matches the messages of a placeholder.
-var notImplemented = regexp.MustCompile(`(?i)\b(not (yet )?implemented|unimplemented|implement me|todo)\b`)
+// notImplemented matches the messages of a placeholder: one that says so, or one that is a TODO
+// ("TODO", "todo: sync"), not one about a to-do item ("todo not found").
+var notImplemented = regexp.MustCompile(`(?i)\b(not (yet )?implemented|unimplemented|implement me)\b|^\s*todo\s*($|[:.!-])`)
 
 // placeholder reports a body that only panics or returns an error saying it is not implemented.
 func placeholder(body *ast.BlockStmt) bool {
@@ -171,7 +198,10 @@ func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]
 	for _, c := range cg.List {
 		t, ok := strings.CutPrefix(c.Text, "//")
 		trim := strings.TrimSpace(t)
-		n := fset.Position(c.Pos()).Line
+		if exampleOutput.MatchString(trim) {
+			break // the expected output of an example, which go test checks
+		}
+		n := lineOf(fset, c.Pos())
 		switch {
 		case !ok || directive.MatchString(c.Text) || strings.HasPrefix(t, "\t") || strings.HasPrefix(t, "  ") || trim == "",
 			n < len(code) && code[n]:
@@ -187,6 +217,9 @@ func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]
 	flush()
 	return spans
 }
+
+// exampleOutput matches the comment that starts the expected output of a testable example.
+var exampleOutput = regexp.MustCompile(`^(Unordered output|Output):`)
 
 // isCode reports whether text parses as statements of which one does something, or as declarations
 // other than imports.
@@ -217,8 +250,6 @@ func doesSomething(s ast.Stmt) bool {
 			return x.Op == token.ARROW
 		}
 		return false
-	case *ast.LabeledStmt:
-		return doesSomething(s.Stmt)
 	case *ast.AssignStmt:
 		return !slices.ContainsFunc(s.Lhs, func(e ast.Expr) bool {
 			switch e.(type) {
@@ -237,7 +268,8 @@ func doesSomething(s ast.Stmt) bool {
 
 // refs lists the names a file uses that could refer to a function of its package: every identifier
 // except the names declared by its function declarations, a function's uses of its own name inside
-// its body, and the names reachable from outside through //export and //go:linkname.
+// its body, and the names reachable from outside through //export, //go:linkname and
+// //go:wasmexport.
 func refs(file *ast.File) []string {
 	seen := map[string]bool{}
 	for _, d := range file.Decls {
@@ -248,6 +280,11 @@ func refs(file *ast.File) []string {
 				return true
 			}
 			if isFunc && id == fd.Name {
+				if fd.Doc != nil && slices.ContainsFunc(fd.Doc.List, func(c *ast.Comment) bool {
+					return strings.HasPrefix(c.Text, "//go:wasmexport ")
+				}) {
+					seen[id.Name] = true // the wasm host calls it
+				}
 				return true
 			}
 			if isFunc && fd.Recv == nil && id.Name == fd.Name.Name {

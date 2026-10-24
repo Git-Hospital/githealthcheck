@@ -143,16 +143,17 @@ func TestUnresolvedImports(t *testing.T) {
 		}
 		return f
 	}
-	rf := &facts.Repo{Modules: mods, Files: []facts.File{
+	rf := &facts.Repo{Modules: mods, Paths: map[string]bool{"b/b.go": true, "tools/x/x.go": true, "util/u.go": true}, Files: []facts.File{
 		file("a/a.go", "fmt", "net/http/httptest", "C", "github.com/dep/one", "github.com/dep/one/sub", "gopkg.in/yaml.v3",
 			"example.com/root/b", "example.com/tools/x", // modules of the repository
 			"encoding/yaml",          // 9: not in the standard library
 			"github.com/dep/oneplus", // 10: a prefix of a requirement is not one
 			"github.com/dep/two"),    // 11: required by the other module only
-		file("tools/t.go", "github.com/dep/two", "github.com/dep/one"), // 4: not required here
+		file("tools/t.go", "github.com/dep/two", "github.com/dep/one"),    // 4: not required here
+		file("c/c.go", "example.com/root/utils", "example.com/root/util"), // 3: no such directory
 	}}
 	res := Analyzer{}.Run(context.Background(), rf)
-	want := []string{"GHC-CPLX-005 a/a.go:11", "GHC-CPLX-005 a/a.go:12", "GHC-CPLX-005 a/a.go:13", "GHC-CPLX-005 tools/t.go:4"}
+	want := []string{"GHC-CPLX-005 a/a.go:11", "GHC-CPLX-005 a/a.go:12", "GHC-CPLX-005 a/a.go:13", "GHC-CPLX-005 c/c.go:3", "GHC-CPLX-005 tools/t.go:4"}
 	if got := ids(res.Findings); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -161,6 +162,21 @@ func TestUnresolvedImports(t *testing.T) {
 	}) {
 		t.Errorf("messages: %+v", res.Findings)
 	}
+	// With a go.work, a module builds with what any module of the workspace requires.
+	rf.Paths["go.work"] = true
+	res = Analyzer{}.Run(context.Background(), rf)
+	want = []string{"GHC-CPLX-005 a/a.go:11", "GHC-CPLX-005 a/a.go:12", "GHC-CPLX-005 c/c.go:3"}
+	if got := ids(res.Findings); !reflect.DeepEqual(got, want) {
+		t.Errorf("go.work: got %v, want %v", got, want)
+	}
+	delete(rf.Paths, "go.work")
+	// A module on a Go newer than the standard library list may import packages the list lacks.
+	rf.Modules[0].Go = "go1.99"
+	res = Analyzer{}.Run(context.Background(), rf)
+	if got := ids(res.Findings); slices.Contains(got, "GHC-CPLX-005 a/a.go:11") || !slices.Contains(got, "GHC-CPLX-005 a/a.go:12") {
+		t.Errorf("newer Go: %v", got)
+	}
+	rf.Modules[0].Go = ""
 	// Without a go.mod above it, a file is not judged.
 	rf.Modules = nil
 	if res := (Analyzer{}).Run(context.Background(), rf); len(res.Findings) != 0 {
@@ -193,5 +209,26 @@ func TestUnused(t *testing.T) {
 	want := []string{"GHC-CPLX-006 p/a.go:4", "GHC-CPLX-006 p/a_test.go:1"}
 	if got := ids(res.Findings); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
+	}
+	// A Go file of the package that was not read may hold the reference.
+	paths := map[string]bool{"p/a.go": true, "p/a_test.go": true, "p/gen.go": true, "p/big.go": true}
+	res = Analyzer{}.Run(context.Background(), &facts.Repo{Paths: paths, Files: []facts.File{a, test, gen}})
+	if len(res.Findings) != 0 {
+		t.Errorf("skipped file: %v", ids(res.Findings))
+	}
+}
+
+func TestCapPerFile(t *testing.T) {
+	var funcs []facts.Function
+	for i := range MaxPerFile + 5 {
+		funcs = append(funcs, facts.Function{Name: fmt.Sprintf("F%d", i), Line: i + 1, Cognitive: 99, Exported: true})
+	}
+	res := Analyzer{}.Run(context.Background(), &facts.Repo{Files: []facts.File{goFile("a/a.go", funcs...)}})
+	last := res.Findings[len(res.Findings)-1]
+	if len(res.Findings) != MaxPerFile+1 || last.Line != 0 || last.Message != "5 more findings of this rule in this file are not listed" {
+		t.Errorf("%d findings, last %+v", len(res.Findings), last)
+	}
+	if res.Metrics[ComplexFunctionShare].Inputs != MaxPerFile+5 {
+		t.Errorf("the share counts every function: %+v", res.Metrics[ComplexFunctionShare])
 	}
 }
