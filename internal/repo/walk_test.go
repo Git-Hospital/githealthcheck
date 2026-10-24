@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
@@ -119,11 +120,11 @@ func TestWalk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files := map[string]File{}
+	files := map[string]facts.File{}
 	for _, f := range tree.Files {
 		files[f.Path] = f
 	}
-	want := map[string]File{
+	want := map[string]facts.File{
 		"main.go":                     {Language: "go", Lines: 3},
 		"lib/no_newline.go":           {Language: "go", Lines: 1},
 		"vendor/dep/dep.go":           {Language: "go", Lines: 1, Vendored: true},
@@ -213,7 +214,7 @@ func TestWalkRejectsCraftedPaths(t *testing.T) {
 	}
 }
 
-func keys(m map[string]File) []string {
+func keys(m map[string]facts.File) []string {
 	var out []string
 	for k := range m {
 		out = append(out, k)
@@ -293,7 +294,7 @@ func TestReadSourceSwappedFiles(t *testing.T) {
 	os.Symlink(filepath.Join(outside, "secret.go"), filepath.Join(dir, "link.go"))
 	os.Symlink(outside, filepath.Join(dir, "d"))
 	for _, rel := range []string{"link.go", "d/secret.go"} {
-		src, _, reason, _ := readSource(r, rel)
+		src, _, reason, _ := readSource(r, rel, MaxSourceBytes)
 		if reason != report.SkipUnreadable || src != nil {
 			t.Errorf("%s: read %q with reason %q, want it refused", rel, src, reason)
 		}
@@ -304,7 +305,7 @@ func TestReadSourceSwappedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan report.SkipReason, 1)
-	go func() { _, _, r, _ := readSource(r, "fifo.go"); done <- r }()
+	go func() { _, _, r, _ := readSource(r, "fifo.go", MaxSourceBytes); done <- r }()
 	select {
 	case r := <-done:
 		if r != report.SkipNotRegular {
@@ -315,22 +316,90 @@ func TestReadSourceSwappedFiles(t *testing.T) {
 	}
 
 	write(t, dir, "big.go", strings.Repeat("x", MaxSourceBytes+1))
-	if _, _, reason, _ := readSource(r, "big.go"); reason != report.SkipTooLarge {
+	if _, _, reason, _ := readSource(r, "big.go", MaxSourceBytes); reason != report.SkipTooLarge {
 		t.Errorf("big file read with reason %q", reason)
 	}
-	if src, size, reason, err := readSource(r, "target.go"); reason != "" || err != nil || size != 15 || string(src) != "package target\n" {
+	if src, size, reason, err := readSource(r, "target.go", MaxSourceBytes); reason != "" || err != nil || size != 15 || string(src) != "package target\n" {
 		t.Errorf("regular file: %q %d %q %v", src, size, reason, err)
 	}
 }
 
 // A file that was small at fstat and then grew is cut off, not read whole.
 func TestReadCappedGrowth(t *testing.T) {
-	_, _, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes+1)))
+	_, _, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes+1)), MaxSourceBytes)
 	if reason != report.SkipTooLarge {
 		t.Errorf("reason %q, want %q", reason, report.SkipTooLarge)
 	}
-	src, size, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes)))
+	src, size, reason, _ := readCapped(strings.NewReader(strings.Repeat("x", MaxSourceBytes)), MaxSourceBytes)
 	if reason != "" || size != MaxSourceBytes || len(src) != MaxSourceBytes {
 		t.Errorf("file at the limit: size %d reason %q", size, reason)
+	}
+}
+
+func TestReadFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "go.mod", "module example.com/m\n")
+	write(t, root, "big.out", strings.Repeat("x", 101))
+	os.Symlink("/etc/hosts", filepath.Join(root, "link.out"))
+	os.Symlink("go.mod", filepath.Join(root, "inner.out"))
+	syscall.Mkfifo(filepath.Join(root, "fifo.out"), 0o644)
+	os.Mkdir(filepath.Join(root, "dir.out"), 0o755)
+
+	if src, skip := ReadFile(root, "go.mod", 100); skip != nil || string(src) != "module example.com/m\n" {
+		t.Fatalf("go.mod: %q %+v", src, skip)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for rel, want := range map[string]report.Skip{
+			"missing.out":    {Path: "missing.out", Reason: report.SkipMissing},
+			"big.out":        {Path: "big.out", Reason: report.SkipTooLarge},
+			"link.out":       {Path: "link.out", Reason: report.SkipSymlink},
+			"inner.out":      {Path: "inner.out", Reason: report.SkipSymlink},
+			"fifo.out":       {Path: "fifo.out", Reason: report.SkipNotRegular},
+			"dir.out":        {Path: "dir.out", Reason: report.SkipNotRegular},
+			"go.mod/x":       {Path: "go.mod/x", Reason: report.SkipMissing},
+			"../outside.out": {Reason: report.SkipInvalidPath},
+			"/etc/hosts":     {Reason: report.SkipInvalidPath},
+			".git/config":    {Reason: report.SkipInvalidPath},
+		} {
+			if src, skip := ReadFile(root, rel, 100); src != nil || skip == nil || *skip != want {
+				t.Errorf("%s: %q %+v, want %+v", rel, src, skip, want)
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("ReadFile blocked on a FIFO")
+	}
+}
+
+func TestReadPath(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "c.out", "mode: set\n")
+	write(t, dir, "big.out", strings.Repeat("x", 2<<20+1))
+	os.Symlink(filepath.Join(dir, "c.out"), filepath.Join(dir, "link.out"))
+	syscall.Mkfifo(filepath.Join(dir, "fifo.out"), 0o644)
+
+	// The user named it: a symlink the user chose is followed.
+	for _, name := range []string{"c.out", "link.out"} {
+		if src, err := ReadPath(filepath.Join(dir, name), 1<<20); err != nil || string(src) != "mode: set\n" {
+			t.Errorf("%s: %q %v", name, src, err)
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, name := range []string{"missing.out", "big.out", "fifo.out", "."} {
+			if src, err := ReadPath(filepath.Join(dir, name), 2<<20); err == nil {
+				t.Errorf("%s: read %d bytes, want an error", name, len(src))
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("ReadPath blocked on a FIFO")
 	}
 }

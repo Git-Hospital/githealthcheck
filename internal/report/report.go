@@ -20,16 +20,19 @@ const (
 	Offline             NullReason = "offline"
 	NoCoverageReport    NullReason = "no_coverage_report"
 	StaleCoverageReport NullReason = "stale_coverage_report"
-	HistoryTooShort     NullReason = "history_too_short"
-	ExecNotAllowed      NullReason = "exec_not_allowed"
-	NotCalibrated       NullReason = "not_calibrated"
-	InsufficientInput   NullReason = "insufficient_input"
-	LowAnalysedShare    NullReason = "low_analysed_share"
-	InsufficientFamily  NullReason = "insufficient_families"
-	NotImplemented      NullReason = "not_implemented"
-	TooLarge            NullReason = "too_large"
-	Timeout             NullReason = "timeout"
-	ToolCrashed         NullReason = "tool_crashed"
+	// InvalidCoverageReport is a report that was found by name but is not a valid report of a
+	// supported format.
+	InvalidCoverageReport NullReason = "invalid_coverage_report"
+	HistoryTooShort       NullReason = "history_too_short"
+	ExecNotAllowed        NullReason = "exec_not_allowed"
+	NotCalibrated         NullReason = "not_calibrated"
+	InsufficientInput     NullReason = "insufficient_input"
+	LowAnalysedShare      NullReason = "low_analysed_share"
+	InsufficientFamily    NullReason = "insufficient_families"
+	NotImplemented        NullReason = "not_implemented"
+	TooLarge              NullReason = "too_large"
+	Timeout               NullReason = "timeout"
+	ToolCrashed           NullReason = "tool_crashed"
 )
 
 // incomplete reasons mean a run did not finish what it set out to do. The others mean an input was
@@ -172,4 +175,20 @@ type Inputs struct {
 	WalkComplete  bool  `json:"walkComplete"`
 	Commits       int   `json:"commits"`
 	ElapsedMillis int64 `json:"elapsedMillis"`
+	// Coverage is the coverage report that was found, used or not; absent when there was none.
+	Coverage *CoverageInput `json:"coverage,omitempty"`
+}
+
+// CoverageInput describes a coverage report, so a reader can judge whether it belongs to the commit.
+type CoverageInput struct {
+	Path    string `json:"path"`             // relative to the root, or only the base name when outside it
+	Tracked bool   `json:"tracked"`          // the report is a file in the scanned commit
+	Format  string `json:"format,omitempty"` // absent when the report could not be parsed
+	// Files is the number of source files the report lists, ModuleFiles those under one of the
+	// repository's module paths (the rest are the standard library and dependencies), and FilesAtHead
+	// those that exist in the commit. Below 90% of ModuleFiles at HEAD, coverage is null with the
+	// reason stale_coverage_report. All three are absent when the report was not parsed.
+	Files       *int `json:"files,omitempty"`
+	ModuleFiles *int `json:"moduleFiles,omitempty"`
+	FilesAtHead *int `json:"filesAtHead,omitempty"`
 }

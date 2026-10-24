@@ -5,13 +5,8 @@ import (
 	"strings"
 )
 
-// Analysed lists the languages that at least one metric family analyses in this build. It is empty
-// until the first family lands: a language is "analysed" only when something actually read it.
-// Every other recognised language is reported as present but not analysed, with its counts.
-var Analysed = map[string]bool{}
-
 // extensions maps file extensions to language names. Recognising a language only means it is
-// counted; analysis depends on Analysed.
+// counted; whether it is analysed depends on package lang.
 var extensions = map[string]string{
 	".go": "go",
 	".py": "python", ".pyi": "python",

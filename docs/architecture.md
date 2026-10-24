@@ -22,7 +22,7 @@ It is not a linter. It does not report style, and it does not find bugs. It does
 
 ## 2. Principles
 
-- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `too_large`, `not_implemented`, `tool_crashed`). Paths that are not read at all are listed in `skipped[]` with their own reasons: `symlink`, `too_large`, `nested_repository`, `unreadable` (with a cause such as `permission denied`, never a path), `not_regular_file`, `missing` (in the commit but not in the work tree), `invalid_path` (a tree entry no checkout would create; the name is not echoed). Default constants presented as measurements are a bug class, and the tests target it (§7).
+- **Measured or null.** Every number is computed from input that was actually read. No input means no number: the value is `null`, with a machine-readable reason (`unsupported_language`, `tool_not_found`, `offline`, `no_coverage_report`, `history_too_short`, `exec_not_allowed`, `timeout`, `not_calibrated`, `insufficient_input`, `low_analysed_share`, `insufficient_families`, `stale_coverage_report`, `invalid_coverage_report`, `too_large`, `not_implemented`, `tool_crashed`). Paths that are not read at all are listed in `skipped[]` with their own reasons: `symlink`, `too_large`, `nested_repository`, `unreadable` (with a cause such as `permission denied`, never a path), `not_regular_file`, `missing` (in the commit but not in the work tree), `invalid_path` (a tree entry no checkout would create; the name is not echoed). Default constants presented as measurements are a bug class, and the tests target it (§7).
 - **Facts once, metrics many.** Files are parsed once into `FileFacts`, and analyzers read facts, not files. This is what makes "no file cap" (D23) affordable.
 - **Explainable findings, comparable scores.** A finding cites a documented threshold and a location. A score is a percentile against a pinned corpus (D18, D19).
 - **The scanned repository is untrusted input.** Repository code and configuration are never executed by default (D22). This includes git's own configuration in the scanned `.git/config`, and the files git reads beside it. Left alone, they can make git run a program (`core.fsmonitor`, `diff.external`, textconv drivers, `gpg.program` through `log.showSignature` or a `%G` placeholder in `format.pretty`), open a connection (a partial clone's promisor remote with an `ext::` URL), read another repository (a `.git` file, a symlink inside `.git`, `alternates`, `commondir`, `core.worktree`), or block or read without end (`diff.orderFile`, `core.attributesFile`, `.gitattributes`, `.mailmap` or `info/grafts` pointed at a FIFO or `/dev/zero`, a blob that inflates a thousandfold). Every git call goes through `execx.Git`, which:
@@ -77,36 +77,47 @@ Dependency direction: `cmd -> analyze, score, report -> facts <- lang, gitx, rep
 
 ## 4. Core interfaces
 
-These are a sketch. The exact signatures are settled in the first PR.
+Settled with the first family (tests, v0.2.0):
 
 ```go
-// lang
-type LanguageSupport interface {
-    Name() string                         // "go", "python", "jsts"
-    Claims(path string) bool              // extension + shebang rules
-    IsTest(path string, src []byte) bool
-    Facts(ctx context.Context, path string, src []byte) (facts.FileFacts, error)
+// lang: one per analysed language. The walk calls Fill once per file, with the source it read.
+type Support interface {
+    Name() string                         // "go"; later "python", "jsts"
+    Fill(f *facts.File, src []byte)       // sets Test, Generated, Package, Functions
 }
 
-// analyze
+// facts: what the analyzers read. Analyzers never open files.
+type File struct {
+    Path, Language string
+    Size int64
+    Lines int
+    Vendored, Modified, Generated, Test bool
+    Package   string                      // a directory for Go; "" when the go command ignores the file
+    Functions int                         // declarations with a body
+}
+type Repo struct {
+    Files    []File
+    Paths    map[string]bool              // every path in HEAD's tree, read or not
+    Modules  []Module                     // go.mod files: directory and module path
+    Coverage *Coverage                    // the report found or named, unparsed; nil when none
+}
+
+// analyze: one per family.
 type Analyzer interface {
-    Family() Family                       // Tests, History, Complexity, Architecture
-    Run(ctx context.Context, rf *facts.RepoFacts, env Env) Result
+    Family() report.Family
+    Rules() []Rule                        // each rule has docs/rules/<ID>.md and testdata/pairs/<ID>
+    Run(ctx context.Context, rf *facts.Repo) Result
 }
-
 type Result struct {
-    Findings []Finding
-    Metrics  map[string]Measurement       // name -> value or null+reason
-}
-
-type Measurement struct {
-    Value  *float64
-    Reason NullReason                     // empty when Value != nil
-    Inputs int                            // how many files/commits it was computed from
+    Measured bool
+    Reason   report.NullReason            // why not measured
+    Metrics  map[string]report.Measurement
+    Findings []report.Finding
+    Coverage *report.CoverageInput        // the report read, for inputs.coverage
 }
 ```
 
-`Env` carries the resolved options: `--online`, `--allow-exec`, the tool lookup, the clock and the timeout. An analyzer that needs a disallowed capability returns `null` with the matching reason. It must not fall back to a guess.
+`report.Measurement` is a value or `null` with a reason, plus `Inputs`, the number of files, functions or commits it was computed from. An `Env` argument with the resolved options (`--online`, `--allow-exec`, the tool lookup) is added to `Run` with the first family that needs one; an analyzer that needs a disallowed capability returns `null` with the matching reason and must not fall back to a guess.
 
 ## 5. Scoring
 
@@ -122,7 +133,7 @@ Guards against the "measured or null" principle being bypassed:
 - **Enough families.** The overall score is `null` (`insufficient_families`) when fewer than 2 families are measured.
 - **No calibration, no score.** Until the corpus exists (v0.4.0), every family score and the overall score is `null` with the reason `not_calibrated`. v0.2.0 and v0.3.0 report findings and raw metrics only.
 - **Thresholds stay fixed.** Family statistics always use the calibration thresholds. Thresholds tuned in `.githealthcheck.yml` change findings only. Excluded paths are listed with their share of the code lines.
-- **Fresh coverage only.** `inputs` names the coverage report that was used. It also records whether the report is tracked by git and how many of the files it lists exist at HEAD. If fewer than 90% of its files match, coverage is `null` with the reason `stale_coverage_report`.
+- **Fresh coverage only.** The report is the file named by `--coverage`, or else the first of `coverage.out`, `cover.out`, `coverage.txt`, `c.out` and `profile.cov` at the root of the work tree, tracked or not, since CI writes it just before the scan. A discovered name that is a symlink, a FIFO or over 50 MiB is not read and is listed in `skipped[]`; a `--coverage` file that cannot be read is a usage error (exit 2). `inputs.coverage` names the report, records whether it is tracked by git, how many files it lists, how many of those are under the repository's module paths (the rest are the standard library and dependencies, which `-coverpkg=all` adds) and how many of those exist at HEAD. If fewer than 90% of the module files are at HEAD, or a block of the repository's own non-generated code does not fit inside its file, coverage is `null` with the reason `stale_coverage_report`. A file that is found but is not a report of a supported format gives `invalid_coverage_report`, and the counts are then absent. A profile line over 4096 bytes, or a file name of more than 128 path segments, makes the report invalid; real profiles are far inside both. With those bounds and the 50 MiB cap, resolving a file name costs at most 128 map lookups, the deadline is checked at every new file name, and memory stays linear in the report.
 
 ## 6. Report contract
 
@@ -131,9 +142,9 @@ Guards against the "measured or null" principle being bypassed:
 - `tool`
 - `repository`: `path` (the directory name only, so reports carry no home directory), `head` (the HEAD SHA; absent on a branch with no commits yet), `shallow`, `modifiedFiles` (source files read whose work-tree content differs from the commit's blob; a checkout filter such as Git LFS or line-ending conversion also counts) and `dirty` (any modified or missing file)
 - `languages`: analysed and present-not-analysed, with file and line counts
-- `families[]`: `measured`, score or null, reason, metrics, findings
+- `families[]`: `measured` (true only when at least one metric has a value), score or null, reason, metrics, findings. The text output quotes any path from the repository that holds a non-graphic character, so a crafted name cannot inject terminal control sequences
 - `overall`: score, measured count, family count, and the weights once scores are calibrated (v0.4.0)
-- `inputs`: files analysed/total, `walkComplete` (false when `--timeout` ran out during the walk; the file and line counts are then partial, and the text output says so), commits read, elapsed time
+- `inputs`: files analysed/total, `coverage` (the report found or named: `path`, relative to the root or only the base name when outside it, `tracked`, and once it is parsed `format`, `files`, `moduleFiles`, `filesAtHead`), `walkComplete` (false when `--timeout` ran out during the walk; the file and line counts are then partial, and the text output says so), commits read, elapsed time
 - `skipped[]`: what was not done, and why; always an array, `[]` when empty
 
 Every `null` carries a `reason`. JSON is the source of truth. SARIF, Markdown and the terminal table are pure renderings of it, tested by golden files.
@@ -150,7 +161,7 @@ Exit codes (D25):
 
 `--fail-under` takes a number from 0 to 10; `NaN`, `Inf` and trailing text are usage errors.
 
-Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to be absent: `no_coverage_report`, `offline`, `tool_not_found`, `exec_not_allowed`, `unsupported_language`, `history_too_short`, `not_calibrated` and `insufficient_input`. These do not cause exit 3 on their own.
+Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to be absent: `no_coverage_report`, `offline`, `tool_not_found`, `exec_not_allowed`, `unsupported_language`, `history_too_short`, `not_calibrated` and `insufficient_input`. These do not cause exit 3 on their own. Neither do `stale_coverage_report` and `invalid_coverage_report`: the run finished, and the input was not usable; the report says so.
 
 ## 7. Testing
 

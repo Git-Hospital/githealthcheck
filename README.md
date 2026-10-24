@@ -6,6 +6,17 @@ A code health analyzer for Git repositories. It looks at tests and coverage, git
 
 The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/githealthcheck/tree/v0.1.0). It is not maintained. On Go and Rust repositories it reads no files but still prints scores, so do not rely on its numbers.
 
+## What works today
+
+`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] <path>` scans the commit at HEAD. Go is analysed; other languages are counted. Of the four families, **tests** is implemented: the test-to-code line ratio, the share of packages without a test file, and statement coverage read from an existing Go coverage profile (the tool never runs your tests). Its rules are documented in [docs/rules](docs/rules). The other three families are `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: the tests family's score with the reason `not_calibrated`, and the overall score with `insufficient_families`, since it needs at least two measured families.
+
+```sh
+go test -coverprofile=coverage.out ./...
+githealthcheck scan .
+```
+
+Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
