@@ -60,7 +60,8 @@ func TestFill(t *testing.T) {
 			f := facts.File{Path: c.path}
 			Support{}.Fill(&f, []byte(c.src))
 			c.want.Path = c.path
-			f.Funcs, f.Imports, f.Smells, f.Refs = nil, nil, nil, nil // checked by their own tests
+			// Checked by their own tests.
+			f.Funcs, f.Imports, f.Smells, f.Refs, f.Tokens = nil, nil, nil, nil, facts.Tokens{}
 			if !reflect.DeepEqual(f, c.want) {
 				t.Errorf("got %+v, want %+v", f, c.want)
 			}

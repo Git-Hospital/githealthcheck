@@ -136,6 +136,12 @@ Documentation analysis is out of scope for v1. The old README/docstring heuristi
 - [ ] Line matching.
 - [ ] Later.
 
+*Amended 2026-10-24 (D34):* literals are masked, but of the identifiers only a function's own
+parameters and locals may be renamed, consistently (Baker's parameterised match); other names must be
+equal. Masking every identifier made a getter look like every other getter. Blocks start at a line, and
+test files are left out, as in SonarSource. Whole functions with one body are their own rule
+(GHC-CPLX-010).
+
 ### Scoring
 
 #### D18. What "7/10" means

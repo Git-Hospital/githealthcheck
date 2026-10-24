@@ -37,6 +37,9 @@ func (Support) Fill(f *facts.File, src []byte) {
 		f.Imports = imports(fset, file)
 		f.Smells, f.SmellsDropped = smells(fset, file, code)
 		f.Refs = refs(file)
+		if !f.Test && !f.Generated && !f.Vendored && f.Package != "" {
+			f.Tokens = tokens(fset, src, file, f.Funcs)
+		}
 	}
 	f.Functions = len(f.Funcs)
 }

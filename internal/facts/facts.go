@@ -26,10 +26,34 @@ type File struct {
 	// kind; SmellsDropped counts the rest by kind.
 	Smells        []Smell
 	SmellsDropped map[SmellKind]int
+	// Tokens is the token stream that duplication is found in: the repository's own code only, not
+	// tests, vendored or generated files. The walk drops every file's stream once the repository has
+	// more than MaxTokens, and sets TokensDropped.
+	Tokens        Tokens
+	TokensDropped bool
 	// Refs holds every name the file uses that could refer to a function of its package: identifiers
 	// other than the names of the declarations themselves, and the names that //export and
 	// //go:linkname directives make reachable from outside. Sorted, without duplicates.
 	Refs []string
+}
+
+// MaxTokens bounds the tokens kept for duplication, about two and a half million lines of Go; past
+// it duplication is not looked for. The streams take 9 bytes a token, and finding clones in them up
+// to about 40 more: a crafted repository of 14.5 million tokens peaked at 670 MB.
+const MaxTokens = 20_000_000
+
+// Tokens is a file's tokens after its imports, without comments, as parallel slices.
+type Tokens struct {
+	// Kind is the token with every identifier one kind and every literal another, so that renamed
+	// copies compare equal.
+	Kind []uint8
+	// Name is a hash of an identifier's or literal's text, to check that a copy renames
+	// consistently, with bit 30 set for the name of a function's own parameter, result or local,
+	// which a copy may rename, bit 31 for any other name, which it must keep, and both for a
+	// literal; 0 for other tokens.
+	Name []uint32
+	// Line is the token's line in the file.
+	Line []int32
 }
 
 // Import is one imported package.
@@ -67,11 +91,15 @@ type Function struct {
 	// Lines counts the lines of the body that hold code, between the line of the opening brace and
 	// the line of the closing one: blank lines and lines holding only comments do not count.
 	Lines      int
+	Statements int // statements directly in the body
 	Cognitive  int // cognitive complexity (Campbell, SonarSource 2018)
 	Cyclomatic int // McCabe, counted as gocyclo counts
 	Nesting    int // deepest nesting of control-flow statements; an else if does not nest
 	Method     bool
 	Exported   bool
+	// Span is the range of its tokens in the file's Tokens, from the one after its name (the
+	// signature) to the closing brace, excluded; empty when the file has no tokens.
+	Span [2]int32
 }
 
 // Module is a Go module in the tree: the directory of a go.mod file and the module path it declares.
