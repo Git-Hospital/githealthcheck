@@ -12,7 +12,6 @@ var stdlib = map[string]bool{
 	"archive/zip":            true,
 	"arena":                  true,
 	"bufio":                  true,
-	"builtin":                true,
 	"bytes":                  true,
 	"cmp":                    true,
 	"compress/bzip2":         true,

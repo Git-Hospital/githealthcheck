@@ -26,13 +26,14 @@ func imports(fset *token.FileSet, file *ast.File) []facts.Import {
 	return out
 }
 
-// MaxSmells is the number of smells kept per file. A crafted file can hold one on every other line;
-// past this many the rest are counted, not kept.
+// MaxSmells is the number of smells of each kind kept per file. A crafted file can hold one on every
+// other line; past this many the rest are counted, not kept.
 const MaxSmells = 1000
 
 // smells finds the D32 patterns in a file: error checks that do nothing, placeholders, and comments
-// that are code. It returns at most MaxSmells of them, in line order, and the number left out.
-func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, int) {
+// that are code. It returns at most MaxSmells of each kind, in line order, and the number of each kind
+// left out.
+func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, map[facts.SmellKind]int) {
 	var out []facts.Smell
 	line := func(p token.Pos) int { return lineOf(fset, p) }
 	// check finds the error checks in a function body. A function literal is checked under the name
@@ -87,16 +88,55 @@ func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, in
 			})
 		}
 	}
+	output := exampleOutputs(file)
 	for _, cg := range file.Comments {
+		if output[cg] {
+			continue // the expected output of an example, which go test checks
+		}
 		for _, sp := range commentedCode(fset, cg, code) {
 			out = append(out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
 		}
 	}
 	slices.SortStableFunc(out, func(a, b facts.Smell) int { return a.Line - b.Line })
-	if len(out) > MaxSmells {
-		return out[:MaxSmells:MaxSmells], len(out) - MaxSmells
+	kept, dropped := out[:0], map[facts.SmellKind]int(nil)
+	count := map[facts.SmellKind]int{}
+	for _, s := range out {
+		if count[s.Kind]++; count[s.Kind] > MaxSmells {
+			if dropped == nil {
+				dropped = map[facts.SmellKind]int{}
+			}
+			dropped[s.Kind]++
+			continue
+		}
+		kept = append(kept, s)
 	}
-	return out, 0
+	return kept, dropped
+}
+
+// outputPrefix is go/doc's pattern for the comment that holds an example's expected output.
+var outputPrefix = regexp.MustCompile(`(?i)^[[:space:]]*(unordered )?output:`)
+
+// exampleOutputs returns the comment groups that go test reads as the expected output of an example:
+// the last comment group in the body of an Example function, when it starts with "Output:" (as go/doc
+// finds it).
+func exampleOutputs(file *ast.File) map[*ast.CommentGroup]bool {
+	out := map[*ast.CommentGroup]bool{}
+	for _, d := range file.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Body == nil || fd.Recv != nil || !strings.HasPrefix(fd.Name.Name, "Example") {
+			continue
+		}
+		var last *ast.CommentGroup
+		for _, cg := range file.Comments {
+			if cg.Pos() > fd.Body.Lbrace && cg.End() < fd.Body.Rbrace {
+				last = cg
+			}
+		}
+		if last != nil && outputPrefix.MatchString(last.Text()) {
+			out[last] = true
+		}
+	}
+	return out
 }
 
 // errNotNil reports `err != nil` and its variants, as ErrCheck does, but only with !=.
@@ -198,9 +238,6 @@ func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]
 	for _, c := range cg.List {
 		t, ok := strings.CutPrefix(c.Text, "//")
 		trim := strings.TrimSpace(t)
-		if exampleOutput.MatchString(trim) {
-			break // the expected output of an example, which go test checks
-		}
 		n := lineOf(fset, c.Pos())
 		switch {
 		case !ok || directive.MatchString(c.Text) || strings.HasPrefix(t, "\t") || strings.HasPrefix(t, "  ") || trim == "",
@@ -217,9 +254,6 @@ func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]
 	flush()
 	return spans
 }
-
-// exampleOutput matches the comment that starts the expected output of a testable example.
-var exampleOutput = regexp.MustCompile(`^(Unordered output|Output):`)
 
 // isCode reports whether text parses as statements of which one does something, or as declarations
 // other than imports.

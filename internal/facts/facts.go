@@ -22,10 +22,10 @@ type File struct {
 	Funcs []Function
 	// Imports are the packages the file imports, in source order.
 	Imports []Import
-	// Smells are the places in the file that match a pattern of D32, at most a thousand;
-	// SmellsDropped counts the rest.
+	// Smells are the places in the file that match a pattern of D32, at most a thousand of each
+	// kind; SmellsDropped counts the rest by kind.
 	Smells        []Smell
-	SmellsDropped int
+	SmellsDropped map[SmellKind]int
 	// Refs holds every name the file uses that could refer to a function of its package: identifiers
 	// other than the names of the declarations themselves, and the names that //export and
 	// //go:linkname directives make reachable from outside. Sorted, without duplicates.

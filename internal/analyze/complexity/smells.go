@@ -85,13 +85,15 @@ type importIndex struct {
 func newImportIndex(rf *facts.Repo) *importIndex {
 	ix := &importIndex{modules: map[string]*facts.Module{}, goDirs: map[string]bool{}, requires: map[*facts.Module]map[string]bool{}}
 	for p := range rf.Paths {
-		if strings.HasSuffix(p, ".go") {
+		if strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
 			ix.goDirs[path.Dir(p)] = true
 		}
 	}
 	for i := range rf.Modules {
 		m := &rf.Modules[i]
-		ix.modules[m.Path] = m
+		if _, ok := ix.modules[m.Path]; !ok {
+			ix.modules[m.Path] = m // of two go.mod files with one path, the shallower, as modules() keeps
+		}
 		ix.requires[m] = map[string]bool{}
 		for _, r := range m.Requires {
 			ix.requires[m][r] = true
@@ -100,7 +102,7 @@ func newImportIndex(rf *facts.Repo) *importIndex {
 	// In workspace mode a module builds with what any module of the workspace requires. Which
 	// modules a go.work uses is not read: all of them count.
 	for p := range rf.Paths {
-		if path.Base(p) == "go.work" {
+		if path.Base(p) == "go.work" && golang.Package(p) != "" {
 			ix.workspace = map[string]bool{}
 			for _, m := range rf.Modules {
 				for _, r := range m.Requires {

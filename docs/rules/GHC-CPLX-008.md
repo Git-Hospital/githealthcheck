@@ -17,8 +17,8 @@ when called. Code generators leave them when asked for more than they write (ADR
 Vendored and generated code, and what the go command ignores. Test files are judged. A body with any
 other statement is not a placeholder.
 
-At most 1000 smells are read per file and at most 50 findings of the rule are listed per file; one
-more finding gives the count of the rest, and `smells_per_kloc` counts them all.
+At most 1000 smells of each kind are kept per file and at most 50 findings of the rule are listed per
+file; one more finding gives the count of the rest, and `smells_per_kloc` counts them all.
 
 ## Fix
 

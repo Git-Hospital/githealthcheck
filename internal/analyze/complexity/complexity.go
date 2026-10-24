@@ -116,8 +116,12 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	if err != nil {
 		return analyze.Result{Reason: report.Timeout}
 	}
+	dropped := map[[2]string]int{} // by rule and path
 	for _, f := range own {
-		smells += f.SmellsDropped
+		for kind, n := range f.SmellsDropped {
+			smells += n
+			dropped[[2]string{smellRule[kind], f.Path}] += n
+		}
 	}
 	for _, fd := range found {
 		if fd.RuleID != UnusedFunction {
@@ -153,7 +157,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
 		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))
 	})
-	res.Findings = capPerFile(res.Findings)
+	res.Findings = capPerFile(res.Findings, dropped)
 	return res
 }
 
@@ -161,21 +165,29 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 // one more finding. A crafted file can otherwise make the report a hundred times its size.
 const MaxPerFile = 50
 
+// smellRule is the rule each kind of smell is reported under.
+var smellRule = map[facts.SmellKind]string{
+	facts.EmptyErrorCheck: SwallowedError,
+	facts.ErrorDropped:    SwallowedError,
+	facts.Placeholder:     Placeholder,
+	facts.CommentedCode:   CommentedCode,
+}
+
 // capPerFile keeps the first MaxPerFile findings of each rule in each file, of findings sorted by
-// rule and path, and replaces the rest with a count.
-func capPerFile(fs []report.Finding) []report.Finding {
+// rule and path, and replaces the rest with a count, which includes the smells the file did not keep
+// (dropped, by rule and path).
+func capPerFile(fs []report.Finding, dropped map[[2]string]int) []report.Finding {
 	out := fs[:0:0]
 	for i := 0; i < len(fs); {
 		j := i
 		for j < len(fs) && fs[j].RuleID == fs[i].RuleID && fs[j].Path == fs[i].Path {
 			j++
 		}
-		if j-i <= MaxPerFile {
-			out = append(out, fs[i:j]...)
-		} else {
-			out = append(out, fs[i:i+MaxPerFile]...)
+		more := max(j-i-MaxPerFile, 0) + dropped[[2]string{fs[i].RuleID, fs[i].Path}]
+		out = append(out, fs[i:min(j, i+MaxPerFile)]...)
+		if more > 0 {
 			out = append(out, report.Finding{RuleID: fs[i].RuleID, Path: fs[i].Path,
-				Message: fmt.Sprintf("%d more findings of this rule in this file are not listed", j-i-MaxPerFile)})
+				Message: fmt.Sprintf("%d more findings of this rule in this file are not listed", more)})
 		}
 		i = j
 	}

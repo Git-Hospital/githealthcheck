@@ -162,6 +162,9 @@ func TestMeasureEdges(t *testing.T) {
 	if fn := one("package a\n\nfunc Walk[T any](n *T, d int) int { return Walk[T](n, d-1) }\n"); fn.Cognitive != 1 {
 		t.Errorf("generic recursion: cognitive %d; want 1", fn.Cognitive)
 	}
+	if fn := one("package a\n\nimport \"io\"\n\nfunc Reader(r io.Reader) io.Reader { return Reader(r) }\n"); fn.Cognitive != 1 {
+		t.Errorf("a type named like the function is no local: cognitive %d; want 1", fn.Cognitive)
+	}
 	if fn := one("package a\n\nfunc run() {\n\trun := func() {}\n\trun()\n}\n"); fn.Cognitive != 0 {
 		t.Errorf("a local named like the function: cognitive %d; want 0", fn.Cognitive)
 	}

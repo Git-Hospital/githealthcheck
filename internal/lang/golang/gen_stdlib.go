@@ -46,7 +46,8 @@ func main() {
 		}
 		if strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
 			dir := filepath.ToSlash(filepath.Dir(rel))
-			if dir != "." && (len(pkgs) == 0 || pkgs[len(pkgs)-1] != dir) {
+			// builtin only documents the predeclared names: it cannot be imported.
+			if dir != "." && dir != "builtin" && (len(pkgs) == 0 || pkgs[len(pkgs)-1] != dir) {
 				pkgs = append(pkgs, dir)
 			}
 		}

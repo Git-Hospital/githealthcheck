@@ -161,8 +161,10 @@ func TestSmellsEdges(t *testing.T) {
 			[]string{"empty_error_check a function literal 4"}},
 		"an error about a to-do item": {"package a\n\nimport \"errors\"\n\nfunc f() error { return errors.New(\"todo not found\") }\n\nfunc g() error { return errors.New(\"TODO\") }\n",
 			[]string{"placeholder g 7"}},
-		"expected output of an example": {"package a\n\nfunc ExampleF() {\n\tprintln(\"x = 1\")\n\t// Output:\n\t// x = 1\n\t// p.Close()\n}\n", nil},
-		"labelled prose":                {"package a\n\n// New makes a client.\n//\n// Example: c := New(cfg)\n// Usage: client.Do(req)\nfunc New(cfg int) int { return cfg }\n", nil},
+		"expected output of an example": {"package a\n\nfunc ExampleF() {\n\tprintln(\"x = 1\")\n\t// output:\n\t// x = 1\n\t// p.Close()\n}\n", nil},
+		"output: elsewhere hides nothing": {"package a\n\nfunc F() {\n\t// Output:\n\t// x := compute()\n\t// os.Remove(path)\n}\n",
+			[]string{"commented_code  5"}},
+		"labelled prose": {"package a\n\n// New makes a client.\n//\n// Example: c := New(cfg)\n// Usage: client.Do(req)\nfunc New(cfg int) int { return cfg }\n", nil},
 		"a //line directive does not move lines": {"package a\n\n//line other.go:5000\nfunc f(g func() error) {\n\tif err := g(); err != nil {\n\t}\n}\n",
 			[]string{"empty_error_check f 5"}},
 	} {
@@ -184,7 +186,13 @@ func TestSmellsEdges(t *testing.T) {
 		b.WriteString("//f()\n\n")
 	}
 	f = filled(t, b.String())
-	if len(f.Smells) != MaxSmells || f.SmellsDropped != 7 {
-		t.Errorf("kept %d, dropped %d", len(f.Smells), f.SmellsDropped)
+	if len(f.Smells) != MaxSmells || f.SmellsDropped[facts.CommentedCode] != 7 {
+		t.Errorf("kept %d, dropped %v", len(f.Smells), f.SmellsDropped)
+	}
+	// The bound is per kind: a flood of one kind does not hide another.
+	b.WriteString("func h(g func() error) {\n\tif err := g(); err != nil {\n\t}\n}\n")
+	f = filled(t, b.String())
+	if !slices.ContainsFunc(f.Smells, func(s facts.Smell) bool { return s.Kind == facts.EmptyErrorCheck }) {
+		t.Error("the empty error check after the flood was dropped")
 	}
 }

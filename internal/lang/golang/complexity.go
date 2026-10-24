@@ -309,12 +309,17 @@ func (c *cog) callsItself(call *ast.CallExpr) bool {
 func (c *cog) shadowed() bool {
 	if c.shadow == nil {
 		name, found := c.fd.Name.Name, false
-		ast.Inspect(c.fd.Type, func(n ast.Node) bool {
-			if id, ok := n.(*ast.Ident); ok && id.Name == name {
-				found = true
+		fields := func(fl *ast.FieldList) {
+			if fl != nil {
+				for _, f := range fl.List {
+					for _, id := range f.Names {
+						found = found || id.Name == name
+					}
+				}
 			}
-			return !found
-		})
+		}
+		fields(c.fd.Type.Params)
+		fields(c.fd.Type.Results)
 		ast.Inspect(c.fd.Body, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.AssignStmt:
@@ -330,13 +335,14 @@ func (c *cog) shadowed() bool {
 					found = found || id.Name == name
 				}
 			case *ast.FuncType:
-				ast.Inspect(x, func(n ast.Node) bool {
-					if id, ok := n.(*ast.Ident); ok && id.Name == name {
+				fields(x.Params)
+				fields(x.Results)
+			case *ast.RangeStmt:
+				for _, e := range []ast.Expr{x.Key, x.Value} {
+					if id, ok := e.(*ast.Ident); ok && x.Tok == token.DEFINE && id.Name == name {
 						found = true
 					}
-					return !found
-				})
-				return false
+				}
 			}
 			return !found
 		})

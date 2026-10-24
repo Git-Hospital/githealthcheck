@@ -20,7 +20,8 @@ a run of such lines is one finding when it parses as a whole. Not counted:
 - directives (`//go:`, `//line`, `//export`, `//nolint`, `// +build`);
 - a single word, and prose such as `Wrap (2)` (gofmt writes no space before a call's parenthesis) or
   `Example: c := New(cfg)`, which parses as a labelled statement;
-- the expected output of a testable example, from its `// Output:` or `// Unordered output:` line.
+- the expected output of a testable example: the last comment of an `Example` function, when it starts
+  with `Output:` or `Unordered output:` in any case, as go/doc reads it.
 
 A comment line inside a run, such as a comment that was in the code, stays part of the run.
 
@@ -32,8 +33,8 @@ Checked by hand on seven Go repositories (cobra, logrus, fzf, yaml, MeshMedic, H
 Vendored and generated code, and what the go command ignores. Test files are judged. `/* */` comments
 are not read.
 
-At most 1000 smells are read per file and at most 50 findings of the rule are listed per file; one
-more finding gives the count of the rest, and `smells_per_kloc` counts them all.
+At most 1000 smells of each kind are kept per file and at most 50 findings of the rule are listed per
+file; one more finding gives the count of the rest, and `smells_per_kloc` counts them all.
 
 ## Fix
 

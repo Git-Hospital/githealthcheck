@@ -2,9 +2,9 @@
 
 **Family:** complexity. **Languages:** Go. **Needs:** the `go.mod` of the file's module.
 
-A file imports a package that is not in the standard library, not a directory with Go files of a module
-of the repository, and not under a module that the file's `go.mod` requires or replaces. With a
-`go.work` anywhere in the repository, the requirements of every `go.mod` count for every module, as in
+A file imports a package that is not in the standard library, not a directory with non-test Go files of
+a module of the repository, and not under a module that the file's `go.mod` requires or replaces. With
+a `go.work` in the repository, outside the directories the go command ignores (`testdata`, `_x`, `.x`), the requirements of every `go.mod` count for every module, as in
 workspace mode (which modules the `go.work` uses is not read). The code cannot build as committed,
 and the name may have been invented.
 

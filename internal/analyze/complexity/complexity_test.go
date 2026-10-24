@@ -170,6 +170,18 @@ func TestUnresolvedImports(t *testing.T) {
 		t.Errorf("go.work: got %v, want %v", got, want)
 	}
 	delete(rf.Paths, "go.work")
+	// A go.work the go command ignores changes nothing.
+	rf.Paths["testdata/go.work"] = true
+	if got := ids(Analyzer{}.Run(context.Background(), rf).Findings); !slices.Contains(got, "GHC-CPLX-005 a/a.go:13") {
+		t.Errorf("ignored go.work: %v", got)
+	}
+	delete(rf.Paths, "testdata/go.work")
+	// Of two go.mod files with one module path, the shallower is the module.
+	rf.Modules = append(rf.Modules, facts.Module{Dir: "examples/starter", Path: "example.com/root"})
+	if got := ids(Analyzer{}.Run(context.Background(), rf).Findings); slices.Contains(got, "GHC-CPLX-005 a/a.go:9") {
+		t.Errorf("duplicate module path: %v", got)
+	}
+	rf.Modules = rf.Modules[:2]
 	// A module on a Go newer than the standard library list may import packages the list lacks.
 	rf.Modules[0].Go = "go1.99"
 	res = Analyzer{}.Run(context.Background(), rf)
@@ -227,6 +239,15 @@ func TestCapPerFile(t *testing.T) {
 	last := res.Findings[len(res.Findings)-1]
 	if len(res.Findings) != MaxPerFile+1 || last.Line != 0 || last.Message != "5 more findings of this rule in this file are not listed" {
 		t.Errorf("%d findings, last %+v", len(res.Findings), last)
+	}
+	// Smells a file did not keep are in the count.
+	f := goFile("b/b.go")
+	f.Smells = []facts.Smell{{Kind: facts.CommentedCode, Line: 1, EndLine: 1}}
+	f.SmellsDropped = map[facts.SmellKind]int{facts.CommentedCode: 9}
+	res2 := Analyzer{}.Run(context.Background(), &facts.Repo{Files: []facts.File{f}})
+	if got := ids(res2.Findings); len(got) != 2 || res2.Findings[1].Message != "9 more findings of this rule in this file are not listed" ||
+		*res2.Metrics[SmellsPerKLOC].Value != 100 {
+		t.Errorf("dropped smells: %+v %+v", res2.Findings, res2.Metrics[SmellsPerKLOC])
 	}
 	if res.Metrics[ComplexFunctionShare].Inputs != MaxPerFile+5 {
 		t.Errorf("the share counts every function: %+v", res.Metrics[ComplexFunctionShare])
