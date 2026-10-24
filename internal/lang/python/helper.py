@@ -560,7 +560,10 @@ def does_something(s, text):
         targets = s.targets if isinstance(s, ast.Assign) else [s.target]
         return all(assignable(t) for t in targets)
     if isinstance(s, ast.AnnAssign):
-        return s.value is not None
+        # "flags: --line-length=88" and "Note: x = 1" parse too: an annotation is a type, and a
+        # capitalised word before the colon is a label of prose (constants are in capitals).
+        label = isinstance(s.target, ast.Name) and s.target.id[:1].isupper() and not s.target.id.isupper()
+        return s.value is not None and not label and is_type(s.annotation)
     if isinstance(s, ast.Expr):
         v = s.value
         if isinstance(v, ast.Call):
@@ -570,6 +573,16 @@ def does_something(s, text):
     return isinstance(s, (ast.Return, ast.Raise, ast.Delete, ast.Import, ast.ImportFrom, ast.If, ast.For,
                           ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.FunctionDef,
                           ast.AsyncFunctionDef, ast.ClassDef, ast.Assert, ast.Match))
+
+
+def is_type(e):
+    """Whether an annotation looks like a type: a name, dotted name, subscript (list[int]), string, None,
+    or a union of those."""
+    if isinstance(e, ast.BinOp):
+        return isinstance(e.op, ast.BitOr) and is_type(e.left) and is_type(e.right)
+    if isinstance(e, ast.Constant):
+        return e.value is None or isinstance(e.value, str)
+    return isinstance(e, (ast.Name, ast.Attribute, ast.Subscript))
 
 
 def assignable(t):

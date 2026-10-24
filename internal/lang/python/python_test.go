@@ -217,6 +217,11 @@ def stub():
 # This explains: the thing (2) below.
 # Note: something
 x = 1  # y = 2
+
+# flags: --minimum-version=3.10
+# Note: x = 1
+
+# limit: int | None = None
 `
 	f := run(t, map[string]string{"m.py": src}, "m.py")[0]
 	var got []string
@@ -229,6 +234,7 @@ x = 1  # y = 2
 		"placeholder:Base.unfinished:14-15",
 		"except_ignored:swallow:21-22",
 		"commented_code::37-39",
+		"commented_code::48-48",
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("smells\n got %v\nwant %v", got, want)

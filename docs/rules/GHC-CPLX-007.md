@@ -32,7 +32,7 @@ Checked by hand on seven Go repositories (cobra, logrus, fzf, yaml, MeshMedic, H
 
 The method SonarSource's python:S125 uses: runs of `#` comment lines, without the `#` and the space
 after it, that parse with `ast` as statements of which one does something: a call written as code
-(`f(x)`, not `f (x)`), an `await` or `yield`, an assignment to a name, attribute or item, a `return`,
+(`f(x)`, not `f (x)`), an `await` or `yield`, an assignment to a name, attribute or item (an annotated one only when the annotation is a type and the name is not a capitalised word such as `Note`), a `return`,
 `raise`, `del`, `import`, `assert`, `def`, `class`, or a control statement. A run that does not parse as a whole is judged line by line. Not
 counted: a comment after code on the same line, directives (`# type:`, `# noqa`, `# pylint:`,
 `# fmt:`, `# pragma`, `# isort:`, the coding line and others), a `#!` first line, and doctest lines
