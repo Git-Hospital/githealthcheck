@@ -81,3 +81,12 @@ func TestLockDiff(t *testing.T) {
 		t.Errorf("a lock differs from itself: %v", d)
 	}
 }
+
+// --keep without --work would keep clones in a directory that is removed: a usage error.
+func TestCalibrateKeepNeedsWork(t *testing.T) {
+	var stdout, stderr strings.Builder
+	if code := calibrate([]string{"--keep", "--corpus", "../../calibration/corpus.txt"}, &stdout, &stderr); code != report.ExitError ||
+		!strings.Contains(stderr.String(), "--keep needs --work") {
+		t.Errorf("exit %d, stderr %q", code, stderr.String())
+	}
+}
