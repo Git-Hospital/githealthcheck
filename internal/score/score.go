@@ -143,6 +143,7 @@ func (l *Lock) Apply(r *report.Report) {
 		}
 	}
 	var scores []float64
+	var families []report.Family
 	for i := range r.Families {
 		fr := &r.Families[i]
 		if !fr.Measured {
@@ -158,6 +159,7 @@ func (l *Lock) Apply(r *report.Report) {
 		}
 		if !fr.Score.IsNull() {
 			scores = append(scores, *fr.Score.Value)
+			families = append(families, fr.Family)
 		}
 	}
 	r.Overall.Weights = Weights
@@ -172,11 +174,12 @@ func (l *Lock) Apply(r *report.Report) {
 		}
 		return
 	}
-	sum := 0.0
-	for _, s := range scores {
-		sum += s // every family weighs the same
+	sum, weight := 0.0, 0.0
+	for i, s := range scores {
+		sum += Weights[families[i]] * s
+		weight += Weights[families[i]]
 	}
-	r.Overall.Score = report.Measured(round(sum/float64(len(scores)), 2), len(scores))
+	r.Overall.Score = report.Measured(round(sum/weight, 2), len(scores))
 }
 
 // familyScore is the mean of the scores of the metrics that have a value: statement coverage as
@@ -204,7 +207,7 @@ func familyScore(metrics map[string]report.Measurement, values map[string][]floa
 			s = metricScore(corpus, *v.Value, higherIsBetter[m])
 		}
 		scored[m] = round(s, 2)
-		sum += s
+		sum += scored[m] // the mean of the scores as reported
 	}
 	if len(scored) == 0 {
 		return report.Null(report.NotCalibrated), nil

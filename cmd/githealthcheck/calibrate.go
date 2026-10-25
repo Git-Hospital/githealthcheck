@@ -71,7 +71,7 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 	corpusFile := fs.String("corpus", "calibration/corpus.txt", "the corpus list")
 	lockFile := fs.String("lock", "calibration/corpus.lock", "the lock to write, or with --check to compare with")
 	work := fs.String("work", "", "clone into this directory (default: a temporary one)")
-	keep := fs.Bool("keep", false, "keep the clones, and reuse those already in --work")
+	keep := fs.Bool("keep", false, "keep the clones in --work after measuring them")
 	check := fs.Bool("check", false, "compare with the lock instead of writing it; exit 1 when they differ")
 	timeout := fs.Duration("timeout", 15*time.Minute, "give up on one repository after this long")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
@@ -85,6 +85,10 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 	corpus, err := readCorpus(data)
 	if err != nil {
 		fmt.Fprintf(stderr, "githealthcheck: %s: %v\n", *corpusFile, err)
+		return report.ExitError
+	}
+	if *keep && *work == "" {
+		fmt.Fprintln(stderr, "githealthcheck: --keep needs --work")
 		return report.ExitError
 	}
 	if *work == "" {
@@ -157,7 +161,10 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 }
 
 // measure clones one corpus repository without blobs, checks out its commit, which fetches the blobs
-// of that commit only, and scans it. The clone is removed afterwards unless keep is set.
+// of that commit only, and scans it. Each run clones afresh, so no config left in a clone is trusted;
+// the clone is removed afterwards unless keep is set. A scan that did not finish, or whose work tree
+// differs from the commit (a checkout that cannot be exact on this file system), is refused: the lock
+// holds only complete measurements of the commit.
 func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*report.Report, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -165,11 +172,11 @@ func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*rep
 	if !keep {
 		defer os.RemoveAll(dir)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil || !keep {
-		os.RemoveAll(dir)
-		if err := fetchGit(ctx, "", "clone", "--quiet", "--filter=blob:none", "--no-checkout", "https://github.com/"+e.name+".git", dir); err != nil {
-			return nil, err
-		}
+	if err := os.RemoveAll(dir); err != nil {
+		return nil, err
+	}
+	if err := fetchGit(ctx, "", "clone", "--quiet", "--filter=blob:none", "--no-checkout", "--", "https://github.com/"+e.name+".git", dir); err != nil {
+		return nil, err
 	}
 	if err := fetchGit(ctx, dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--force", "--detach", e.commit); err != nil {
 		return nil, err
@@ -181,6 +188,12 @@ func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*rep
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
+	if report.ExitCode(r, nil) == report.ExitIncomplete {
+		return nil, fmt.Errorf("the scan is incomplete: a family or metric timed out or its tool crashed")
+	}
+	if r.Repository.Dirty {
+		return nil, fmt.Errorf("the checkout differs from the commit in %d files", r.Repository.ModifiedFiles)
+	}
 	if lang, share := score.Language(r.Languages); lang != e.language || share < score.MinAnalysedShare {
 		return nil, fmt.Errorf("scanned as %s with %.0f%% of its code analysed, listed as %s", lang, 100*share, e.language)
 	}
@@ -188,15 +201,19 @@ func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*rep
 }
 
 // fetchGit runs the git commands that fetch the corpus, the only ones githealthcheck runs with network
-// access: HTTPS only, without the user's or the system's git config (so no credential helper, no
-// filters such as Git LFS, no hooks path), without a terminal prompt.
+// access: HTTPS only (GIT_ALLOW_PROTOCOL, which a repository's config cannot widen), without the
+// user's or the system's git config (so no credential helper, no filters such as Git LFS), without
+// hooks, fsmonitor or a terminal prompt.
 func fetchGit(ctx context.Context, dir string, args ...string) error {
-	full := []string{"-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "core.hooksPath=/dev/null"}
+	full := []string{"-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"}
 	if dir != "" {
 		full = append(full, "-C", dir)
 	}
 	cmd := exec.CommandContext(ctx, "git", append(full, args...)...)
-	cmd.Env = append(execx.Env(os.Environ()), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(execx.Env(os.Environ()), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ALLOW_PROTOCOL=https")
+	// A transfer runs in child processes (git-remote-https) that hold stderr: past the deadline, Wait
+	// stops waiting for them.
+	cmd.WaitDelay = 5 * time.Second
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

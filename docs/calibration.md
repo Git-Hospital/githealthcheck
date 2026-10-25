@@ -48,8 +48,10 @@ distributions before and after.
 - **A family's score** is the mean of its metrics' scores, over the metrics that have a score. The
   report lists each one under `metricScores`. A measured family with no scored metric is null with
   the reason `not_calibrated`.
-- **The overall score** is the mean of the family scores, with equal weights, over the families
-  that have a score; it is null (`insufficient_families`) with fewer than two.
+- **The overall score** is the weighted mean of the family scores, every weight 1 (`overall.weights`),
+  over the families that have a score. With fewer than two it is null: `low_analysed_share` or
+  `not_calibrated` when two families were measured but could not be scored for that reason, and
+  `insufficient_families` otherwise.
 
 The weights and the method are fixed for a schema version, and `.githealthcheck.yml` cannot change
 them (D21). The report's `overall.calibration` names the language a repository was scored as, the
