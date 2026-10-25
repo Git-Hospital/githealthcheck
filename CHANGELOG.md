@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 - Minimum inputs: `smells_per_kloc`, `duplicated_line_share` and `test_code_line_ratio` need 1000 code lines, and `untested_package_share` 5 Go packages that declare functions; below that they are `null` (`insufficient_input`). A family that measures nothing keeps its findings and no longer makes the run incomplete (exit 3).
 - Duplication (GHC-CPLX-009, 010) runs for each language on its own; the exception for Go files written once per platform applies to Go only.
+- githealthcheck's own code was refactored to pass its own complexity rules: the share of its functions over GHC-CPLX-001's limit fell from 17% to under 1%, with every report on eight Go and Python repositories, the Sonar and radon checks and `calibrate --check` unchanged.
 
 ## [0.2.0] - 2026-10-24
 
