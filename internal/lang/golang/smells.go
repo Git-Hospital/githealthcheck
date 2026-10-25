@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -34,38 +35,7 @@ const MaxSmells = 1000
 // that are code. It returns at most MaxSmells of each kind, in line order, and the number of each kind
 // left out.
 func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, map[facts.SmellKind]int) {
-	var out []facts.Smell
-	line := func(p token.Pos) int { return lineOf(fset, p) }
-	// check finds the error checks in a function body. A function literal is checked under the name
-	// of the function that holds it, for empty checks only: a callback such as a filepath.WalkDir
-	// function returns nil on an error to skip an entry, by design.
-	var check func(body *ast.BlockStmt, results *ast.FieldList, name string)
-	check = func(body *ast.BlockStmt, results *ast.FieldList, name string) {
-		returnsError := false
-		if results != nil && len(results.List) > 0 {
-			id, ok := results.List[len(results.List)-1].Type.(*ast.Ident)
-			returnsError = ok && id.Name == "error"
-		}
-		ast.Inspect(body, func(n ast.Node) bool {
-			if fl, ok := n.(*ast.FuncLit); ok {
-				check(fl.Body, nil, name)
-				return false
-			}
-			is, ok := n.(*ast.IfStmt)
-			if !ok || is.Else != nil || !errNotNil(is.Cond) {
-				return true
-			}
-			switch {
-			case len(is.Body.List) == 0 && !commented(file, is.Body):
-				out = append(out, facts.Smell{Kind: facts.EmptyErrorCheck, Line: line(is.Pos()), EndLine: line(is.End()), Func: name})
-			case returnsError && len(is.Body.List) == 1:
-				if ret, ok := is.Body.List[0].(*ast.ReturnStmt); ok && len(ret.Results) > 0 && isNil(ret.Results[len(ret.Results)-1]) {
-					out = append(out, facts.Smell{Kind: facts.ErrorDropped, Line: line(is.Pos()), EndLine: line(is.End()), Func: name})
-				}
-			}
-			return true
-		})
-	}
+	sf := &smellFinder{fset: fset, file: file}
 	for _, d := range file.Decls {
 		switch d := d.(type) {
 		case *ast.FuncDecl:
@@ -74,14 +44,14 @@ func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, ma
 			}
 			name := funcName(d)
 			if placeholder(d.Body) {
-				out = append(out, facts.Smell{Kind: facts.Placeholder, Line: line(d.Pos()), EndLine: line(d.End()), Func: name})
+				sf.add(facts.Placeholder, d, name)
 			}
-			check(d.Body, d.Type.Results, name)
+			sf.check(d.Body, d.Type.Results, name)
 		case *ast.GenDecl:
 			// Function literals in package-level variables.
 			ast.Inspect(d, func(n ast.Node) bool {
 				if fl, ok := n.(*ast.FuncLit); ok {
-					check(fl.Body, nil, "a function literal")
+					sf.check(fl.Body, nil, "a function literal")
 					return false
 				}
 				return true
@@ -94,21 +64,74 @@ func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, ma
 			continue // the expected output of an example, which go test checks
 		}
 		for _, sp := range commentedCode(fset, cg, code) {
-			out = append(out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
+			sf.out = append(sf.out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
 		}
 	}
-	slices.SortStableFunc(out, func(a, b facts.Smell) int { return a.Line - b.Line })
+	slices.SortStableFunc(sf.out, func(a, b facts.Smell) int { return a.Line - b.Line })
+	return capSmells(sf.out)
+}
+
+// smellFinder collects the smells of one file.
+type smellFinder struct {
+	fset *token.FileSet
+	file *ast.File
+	out  []facts.Smell
+}
+
+func (sf *smellFinder) add(kind facts.SmellKind, n ast.Node, name string) {
+	sf.out = append(sf.out, facts.Smell{Kind: kind, Line: lineOf(sf.fset, n.Pos()), EndLine: lineOf(sf.fset, n.End()), Func: name})
+}
+
+// check finds the error checks in a function body. A function literal is checked under the name of
+// the function that holds it, for empty checks only: a callback such as a filepath.WalkDir function
+// returns nil on an error to skip an entry, by design.
+func (sf *smellFinder) check(body *ast.BlockStmt, results *ast.FieldList, name string) {
+	returnsError := false
+	if results != nil && len(results.List) > 0 {
+		id, ok := results.List[len(results.List)-1].Type.(*ast.Ident)
+		returnsError = ok && id.Name == "error"
+	}
+	ast.Inspect(body, func(n ast.Node) bool {
+		if fl, ok := n.(*ast.FuncLit); ok {
+			sf.check(fl.Body, nil, name)
+			return false
+		}
+		is, ok := n.(*ast.IfStmt)
+		if !ok || is.Else != nil || !errNotNil(is.Cond) {
+			return true
+		}
+		switch {
+		case len(is.Body.List) == 0 && !commented(sf.file, is.Body):
+			sf.add(facts.EmptyErrorCheck, is, name)
+		case returnsError && returnsNilError(is.Body):
+			sf.add(facts.ErrorDropped, is, name)
+		}
+		return true
+	})
+}
+
+// returnsNilError reports a body that is only a return whose last result is nil.
+func returnsNilError(body *ast.BlockStmt) bool {
+	if len(body.List) != 1 {
+		return false
+	}
+	ret, ok := body.List[0].(*ast.ReturnStmt)
+	return ok && len(ret.Results) > 0 && isNil(ret.Results[len(ret.Results)-1])
+}
+
+// capSmells keeps at most MaxSmells of each kind, and counts the rest.
+func capSmells(out []facts.Smell) ([]facts.Smell, map[facts.SmellKind]int) {
 	kept, dropped := out[:0], map[facts.SmellKind]int(nil)
 	count := map[facts.SmellKind]int{}
 	for _, s := range out {
-		if count[s.Kind]++; count[s.Kind] > MaxSmells {
-			if dropped == nil {
-				dropped = map[facts.SmellKind]int{}
-			}
-			dropped[s.Kind]++
+		if count[s.Kind]++; count[s.Kind] <= MaxSmells {
+			kept = append(kept, s)
 			continue
 		}
-		kept = append(kept, s)
+		if dropped == nil {
+			dropped = map[facts.SmellKind]int{}
+		}
+		dropped[s.Kind]++
 	}
 	return kept, dropped
 }
@@ -164,34 +187,38 @@ func placeholder(body *ast.BlockStmt) bool {
 	if len(body.List) != 1 {
 		return false
 	}
-	saysSo := func(args []ast.Expr) bool {
-		for _, a := range args {
-			if lit, ok := a.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				if s, err := strconv.Unquote(lit.Value); err == nil && notImplemented.MatchString(s) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	call := func(e ast.Expr) *ast.CallExpr { c, _ := e.(*ast.CallExpr); return c }
 	switch s := body.List[0].(type) {
 	case *ast.ExprStmt:
-		if c := call(s.X); c != nil {
-			if id, ok := c.Fun.(*ast.Ident); ok && id.Name == "panic" {
-				return saysSo(c.Args)
-			}
+		if c, ok := s.X.(*ast.CallExpr); ok {
+			id, ok := c.Fun.(*ast.Ident)
+			return ok && id.Name == "panic" && saysNotImplemented(c.Args)
 		}
 	case *ast.ReturnStmt:
-		for _, r := range s.Results {
-			if c := call(r); c != nil {
-				if sel, ok := c.Fun.(*ast.SelectorExpr); ok && (sel.Sel.Name == "New" || sel.Sel.Name == "Errorf") && saysSo(c.Args) {
-					return true
-				}
-			}
-		}
+		return slices.ContainsFunc(s.Results, isNotImplementedError)
 	}
 	return false
+}
+
+// isNotImplementedError reports a call such as errors.New or fmt.Errorf that says it is not
+// implemented.
+func isNotImplementedError(e ast.Expr) bool {
+	c, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := c.Fun.(*ast.SelectorExpr)
+	return ok && (sel.Sel.Name == "New" || sel.Sel.Name == "Errorf") && saysNotImplemented(c.Args)
+}
+
+func saysNotImplemented(args []ast.Expr) bool {
+	return slices.ContainsFunc(args, func(a ast.Expr) bool {
+		lit, ok := a.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return false
+		}
+		s, err := strconv.Unquote(lit.Value)
+		return err == nil && notImplemented.MatchString(s)
+	})
 }
 
 // directive matches comment lines that are instructions to a tool, not text.
@@ -210,30 +237,11 @@ var codeHint = regexp.MustCompile(`[(){}=:<\-+]|^\s*(return|go|defer|for|if|swit
 // space before its own tabs), and directives are instructions to tools: all of these end a run, as
 // prose does. A single identifier or a label does not count.
 func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]int {
-	type line struct {
-		n    int
-		text string
-	}
 	var spans [][2]int
-	var run []line
+	var run []commentLine
 	flush := func() {
-		defer func() { run = run[:0] }()
-		if len(run) == 0 {
-			return
-		}
-		texts := make([]string, len(run))
-		for i, l := range run {
-			texts[i] = l.text
-		}
-		if isCode(strings.Join(texts, "\n")) {
-			spans = append(spans, [2]int{run[0].n, run[len(run)-1].n})
-			return
-		}
-		for _, l := range run {
-			if !strings.HasPrefix(strings.TrimSpace(l.text), "//") && isCode(l.text) {
-				spans = append(spans, [2]int{l.n, l.n})
-			}
-		}
+		spans = append(spans, runSpans(run)...)
+		run = run[:0]
 	}
 	for _, c := range cg.List {
 		t, ok := strings.CutPrefix(c.Text, "//")
@@ -244,14 +252,42 @@ func commentedCode(fset *token.FileSet, cg *ast.CommentGroup, code []bool) [][2]
 			n < len(code) && code[n]:
 			flush()
 		case len(run) > 0 && strings.HasPrefix(trim, "//"):
-			run = append(run, line{n, t}) // a comment inside commented-out code
+			run = append(run, commentLine{n, t}) // a comment inside commented-out code
 		case strings.HasSuffix(trim, "{") || strings.HasPrefix(trim, "}") || codeHint.MatchString(trim) && isCode(trim):
-			run = append(run, line{n, t})
+			run = append(run, commentLine{n, t})
 		default:
 			flush()
 		}
 	}
 	flush()
+	return spans
+}
+
+// commentLine is a comment line without its slashes, and its line number.
+type commentLine struct {
+	n    int
+	text string
+}
+
+// runSpans returns a run of lines as one span when it parses as a whole, and otherwise each line
+// that does so on its own.
+func runSpans(run []commentLine) [][2]int {
+	if len(run) == 0 {
+		return nil
+	}
+	texts := make([]string, len(run))
+	for i, l := range run {
+		texts[i] = l.text
+	}
+	if isCode(strings.Join(texts, "\n")) {
+		return [][2]int{{run[0].n, run[len(run)-1].n}}
+	}
+	var spans [][2]int
+	for _, l := range run {
+		if !strings.HasPrefix(strings.TrimSpace(l.text), "//") && isCode(l.text) {
+			spans = append(spans, [2]int{l.n, l.n})
+		}
+	}
 	return spans
 }
 
@@ -310,39 +346,34 @@ func refs(file *ast.File) []string {
 		fd, isFunc := d.(*ast.FuncDecl)
 		ast.Inspect(d, func(n ast.Node) bool {
 			id, ok := n.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if isFunc && id == fd.Name {
-				if fd.Doc != nil && slices.ContainsFunc(fd.Doc.List, func(c *ast.Comment) bool {
-					return strings.HasPrefix(c.Text, "//go:wasmexport ")
-				}) {
+			switch {
+			case !ok:
+			case isFunc && id == fd.Name:
+				if wasmExported(fd) {
 					seen[id.Name] = true // the wasm host calls it
 				}
-				return true
+			case isFunc && fd.Recv == nil && id.Name == fd.Name.Name:
+				// recursion does not keep a function alive
+			default:
+				seen[id.Name] = true
 			}
-			if isFunc && fd.Recv == nil && id.Name == fd.Name.Name {
-				return true // recursion does not keep a function alive
-			}
-			seen[id.Name] = true
 			return true
 		})
 	}
 	for _, cg := range file.Comments {
 		for _, c := range cg.List {
-			f := strings.Fields(c.Text)
-			switch {
-			case len(f) >= 2 && f[0] == "//export":
-				seen[f[1]] = true
-			case len(f) >= 2 && f[0] == "//go:linkname":
+			if f := strings.Fields(c.Text); len(f) >= 2 && (f[0] == "//export" || f[0] == "//go:linkname") {
 				seen[f[1]] = true
 			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for n := range seen {
-		out = append(out, n)
-	}
+	out := slices.Collect(maps.Keys(seen))
 	slices.Sort(out)
 	return out
+}
+
+func wasmExported(fd *ast.FuncDecl) bool {
+	return fd.Doc != nil && slices.ContainsFunc(fd.Doc.List, func(c *ast.Comment) bool {
+		return strings.HasPrefix(c.Text, "//go:wasmexport ")
+	})
 }
