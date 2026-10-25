@@ -20,7 +20,7 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 
 ## What works today
 
-`githealthcheck scan [--format text|json] [--coverage <file>] [-o <file>] [--timeout <d>] <path>` scans the commit at HEAD. Go is analysed by every family, and Python by tests and complexity; other languages are counted. Python needs python3 3.10 or later on `PATH`, whose `ast` module parses the code (it is never run); without one, Python is reported as not analysed, with the reason. Of the four families, three are implemented:
+`githealthcheck scan [--format text|json|sarif|markdown] [--coverage <file>] [-o <file>] [--timeout <d>] <path>` scans the commit at HEAD. Go is analysed by every family, and Python by tests and complexity; other languages are counted. Python needs python3 3.10 or later on `PATH`, whose `ast` module parses the code (it is never run); without one, Python is reported as not analysed, with the reason. Of the four families, three are implemented:
 
 - **tests**: the test-to-code line ratio, the share of Go packages without a test file, and statement coverage read from an existing Go coverage profile or coverage.py XML report (the tool never runs your tests).
 - **history**: the truck factor of Avelino et al. (ICPC 2016), checked against the authors' own tool, the share of files with a single author, and the share of files whose authors have all stopped committing. It works on every recognised language and needs the full history (not a shallow clone) and at least 50 commits.
@@ -63,6 +63,30 @@ That is this repository scanning itself, shortened: its own complexity is far be
 `githealthcheck calibrate [--check]` measures the corpus at its pinned commits and writes, or checks, `calibration/corpus.lock`.
 
 Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
+
+`--json`, `--sarif` and `--markdown <file>` also write those renderings of the same scan. SARIF 2.1.0 is for code scanning: findings that are not on one file (a repository's truck factor, a Go package without tests) are counted there but listed only in the JSON and Markdown reports.
+
+## GitHub Action
+
+```yaml
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write # to upload the SARIF
+      attestations: read # to check the release's provenance
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # history needs the full history
+          persist-credentials: false
+      - uses: Git-Hospital/githealthcheck@v0.3.0
+        with:
+          fail-under: "5"
+```
+
+The Action downloads the release it is pinned to, checks it against the release's checksums and build provenance, scans the checkout, uploads the findings to code scanning and writes the Markdown report to the job summary. Pinned to a commit SHA, it needs `version: v0.3.0` as well. It fails on errors and incomplete runs; `fail-on: findings` also fails on findings or a score under `fail-under`, and `fail-on: never` leaves the decision to the `exit-code`, `verdict` and `score` outputs. A pull request from a fork gets no `security-events: write`; set `upload-sarif: "false"` there. The inputs are in [action.yml](action.yml). Linux and macOS runners.
 
 ## License
 

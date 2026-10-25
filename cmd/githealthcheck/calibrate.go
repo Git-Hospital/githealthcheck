@@ -181,7 +181,7 @@ func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*rep
 	if err := fetchGit(ctx, dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--force", "--detach", e.commit); err != nil {
 		return nil, err
 	}
-	r, err := buildReport(ctx, dir, "")
+	r, _, err := buildReport(ctx, dir, "")
 	if err != nil {
 		return nil, err
 	}

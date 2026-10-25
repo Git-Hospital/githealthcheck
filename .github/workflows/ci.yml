@@ -1,5 +1,5 @@
 # GitHealthCheck's CI: format, vet, tests (including the git hardening tests, which run real git
-# against hostile repository config) and govulncheck. Same security model as Helmbulance's CI: runs on
+# against hostile repository config), govulncheck, and the GitHub Action on Linux and macOS. Same security model as Helmbulance's CI: runs on
 # pull_request, never pull_request_target; read-only token; no secrets, no caches; actions pinned by
 # commit SHA.
 name: CI
@@ -80,3 +80,48 @@ jobs:
           bin=$(find dist -path '*linux_amd64*' -name githealthcheck -type f | head -1)
           "$bin" version
           "$bin" scan --format json . > /dev/null || [ $? -eq 1 ]
+
+  action:
+    name: action on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # gh attestation verify reads this repository's attestations.
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The action on this checkout, built from source: the released binaries predate the action's flags.
+      - id: ghc
+        uses: ./
+        with:
+          version: source
+          upload-sarif: "false"
+          fail-on: never
+      - name: the action wrote its reports and outputs
+        env:
+          CODE: ${{ steps.ghc.outputs.exit-code }}
+          VERDICT: ${{ steps.ghc.outputs.verdict }}
+          SCORE: ${{ steps.ghc.outputs.score }}
+          DIR: ${{ steps.ghc.outputs.report-dir }}
+        run: |
+          echo "exit $CODE, verdict $VERDICT, score $SCORE"
+          case "$CODE:$VERDICT" in 0:PASS | 1:FAIL) ;; *) exit 1 ;; esac
+          [ -n "$SCORE" ]
+          jq -e '.version == "2.1.0" and (.runs[0].results | length) > 0' "$DIR/report.sarif" > /dev/null
+          jq -e '.overall.score.value != null' "$DIR/report.json" > /dev/null
+          grep -q '^## githealthcheck: ' "$DIR/report.md"
+      # The release download path, on the latest published release: checksum and provenance.
+      - name: install.sh installs and verifies a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          action/install.sh "$RUNNER_TEMP/released" v0.2.0 true
+          if action/install.sh "$RUNNER_TEMP/bad" v0.2 false; then exit 1; fi

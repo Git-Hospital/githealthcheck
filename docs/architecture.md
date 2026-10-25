@@ -66,6 +66,7 @@ internal/
                            npm audit with --ignore-scripts. Any path that would build a package needs --allow-exec.
   score/                   corpus.lock model, percentiles, family and overall scores (D35)
   report/                  Report model + JSON (schema), SARIF, Markdown, terminal renderers
+action.yml, action/        The GitHub Action and its release installer
 calibration/corpus.txt     the corpus: language, repository and commit per line (D19, D35)
 calibration/corpus.lock    what `githealthcheck calibrate` measured on it, built into the binary
 docs/rules/                one page per rule ID (also served by `explain`)
@@ -158,7 +159,10 @@ Guards against the "measured or null" principle being bypassed:
 - `inputs`: files analysed/total, `coverage` (the report found or named: `path`, relative to the root or only the base name when outside it, `tracked`, and once it is parsed `format`, `files`, `moduleFiles`, `filesAtHead`), `walkComplete` (false when `--timeout` ran out during the walk; the file and line counts are then partial, and the text output says so), commits read, elapsed time
 - `skipped[]`: what was not done, and why; always an array, `[]` when empty
 
-Every `null` carries a `reason`. JSON is the source of truth. SARIF, Markdown and the terminal table are pure renderings of it, tested by golden files.
+Every `null` carries a `reason`. JSON is the source of truth. Markdown and the terminal table are renderings of it; SARIF also needs the commit's file list, since a result must be on a file (D36). `--json`, `--sarif` and `--markdown` write more renderings of the same scan to files.
+
+- **SARIF 2.1.0**: one result per finding on a file, with paths relative to the root (`%SRCROOT%`), the rule's page as `helpUri`, level `warning` for complexity and tests and `note` for history, and suppressed findings as `suppressions`. Findings on a directory or the whole repository are counted in a notification, and so are those past the first 5,000 results (code scanning shows 5,000 and rejects more than 25,000).
+- **Markdown**: the score, a table of families and metrics, and up to 200 findings linked to their rules. Every path and message is escaped as literal text.
 
 Exit codes (D25):
 - **0:** no unsuppressed findings, and the score is not below `--fail-under`.

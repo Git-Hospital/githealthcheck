@@ -135,6 +135,68 @@ func TestScanWritesOnlyWhenAsked(t *testing.T) {
 	}
 }
 
+// One scan writes every rendering: stdout gets --format, the files get --json, --sarif and
+// --markdown. The untested package is a directory, so it is in the Markdown but not a SARIF result;
+// the commented-out code is on a file and is one.
+func TestScanWritesEveryFormat(t *testing.T) {
+	dir := gitRepoWith(t, map[string]string{
+		"main.go": "package main\n\nfunc main() {\n\t// fmt.Println(x)\n\t// return y\n}\n",
+	})
+	out := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"scan", "--format", "markdown", "--json", filepath.Join(out, "r.json"),
+		"--sarif", filepath.Join(out, "r.sarif"), "--markdown", filepath.Join(out, "r.md"), dir}, &stdout, &stderr)
+	if code != report.ExitFindings {
+		t.Fatalf("exit %d; stderr: %s", code, stderr.String())
+	}
+	md, err := os.ReadFile(filepath.Join(out, "r.md"))
+	if err != nil || !bytes.Equal(md, stdout.Bytes()) || !strings.Contains(string(md), tests.UntestedPackage) {
+		t.Errorf("markdown file %v differs from stdout or lacks the untested package:\n%s", err, md)
+	}
+	var r report.Report
+	if body, err := os.ReadFile(filepath.Join(out, "r.json")); err != nil || json.Unmarshal(body, &r) != nil || len(r.Families) != 4 {
+		t.Errorf("json file: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(out, "r.sarif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log struct {
+		Runs []struct {
+			Results []struct {
+				RuleID    string `json:"ruleId"`
+				Locations []struct {
+					Physical struct {
+						Artifact struct{ URI string } `json:"artifactLocation"`
+					} `json:"physicalLocation"`
+				} `json:"locations"`
+			} `json:"results"`
+			Invocations []struct {
+				Notifications []json.RawMessage `json:"toolExecutionNotifications"`
+			} `json:"invocations"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(body, &log); err != nil {
+		t.Fatal(err)
+	}
+	res := log.Runs[0].Results
+	if len(res) != 1 || res[0].RuleID != complexity.CommentedCode || res[0].Locations[0].Physical.Artifact.URI != "main.go" {
+		t.Errorf("sarif results %+v", res)
+	}
+	if len(log.Runs[0].Invocations[0].Notifications) != 1 {
+		t.Errorf("no notification for the untested package: %s", body)
+	}
+}
+
+// A rendering that cannot be written fails the run, as -o does.
+func TestScanExtraFileFailureIsError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	missing := filepath.Join(t.TempDir(), "no", "such", "dir", "r.sarif")
+	if code := run([]string{"scan", "--sarif", missing, gitRepo(t)}, &stdout, &stderr); code != report.ExitError {
+		t.Errorf("exit %d, want %d", code, report.ExitError)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	dir := gitRepo(t)
 	cases := [][]string{

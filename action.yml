@@ -1,0 +1,199 @@
+name: githealthcheck
+description: Measure a repository's code health (tests, history, complexity), upload the findings to code scanning, and put the report in the job summary.
+branding:
+  icon: activity
+  color: red
+
+inputs:
+  path:
+    description: The repository to scan, relative to the workspace. History needs its full history (actions/checkout with fetch-depth 0).
+    default: .
+  version:
+    description: >-
+      The githealthcheck release to run, such as v0.3.0. Empty means the action's own tag, which is
+      required then: pin the action to a release tag or set this. "source" builds the action's own
+      checkout instead (for testing the action).
+    default: ""
+  coverage:
+    description: A coverage report to read (a Go profile or coverage.py's XML), relative to the workspace. Empty looks for one at the repository root.
+    default: ""
+  fail-under:
+    description: Fail when the overall score is below this number (0-10). Empty sets no gate.
+    default: ""
+  timeout:
+    description: Give up after this long; the run is then incomplete (exit 3).
+    default: 10m
+  report-dir:
+    description: Where report.json, report.sarif and report.md are written, relative to the workspace.
+    default: githealthcheck-report
+  upload-sarif:
+    description: >-
+      "true" uploads report.sarif to code scanning, which needs `permissions: security-events: write`
+      in the job. A fork's pull request has no such permission; set "false" there.
+    default: "true"
+  verify-provenance:
+    description: '"true" checks the downloaded release with `gh attestation verify` as well as its checksum.'
+    default: "true"
+  fail-on:
+    description: >-
+      When the step fails. "findings": on findings, a score under fail-under, errors or an incomplete
+      run (exit 1, 2 or 3). "error": only on errors or an incomplete run (exit 2 or 3). "never": the
+      step always passes; read the exit-code output instead.
+    default: error
+
+outputs:
+  exit-code:
+    description: githealthcheck's exit code. 0 clean, 1 findings or a score under fail-under, 2 error, 3 incomplete.
+    value: ${{ steps.run.outputs.exit-code }}
+  verdict:
+    description: PASS, FAIL, ERROR or INCOMPLETE, from the exit code.
+    value: ${{ steps.run.outputs.verdict }}
+  score:
+    description: The overall score, or empty when it is null.
+    value: ${{ steps.run.outputs.score }}
+  report-dir:
+    description: The directory that holds report.json, report.sarif and report.md.
+    value: ${{ steps.run.outputs.report-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the inputs
+      id: check
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        UPLOAD: ${{ inputs.upload-sarif }}
+        REPORT_DIR: ${{ inputs.report-dir }}
+      run: |
+        # Both are written to $GITHUB_OUTPUT, where a line break would add an output of its own.
+        for v in "$VERSION" "$REPORT_DIR"; do
+          case "$v" in
+            *$'\n'* | *$'\r'*) echo "::error::the version and report-dir inputs cannot hold a line break"; exit 1 ;;
+          esac
+        done
+        if [ -z "$REPORT_DIR" ]; then
+          echo "::error::report-dir cannot be empty"
+          exit 1
+        fi
+        case "$RUNNER_OS" in
+          Linux | macOS) ;;
+          *) echo "::error::githealthcheck's action runs on Linux and macOS runners, not $RUNNER_OS"; exit 1 ;;
+        esac
+        case "$FAIL_ON" in
+          findings | error | never) ;;
+          *) echo "::error::fail-on must be findings, error or never, not '$FAIL_ON'"; exit 1 ;;
+        esac
+        case "$UPLOAD" in
+          true | false) ;;
+          *) echo "::error::upload-sarif must be true or false, not '$UPLOAD'"; exit 1 ;;
+        esac
+        version=$VERSION
+        if [ -z "$version" ]; then
+          if ! [[ $ACTION_REF =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::the action is not pinned to a release tag (it runs at '$ACTION_REF'); set the version input to the release to run, such as v0.3.0"
+            exit 1
+          fi
+          version=$ACTION_REF
+        fi
+        if [ "$version" != source ] && ! [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::version must be a release tag such as v0.3.0, or source, not '$version'"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - if: steps.check.outputs.version == 'source'
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache: false
+
+    - name: Install githealthcheck
+      shell: bash
+      env:
+        VERSION: ${{ steps.check.outputs.version }}
+        VERIFY: ${{ inputs.verify-provenance }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        bin="$RUNNER_TEMP/githealthcheck-bin"
+        if [ "$VERSION" = source ]; then
+          mkdir -p "$bin"
+          (cd "$GITHUB_ACTION_PATH" && go build -trimpath -o "$bin/githealthcheck" ./cmd/githealthcheck)
+        else
+          "$GITHUB_ACTION_PATH/action/install.sh" "$bin" "$VERSION" "$VERIFY"
+        fi
+
+    - name: Run githealthcheck
+      id: run
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        COVERAGE: ${{ inputs.coverage }}
+        FAIL_UNDER: ${{ inputs.fail-under }}
+        TIMEOUT: ${{ inputs.timeout }}
+        REPORT_DIR: ${{ inputs.report-dir }}
+      run: |
+        mkdir -p "$REPORT_DIR"
+        # A report left by an earlier run must not be published as this run's.
+        rm -f "$REPORT_DIR/report.json" "$REPORT_DIR/report.sarif" "$REPORT_DIR/report.md"
+        args=(scan --timeout "$TIMEOUT" --json "$REPORT_DIR/report.json" --sarif "$REPORT_DIR/report.sarif" --markdown "$REPORT_DIR/report.md")
+        if [ -n "$COVERAGE" ]; then args+=(--coverage "$COVERAGE"); fi
+        if [ -n "$FAIL_UNDER" ]; then args+=(--fail-under "$FAIL_UNDER"); fi
+        args+=(-- "$SCAN_PATH")
+
+        code=0
+        "$RUNNER_TEMP/githealthcheck-bin/githealthcheck" "${args[@]}" || code=$?
+        case "$code" in
+          0) verdict=PASS ;;
+          1) verdict=FAIL ;;
+          3) verdict=INCOMPLETE ;;
+          *) verdict=ERROR ;;
+        esac
+        score=""
+        if [ -f "$REPORT_DIR/report.json" ] && command -v jq > /dev/null; then
+          score=$(jq -r '.overall.score.value // empty' "$REPORT_DIR/report.json")
+        fi
+        {
+          echo "exit-code=$code"
+          echo "verdict=$verdict"
+          echo "score=$score"
+          echo "report-dir=$REPORT_DIR"
+        } >> "$GITHUB_OUTPUT"
+
+        # The job summary holds 1 MiB per step; the cut stays under it, with room for the note.
+        report="$REPORT_DIR/report.md"
+        if [ -f "$report" ]; then
+          limit=1000000
+          if [ "$(wc -c < "$report")" -gt "$limit" ]; then
+            head -c "$limit" "$report" | sed '$d' >> "$GITHUB_STEP_SUMMARY"
+            printf '\n_Report truncated; the full report is in %s._\n' "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        else
+          echo "githealthcheck wrote no report (exit $code)." >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    # Only after this run's scan: a report.sarif left by an earlier run must not be uploaded when the
+    # install failed and the scan never ran.
+    - if: always() && steps.run.outputs.exit-code != '' && inputs.upload-sarif == 'true' && hashFiles(format('{0}/report.sarif', inputs.report-dir)) != ''
+      uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      with:
+        sarif_file: ${{ inputs.report-dir }}/report.sarif
+        # The SARIF paths are relative to the scanned repository's root.
+        checkout_path: ${{ github.workspace }}/${{ inputs.path }}
+        category: githealthcheck
+
+    - name: Decide the step's result
+      shell: bash
+      env:
+        CODE: ${{ steps.run.outputs.exit-code }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        case "$FAIL_ON" in
+          findings) [ "$CODE" = 0 ] || exit "$CODE" ;;
+          error) [ "$CODE" = 0 ] || [ "$CODE" = 1 ] || exit "$CODE" ;;
+          never) ;;
+        esac

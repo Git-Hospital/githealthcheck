@@ -88,8 +88,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 func scan(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	format := fs.String("format", "text", "output format: text or json")
+	format := fs.String("format", "text", "output format: text, json, sarif or markdown")
 	out := fs.String("o", "", "write the report to this file instead of stdout")
+	extra := map[string]*string{
+		"json":     fs.String("json", "", "also write the report as JSON to this file"),
+		"sarif":    fs.String("sarif", "", "also write the findings as SARIF 2.1.0 to this file"),
+		"markdown": fs.String("markdown", "", "also write the report as Markdown to this file"),
+	}
 	timeout := fs.Duration("timeout", 10*time.Minute, "give up after this long; the run then exits 3")
 	failUnderText := fs.String("fail-under", "", "exit 1 when the overall score is below this value (0-10)")
 	coverageFile := fs.String("coverage", "", "read this coverage report instead of looking for one at the repository root")
@@ -100,8 +105,8 @@ func scan(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, usage)
 		return report.ExitError
 	}
-	if *format != "text" && *format != "json" {
-		fmt.Fprintf(stderr, "unknown format %q (text, json)\n", *format)
+	if !slices.Contains(formats, *format) {
+		fmt.Fprintf(stderr, "unknown format %q (%s)\n", *format, strings.Join(formats, ", "))
 		return report.ExitError
 	}
 	var failUnder *float64
@@ -120,7 +125,7 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 
-	r, err := buildReport(ctx, fs.Arg(0), *coverageFile)
+	r, files, err := buildReport(ctx, fs.Arg(0), *coverageFile)
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
 		// Incomplete only when the user's --timeout ran out. A per-command timeout inside (a config
@@ -132,28 +137,67 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	}
 	r.Inputs.ElapsedMillis = time.Since(start).Milliseconds()
 
+	// The extra files first, then the main output: a pipeline that reads stdout finds the files
+	// written when it ends.
+	for _, f := range formats[1:] {
+		if *extra[f] == "" {
+			continue
+		}
+		if code := emit(r, files, f, *extra[f], stdout, stderr); code != report.ExitClean {
+			return code
+		}
+	}
+	if code := emit(r, files, *format, *out, stdout, stderr); code != report.ExitClean {
+		return code
+	}
+	return report.ExitCode(r, failUnder)
+}
+
+// formats are the report's renderings; text is the default and has no extra-file flag.
+var formats = []string{"text", "json", "sarif", "markdown"}
+
+// rules lists the rules of every family, for SARIF.
+func rules() []report.Rule {
+	var out []report.Rule
+	for _, a := range analyzers {
+		for _, rl := range a.Rules() {
+			out = append(out, report.Rule{ID: rl.ID, Title: rl.Title, Family: a.Family()})
+		}
+	}
+	return out
+}
+
+// emit renders r in format and writes it to path, or to stdout when path is empty. It returns
+// ExitError when the report could not be rendered or written: a report that was not written must
+// not let a pipeline pass.
+func emit(r *report.Report, files map[string]bool, format, path string, stdout, stderr io.Writer) int {
 	var body []byte
-	if *format == "json" {
+	var err error
+	switch format {
+	case "json":
 		body, err = json.MarshalIndent(r, "", "  ")
 		body = append(body, '\n')
-	} else {
+	case "sarif":
+		body, err = report.SARIF(r, rules(), func(p string) bool { return files[p] })
+	case "markdown":
+		body = []byte(report.Markdown(r))
+	default:
 		body = []byte(text(r))
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
 		return report.ExitError
 	}
-	if *out != "" {
-		err = writeFile(*out, body)
+	if path != "" {
+		err = writeFile(path, body)
 	} else {
 		_, err = stdout.Write(body)
 	}
 	if err != nil {
-		// A report that was not written must not let a pipeline pass.
-		fmt.Fprintln(stderr, "githealthcheck: writing the report:", err)
+		fmt.Fprintf(stderr, "githealthcheck: writing the %s report: %v\n", format, err)
 		return report.ExitError
 	}
-	return report.ExitCode(r, failUnder)
+	return report.ExitClean
 }
 
 // writeFile refuses a symlink, FIFO or device at path, which would be written through or block, then
@@ -189,10 +233,12 @@ var walk = repo.Walk
 // not_implemented.
 var analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}, complexity.Analyzer{}}
 
-func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, error) {
+// buildReport scans the repository at path. It also returns the files of the commit, which SARIF
+// needs to tell a finding on a file from one on a directory.
+func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, map[string]bool, error) {
 	git, err := execx.NewGit(ctx, path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Read before the walk: a report the user named that cannot be read is a usage error, and is
 	// reported before any time is spent.
@@ -200,7 +246,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	inside := false
 	if coverageFile != "" {
 		if cov, inside, err = readCoverage(git.Root(), coverageFile); err != nil {
-			return nil, fmt.Errorf("--coverage: %w", err)
+			return nil, nil, fmt.Errorf("--coverage: %w", err)
 		}
 	}
 	r := &report.Report{
@@ -220,11 +266,11 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		r.Repository.Head = strings.TrimSpace(string(head))
 	case errors.As(err, &exitErr) && exitErr.ExitCode() == 1 && ctx.Err() == nil:
 	default:
-		return nil, err
+		return nil, nil, err
 	}
 	shallow, err := git.Run(ctx, "rev-parse", "--is-shallow-repository")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
 
@@ -237,12 +283,12 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 			entries, err = repo.ParseTree(out)
 		}
 		if err != nil && ctx.Err() == nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	blobID, err := repo.BlobID(git.ObjectFormat())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// A timed-out walk still produces a report: what was read is listed, walkComplete is false, every
@@ -259,7 +305,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	case ctx.Err() != nil:
 		familyReason = report.Timeout
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	default:
 		r.Inputs.WalkComplete = true
 	}
@@ -335,7 +381,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	if r.Inputs.Coverage == nil && cov != nil {
 		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
 	}
-	return r, nil
+	return r, rf.Paths, nil
 }
 
 // modules reads every go.mod in the commit that the go command does not ignore. They are ordered by
