@@ -99,26 +99,47 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 		defer os.RemoveAll(*work)
 	}
 
+	lock, err := measureCorpus(corpus, *work, *keep, *timeout, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, "githealthcheck:", err)
+		return report.ExitError
+	}
+	body, err := json.MarshalIndent(lock, "", "  ")
+	if err != nil {
+		fmt.Fprintln(stderr, "githealthcheck:", err)
+		return report.ExitError
+	}
+	body = append(body, '\n')
+	if *check {
+		return checkLock(*lockFile, lock, stdout, stderr)
+	}
+	if err := writeFile(*lockFile, body); err != nil {
+		fmt.Fprintln(stderr, "githealthcheck:", err)
+		return report.ExitError
+	}
+	fmt.Fprintf(stdout, "wrote %s: %d repositories\n", *lockFile, len(lock.Repos))
+	return report.ExitClean
+}
+
+// measureCorpus measures each repository of the corpus into a lock, and prints its progress.
+func measureCorpus(corpus []corpusEntry, work string, keep bool, timeout time.Duration, progress io.Writer) (*score.Lock, error) {
 	lock := &score.Lock{Format: score.Format, Tool: version}
 	tools := map[string]report.Tool{}
 	for i, e := range corpus {
 		start := time.Now()
-		r, err := measure(e, *work, *keep, *timeout)
+		r, err := measure(e, work, keep, timeout)
 		if err != nil {
-			fmt.Fprintf(stderr, "githealthcheck: %s: %v\n", e.name, err)
-			return report.ExitError
+			return nil, fmt.Errorf("%s: %w", e.name, err)
 		}
 		rp := score.Repo{Language: e.language, Name: e.name, Commit: e.commit, Metrics: map[string]report.Measurement{}}
 		for _, f := range r.Families {
-			for m, v := range f.Metrics {
-				rp.Metrics[m] = v
-			}
+			maps.Copy(rp.Metrics, f.Metrics)
 		}
 		for _, t := range r.Inputs.Tools {
 			tools[t.Name] = t
 		}
 		lock.Repos = append(lock.Repos, rp)
-		fmt.Fprintf(stderr, "[%d/%d] %s %s (%s)\n", i+1, len(corpus), e.name, e.commit[:12], time.Since(start).Round(time.Second))
+		fmt.Fprintf(progress, "[%d/%d] %s %s (%s)\n", i+1, len(corpus), e.name, e.commit[:12], time.Since(start).Round(time.Second))
 	}
 	for _, name := range []string{"python3"} {
 		if t, ok := tools[name]; ok {
@@ -126,38 +147,29 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	lock.Distributions()
-	body, err := json.MarshalIndent(lock, "", "  ")
+	return lock, nil
+}
+
+// checkLock compares what was measured with the lock file: exit 1 when they differ.
+func checkLock(lockFile string, lock *score.Lock, stdout, stderr io.Writer) int {
+	old, err := os.ReadFile(lockFile)
+	var was *score.Lock
+	if err == nil {
+		was, err = score.Load(old)
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
 		return report.ExitError
 	}
-	body = append(body, '\n')
-
-	if !*check {
-		if err := writeFile(*lockFile, body); err != nil {
-			fmt.Fprintln(stderr, "githealthcheck:", err)
-			return report.ExitError
-		}
-		fmt.Fprintf(stdout, "wrote %s: %d repositories\n", *lockFile, len(lock.Repos))
-		return report.ExitClean
+	diffs := lockDiff(was, lock)
+	for _, d := range diffs {
+		fmt.Fprintln(stdout, d)
 	}
-	old, err := os.ReadFile(*lockFile)
-	if err == nil {
-		var was *score.Lock
-		if was, err = score.Load(old); err == nil {
-			diffs := lockDiff(was, lock)
-			for _, d := range diffs {
-				fmt.Fprintln(stdout, d)
-			}
-			if len(diffs) > 0 {
-				return report.ExitFindings
-			}
-			fmt.Fprintf(stdout, "%s matches: %d repositories\n", *lockFile, len(lock.Repos))
-			return report.ExitClean
-		}
+	if len(diffs) > 0 {
+		return report.ExitFindings
 	}
-	fmt.Fprintln(stderr, "githealthcheck:", err)
-	return report.ExitError
+	fmt.Fprintf(stdout, "%s matches: %d repositories\n", lockFile, len(lock.Repos))
+	return report.ExitClean
 }
 
 // measure clones one corpus repository without blobs, checks out its commit, which fetches the blobs
@@ -239,28 +251,29 @@ func lockDiff(was, now *score.Lock) []string {
 		switch {
 		case !ok:
 			out = append(out, r.Name+": not in the lock")
-			continue
 		case o.Commit != r.Commit || o.Language != r.Language:
 			out = append(out, fmt.Sprintf("%s: %s %s in the lock, %s %s now", r.Name, o.Language, o.Commit, r.Language, r.Commit))
-			continue
-		}
-		names := map[string]bool{}
-		for m := range o.Metrics {
-			names[m] = true
-		}
-		for m := range r.Metrics {
-			names[m] = true
-		}
-		for _, m := range slices.Sorted(maps.Keys(names)) {
-			if a, b := valueText(o.Metrics[m]), valueText(r.Metrics[m]); a != b {
-				out = append(out, fmt.Sprintf("%s %s: %s in the lock, %s now", r.Name, m, a, b))
-			}
+		default:
+			out = append(out, metricDiff(o, r)...)
 		}
 	}
 	for name := range old {
 		out = append(out, name+": in the lock, not in the corpus")
 	}
 	slices.Sort(out)
+	return out
+}
+
+// metricDiff lists the metrics of one repository whose values differ.
+func metricDiff(was, now score.Repo) []string {
+	names := maps.Clone(was.Metrics)
+	maps.Copy(names, now.Metrics)
+	var out []string
+	for _, m := range slices.Sorted(maps.Keys(names)) {
+		if a, b := valueText(was.Metrics[m]), valueText(now.Metrics[m]); a != b {
+			out = append(out, fmt.Sprintf("%s %s: %s in the lock, %s now", now.Name, m, a, b))
+		}
+	}
 	return out
 }
 

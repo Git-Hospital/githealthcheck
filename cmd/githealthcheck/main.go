@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -257,43 +258,84 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		Repository: report.Repo{Path: filepath.Base(git.Root())},
 		Skipped:    []report.Skip{},
 	}
+	if r.Repository.Head, r.Repository.Shallow, err = readHead(ctx, git); err != nil {
+		return nil, nil, err
+	}
+	entries, err := treeEntries(ctx, git, r.Repository.Head)
+	if err != nil {
+		return nil, nil, err
+	}
+	tree, err := scanTree(ctx, git, entries, r)
+	if err != nil {
+		return nil, nil, err
+	}
+	timedOut := !r.Inputs.WalkComplete
+	rf := &facts.Repo{Files: tree.Files, Paths: map[string]bool{}, Coverage: cov}
+	for _, e := range entries {
+		rf.Paths[e.Path] = true
+	}
+	if inside {
+		cov.Tracked = rf.Paths[cov.Name]
+	}
+	if !timedOut {
+		readFacts(ctx, git, entries, r, rf)
+	}
+	runFamilies(ctx, r, rf, timedOut)
+	if corpus != nil && !timedOut {
+		corpus.Apply(r)
+	}
+	// A report the user named is listed even when no family read it, e.g. in a repository without Go.
+	if r.Inputs.Coverage == nil && cov != nil {
+		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
+	}
+	return r, rf.Paths, nil
+}
+
+// readHead returns the commit HEAD names, empty on an unborn branch, and whether the clone is shallow.
+func readHead(ctx context.Context, git *execx.Git) (head string, shallow bool, err error) {
 	// --verify --quiet exits 1 with no output only when HEAD does not resolve: an unborn branch. Any
 	// other failure is an error, not an absent head.
-	head, err := git.Run(ctx, "rev-parse", "--verify", "--quiet", "HEAD")
+	out, err := git.Run(ctx, "rev-parse", "--verify", "--quiet", "HEAD")
 	var exitErr *exec.ExitError
 	switch {
 	case err == nil:
-		r.Repository.Head = strings.TrimSpace(string(head))
+		head = strings.TrimSpace(string(out))
 	case errors.As(err, &exitErr) && exitErr.ExitCode() == 1 && ctx.Err() == nil:
 	default:
-		return nil, nil, err
+		return "", false, err
 	}
-	shallow, err := git.Run(ctx, "rev-parse", "--is-shallow-repository")
+	out, err = git.Run(ctx, "rev-parse", "--is-shallow-repository")
 	if err != nil {
-		return nil, nil, err
+		return "", false, err
 	}
-	r.Repository.Shallow = strings.TrimSpace(string(shallow)) == "true"
+	return head, strings.TrimSpace(string(out)) == "true", nil
+}
 
-	// Only the files in HEAD's tree are read: untracked and ignored files (.venv, build output) are not
-	// part of the commit the report names. A branch with no commits has no files.
-	var entries []repo.Entry
-	if r.Repository.Head != "" {
-		out, err := git.Run(ctx, "ls-tree", "-r", "-z", "--full-tree", r.Repository.Head)
-		if err == nil {
-			entries, err = repo.ParseTree(out)
-		}
-		if err != nil && ctx.Err() == nil {
-			return nil, nil, err
-		}
+// treeEntries lists the files in head's tree. Only they are read: untracked and ignored files (.venv,
+// build output) are not part of the commit the report names. A branch with no commits has no files;
+// when ctx ends, the files listed so far are returned.
+func treeEntries(ctx context.Context, git *execx.Git, head string) ([]repo.Entry, error) {
+	if head == "" {
+		return nil, nil
 	}
+	out, err := git.Run(ctx, "ls-tree", "-r", "-z", "--full-tree", head)
+	var entries []repo.Entry
+	if err == nil {
+		entries, err = repo.ParseTree(out)
+	}
+	if err != nil && ctx.Err() == nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// scanTree walks the files and fills in the report's languages, inputs and skipped paths. A timed-out
+// walk still produces a report: what was read is listed and walkComplete stays false.
+func scanTree(ctx context.Context, git *execx.Git, entries []repo.Entry, r *report.Report) (*repo.Tree, error) {
 	blobID, err := repo.BlobID(git.ObjectFormat())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	// A timed-out walk still produces a report: what was read is listed, walkComplete is false, every
-	// family is null with reason timeout, and the run exits 3.
-	familyReason := report.NotImplemented
 	tree := &repo.Tree{}
 	if ctx.Err() == nil {
 		tree, err = walk(ctx, git.Root(), entries, blobID)
@@ -303,9 +345,8 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	}
 	switch {
 	case ctx.Err() != nil:
-		familyReason = report.Timeout
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		r.Inputs.WalkComplete = true
 	}
@@ -323,39 +364,43 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	}
 	missing := slices.ContainsFunc(tree.Skipped, func(s report.Skip) bool { return s.Reason == report.SkipMissing })
 	r.Repository.Dirty = r.Repository.ModifiedFiles > 0 || missing
+	return tree, nil
+}
 
-	rf := &facts.Repo{Files: tree.Files, Paths: map[string]bool{}, Coverage: cov}
-	for _, e := range entries {
-		rf.Paths[e.Path] = true
-	}
-	if inside {
-		cov.Tracked = rf.Paths[cov.Name]
-	}
-	if familyReason != report.Timeout {
-		var skipped []report.Skip
-		rf.Modules, skipped = modules(ctx, git.Root(), entries)
+// readFacts reads what the families need besides the files: the Go modules, a coverage report the
+// user did not name, and the history.
+func readFacts(ctx context.Context, git *execx.Git, entries []repo.Entry, r *report.Report, rf *facts.Repo) {
+	var skipped []report.Skip
+	rf.Modules, skipped = modules(ctx, git.Root(), entries)
+	r.Skipped = append(r.Skipped, skipped...)
+	if rf.Coverage == nil {
+		rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
 		r.Skipped = append(r.Skipped, skipped...)
-		if cov == nil {
-			rf.Coverage, skipped = findCoverage(git.Root(), rf.Paths)
-			r.Skipped = append(r.Skipped, skipped...)
-		}
-		rf.History, skipped, _ = readHistory(ctx, git, r.Repository.Head, r.Repository.Shallow) // nil only when ctx ended
-		r.Skipped = append(r.Skipped, skipped...)
-		if rf.History != nil {
-			r.Inputs.Commits = len(rf.History.Commits)
-		}
 	}
+	rf.History, skipped, _ = readHistory(ctx, git, r.Repository.Head, r.Repository.Shallow) // nil only when ctx ended
+	r.Skipped = append(r.Skipped, skipped...)
+	if rf.History != nil {
+		r.Inputs.Commits = len(rf.History.Commits)
+	}
+}
 
+// runFamilies runs each family's analyzer. After a timed-out walk every family is null with the
+// reason timeout; a family without an analyzer is not_implemented.
+func runFamilies(ctx context.Context, r *report.Report, rf *facts.Repo, timedOut bool) {
+	familyReason := report.NotImplemented
+	if timedOut {
+		familyReason = report.Timeout
+	}
 	byFamily := map[report.Family]analyze.Analyzer{}
 	for _, a := range analyzers {
 		byFamily[a.Family()] = a
 	}
 	for _, f := range report.Families {
 		fr := report.FamilyResult{Family: f, Reason: familyReason, Score: report.Null(familyReason)}
-		if a := byFamily[f]; a != nil && familyReason != report.Timeout {
+		if a := byFamily[f]; a != nil && !timedOut {
 			res := a.Run(ctx, rf)
 			fr.Measured, fr.Reason, fr.Metrics, fr.Findings = res.Measured, res.Reason, res.Metrics, res.Findings
-			// A measured family is scored below, against the calibration corpus.
+			// A measured family is scored afterwards, against the calibration corpus.
 			fr.Score = report.Null(report.NotCalibrated)
 			if !res.Measured {
 				fr.Score = report.Null(res.Reason)
@@ -374,14 +419,6 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	if r.Overall.Measured >= 2 {
 		r.Overall.Score = report.Null(report.NotCalibrated)
 	}
-	if corpus != nil && familyReason != report.Timeout {
-		corpus.Apply(r)
-	}
-	// A report the user named is listed even when no family read it, e.g. in a repository without Go.
-	if r.Inputs.Coverage == nil && cov != nil {
-		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
-	}
-	return r, rf.Paths, nil
 }
 
 // modules reads every go.mod in the commit that the go command does not ignore. They are ordered by
@@ -530,6 +567,23 @@ func text(r *report.Report) string {
 	if r.Repository.Dirty {
 		fmt.Fprintf(&b, " (work tree differs from it: %d files modified)", r.Repository.ModifiedFiles)
 	}
+	textLanguages(&b, r)
+	textFamilies(&b, r)
+	if c := r.Inputs.Coverage; c != nil {
+		textCoverage(&b, c)
+	}
+	textFindings(&b, r)
+	fmt.Fprintf(&b, "\nOverall  %s  (%d of %d families measured)\n", scoreText(r.Overall.Score), r.Overall.Measured, r.Overall.Of)
+	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
+		fmt.Fprintf(&b, "  scored as %s against %d corpus repositories, %.0f%% of the code analysed\n", c.Language, c.Repositories, 100*c.AnalysedShare)
+	}
+	if len(r.Skipped) > 0 {
+		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
+	}
+	return b.String()
+}
+
+func textLanguages(b *strings.Builder, r *report.Report) {
 	b.WriteString("\n\nLanguages")
 	if !r.Inputs.WalkComplete {
 		b.WriteString(" (partial: the run timed out during the walk)")
@@ -543,67 +597,64 @@ func text(r *report.Report) string {
 		case l.Reason != "":
 			status += " (" + string(l.Reason) + ")"
 		}
-		fmt.Fprintf(&b, "  %-12s %6d files %8d lines  %s\n", l.Name, l.Files, l.Lines, status)
+		fmt.Fprintf(b, "  %-12s %6d files %8d lines  %s\n", l.Name, l.Files, l.Lines, status)
 	}
 	for _, t := range r.Inputs.Tools {
-		fmt.Fprintf(&b, "  read with %s %s\n", t.Name, t.Version)
+		fmt.Fprintf(b, "  read with %s %s\n", t.Name, t.Version)
 	}
+}
+
+func textFamilies(b *strings.Builder, r *report.Report) {
 	b.WriteString("\nFamilies\n")
-	findings := 0
 	for _, f := range r.Families {
-		fmt.Fprintf(&b, "  %-12s score %s\n", f.Family, scoreText(f.Score))
-		names := make([]string, 0, len(f.Metrics))
-		for name := range f.Metrics {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		fmt.Fprintf(b, "  %-12s score %s\n", f.Family, scoreText(f.Score))
+		for _, name := range slices.Sorted(maps.Keys(f.Metrics)) {
 			line := metricText(name, f.Metrics[name])
 			if s, ok := f.MetricScores[name]; ok {
 				line += fmt.Sprintf("  scores %.1f", s)
 			}
-			fmt.Fprintf(&b, "    %-24s %s\n", name, line)
+			fmt.Fprintf(b, "    %-24s %s\n", name, line)
 		}
+	}
+}
+
+func textCoverage(b *strings.Builder, c *report.CoverageInput) {
+	tracked := "untracked"
+	if c.Tracked {
+		tracked = "tracked"
+	}
+	fmt.Fprintf(b, "\nCoverage report %s (%s)", printable(c.Path), tracked)
+	switch {
+	case c.Files != nil && c.Format == "cobertura":
+		fmt.Fprintf(b, ": %d of the %d files it lists are in the commit", *c.FilesAtHead, *c.Files)
+	case c.Files != nil:
+		fmt.Fprintf(b, ": %d of the %d files it lists under the repository's modules are in the commit (%d files listed)",
+			*c.FilesAtHead, *c.ModuleFiles, *c.Files)
+	}
+	b.WriteString("\n")
+}
+
+func textFindings(b *strings.Builder, r *report.Report) {
+	findings := 0
+	for _, f := range r.Families {
 		findings += len(f.Findings)
 	}
-	if c := r.Inputs.Coverage; c != nil {
-		tracked := "untracked"
-		if c.Tracked {
-			tracked = "tracked"
-		}
-		fmt.Fprintf(&b, "\nCoverage report %s (%s)", printable(c.Path), tracked)
-		switch {
-		case c.Files != nil && c.Format == "cobertura":
-			fmt.Fprintf(&b, ": %d of the %d files it lists are in the commit", *c.FilesAtHead, *c.Files)
-		case c.Files != nil:
-			fmt.Fprintf(&b, ": %d of the %d files it lists under the repository's modules are in the commit (%d files listed)",
-				*c.FilesAtHead, *c.ModuleFiles, *c.Files)
-		}
-		b.WriteString("\n")
+	if findings == 0 {
+		return
 	}
-	if findings > 0 {
-		fmt.Fprintf(&b, "\nFindings (%d)\n", findings)
-		for _, f := range r.Families {
-			for _, fd := range f.Findings {
-				switch {
-				case fd.Path == "":
-					fmt.Fprintf(&b, "  %s  %s\n", fd.RuleID, printable(fd.Message))
-				case fd.Line > 0:
-					fmt.Fprintf(&b, "  %s  %s:%d: %s\n", fd.RuleID, printable(fd.Path), fd.Line, printable(fd.Message))
-				default:
-					fmt.Fprintf(&b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), printable(fd.Message))
-				}
+	fmt.Fprintf(b, "\nFindings (%d)\n", findings)
+	for _, f := range r.Families {
+		for _, fd := range f.Findings {
+			switch {
+			case fd.Path == "":
+				fmt.Fprintf(b, "  %s  %s\n", fd.RuleID, printable(fd.Message))
+			case fd.Line > 0:
+				fmt.Fprintf(b, "  %s  %s:%d: %s\n", fd.RuleID, printable(fd.Path), fd.Line, printable(fd.Message))
+			default:
+				fmt.Fprintf(b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), printable(fd.Message))
 			}
 		}
 	}
-	fmt.Fprintf(&b, "\nOverall  %s  (%d of %d families measured)\n", scoreText(r.Overall.Score), r.Overall.Measured, r.Overall.Of)
-	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
-		fmt.Fprintf(&b, "  scored as %s against %d corpus repositories, %.0f%% of the code analysed\n", c.Language, c.Repositories, 100*c.AnalysedShare)
-	}
-	if len(r.Skipped) > 0 {
-		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
-	}
-	return b.String()
 }
 
 // printable quotes a string that comes from the scanned repository when it holds anything but graphic
