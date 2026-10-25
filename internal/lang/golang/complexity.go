@@ -6,6 +6,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
@@ -142,65 +143,13 @@ func (c *cog) block(b *ast.BlockStmt, nest int) {
 // node walks n at nesting level nest, handling the nodes that add complexity or nest, and plain
 // children at the same level.
 func (c *cog) node(n ast.Node, nest int) {
-	if n == nil {
+	if n == nil || c.structure(n, nest) {
 		return
 	}
 	switch n := n.(type) {
-	case *ast.IfStmt:
-		if !c.guards || n.Else != nil || !ErrCheck(n.Cond) {
-			c.total += 1 + nest
-		}
-		c.ifChain(n, nest)
-		return
-	case *ast.ForStmt:
-		c.total += 1 + nest
-		c.node(n.Init, nest)
-		c.node(n.Cond, nest)
-		c.node(n.Post, nest)
-		c.block(n.Body, nest+1)
-		return
-	case *ast.RangeStmt:
-		c.total += 1 + nest
-		c.node(n.X, nest)
-		c.block(n.Body, nest+1)
-		return
-	case *ast.SwitchStmt:
-		c.total += 1 + nest
-		c.node(n.Init, nest)
-		c.node(n.Tag, nest)
-		c.clauses(n.Body, nest+1)
-		return
-	case *ast.TypeSwitchStmt:
-		c.total += 1 + nest
-		c.node(n.Init, nest)
-		c.node(n.Assign, nest)
-		c.clauses(n.Body, nest+1)
-		return
-	case *ast.SelectStmt:
-		c.total += 1 + nest
-		c.clauses(n.Body, nest+1)
-		return
-	case *ast.BranchStmt:
-		if n.Tok == token.GOTO || n.Label != nil && (n.Tok == token.BREAK || n.Tok == token.CONTINUE) {
-			c.total++
-		}
-		return
-	case *ast.FuncLit:
-		c.block(n.Body, nest+1)
-		return
 	case *ast.BinaryExpr:
 		if n.Op == token.LAND || n.Op == token.LOR {
-			var ops []token.Token
-			var leaves []ast.Expr
-			flatten(n, &ops, &leaves)
-			for i, op := range ops {
-				if i == 0 || op != ops[i-1] {
-					c.total++
-				}
-			}
-			for _, l := range leaves {
-				c.node(l, nest)
-			}
+			c.logical(n, nest)
 			return
 		}
 	case *ast.CallExpr:
@@ -215,6 +164,64 @@ func (c *cog) node(n ast.Node, nest int) {
 		c.node(child, nest)
 		return false
 	})
+}
+
+// structure counts and walks a statement that breaks the linear flow, and reports whether n was one.
+func (c *cog) structure(n ast.Node, nest int) bool {
+	switch n := n.(type) {
+	case *ast.IfStmt:
+		if !c.guards || n.Else != nil || !ErrCheck(n.Cond) {
+			c.total += 1 + nest
+		}
+		c.ifChain(n, nest)
+	case *ast.ForStmt:
+		c.total += 1 + nest
+		c.node(n.Init, nest)
+		c.node(n.Cond, nest)
+		c.node(n.Post, nest)
+		c.block(n.Body, nest+1)
+	case *ast.RangeStmt:
+		c.total += 1 + nest
+		c.node(n.X, nest)
+		c.block(n.Body, nest+1)
+	case *ast.SwitchStmt:
+		c.total += 1 + nest
+		c.node(n.Init, nest)
+		c.node(n.Tag, nest)
+		c.clauses(n.Body, nest+1)
+	case *ast.TypeSwitchStmt:
+		c.total += 1 + nest
+		c.node(n.Init, nest)
+		c.node(n.Assign, nest)
+		c.clauses(n.Body, nest+1)
+	case *ast.SelectStmt:
+		c.total += 1 + nest
+		c.clauses(n.Body, nest+1)
+	case *ast.BranchStmt:
+		if n.Tok == token.GOTO || n.Label != nil && (n.Tok == token.BREAK || n.Tok == token.CONTINUE) {
+			c.total++
+		}
+	case *ast.FuncLit:
+		c.block(n.Body, nest+1)
+	default:
+		return false
+	}
+	return true
+}
+
+// logical counts a chain of && and ||: 1 for each run of the same operator.
+func (c *cog) logical(n *ast.BinaryExpr, nest int) {
+	var ops []token.Token
+	var leaves []ast.Expr
+	flatten(n, &ops, &leaves)
+	for i, op := range ops {
+		if i == 0 || op != ops[i-1] {
+			c.total++
+		}
+	}
+	for _, l := range leaves {
+		c.node(l, nest)
+	}
 }
 
 // ifChain walks an if statement whose own increment was counted, and its else branches: each else
@@ -308,48 +315,46 @@ func (c *cog) callsItself(call *ast.CallExpr) bool {
 // shadowed reports whether the function declares a parameter, result or local with its own name, so
 // that a call by that name is not a call to itself.
 func (c *cog) shadowed() bool {
-	if c.shadow == nil {
-		name, found := c.fd.Name.Name, false
-		fields := func(fl *ast.FieldList) {
-			if fl != nil {
-				for _, f := range fl.List {
-					for _, id := range f.Names {
-						found = found || id.Name == name
-					}
-				}
-			}
-		}
-		fields(c.fd.Type.Params)
-		fields(c.fd.Type.Results)
-		ast.Inspect(c.fd.Body, func(n ast.Node) bool {
-			switch x := n.(type) {
-			case *ast.AssignStmt:
-				if x.Tok == token.DEFINE {
-					for _, l := range x.Lhs {
-						if id, ok := l.(*ast.Ident); ok && id.Name == name {
-							found = true
-						}
-					}
-				}
-			case *ast.ValueSpec:
-				for _, id := range x.Names {
-					found = found || id.Name == name
-				}
-			case *ast.FuncType:
-				fields(x.Params)
-				fields(x.Results)
-			case *ast.RangeStmt:
-				for _, e := range []ast.Expr{x.Key, x.Value} {
-					if id, ok := e.(*ast.Ident); ok && x.Tok == token.DEFINE && id.Name == name {
-						found = true
-					}
-				}
-			}
-			return !found
-		})
-		c.shadow = &found
+	if c.shadow != nil {
+		return *c.shadow
 	}
-	return *c.shadow
+	name := c.fd.Name.Name
+	found := declaresIn(c.fd.Type.Params, name) || declaresIn(c.fd.Type.Results, name)
+	ast.Inspect(c.fd.Body, func(n ast.Node) bool {
+		found = found || declares(n, name)
+		return !found
+	})
+	c.shadow = &found
+	return found
+}
+
+// declaresIn reports whether a field list names name.
+func declaresIn(fl *ast.FieldList, name string) bool {
+	return fl != nil && slices.ContainsFunc(fl.List, func(f *ast.Field) bool { return hasName(f.Names, name) })
+}
+
+func hasName(ids []*ast.Ident, name string) bool {
+	return slices.ContainsFunc(ids, func(id *ast.Ident) bool { return id.Name == name })
+}
+
+// declares reports whether n declares name: a := or a range with :=, a var or const, or the
+// parameters and results of a function literal.
+func declares(n ast.Node, name string) bool {
+	isName := func(e ast.Expr) bool {
+		id, ok := e.(*ast.Ident)
+		return ok && id.Name == name
+	}
+	switch x := n.(type) {
+	case *ast.AssignStmt:
+		return x.Tok == token.DEFINE && slices.ContainsFunc(x.Lhs, isName)
+	case *ast.ValueSpec:
+		return hasName(x.Names, name)
+	case *ast.FuncType:
+		return declaresIn(x.Params, name) || declaresIn(x.Results, name)
+	case *ast.RangeStmt:
+		return x.Tok == token.DEFINE && (isName(x.Key) || isName(x.Value))
+	}
+	return false
 }
 
 // cyclomatic counts as gocyclo does: 1, plus 1 for each if, for, range, non-default case or select
