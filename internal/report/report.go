@@ -104,7 +104,9 @@ type FamilyResult struct {
 	Reason   NullReason             `json:"reason,omitempty"`
 	Score    Measurement            `json:"score"`
 	Metrics  map[string]Measurement `json:"metrics,omitempty"`
-	Findings []Finding              `json:"findings,omitempty"`
+	// MetricScores are the 0-10 scores of the metrics the family score is the mean of.
+	MetricScores map[string]float64 `json:"metricScores,omitempty"`
+	Findings     []Finding          `json:"findings,omitempty"`
 }
 
 // Language is one language present in the repository.
@@ -170,6 +172,20 @@ type Overall struct {
 	Measured int                `json:"measuredFamilies"`
 	Of       int                `json:"families"`
 	Weights  map[Family]float64 `json:"weights,omitempty"`
+	// Calibration is the corpus the scores are percentiles in; absent when the run did not score.
+	Calibration *Calibration `json:"calibration,omitempty"`
+}
+
+// Calibration names the corpus a report was scored against.
+type Calibration struct {
+	// Language is the analysed language with the most code lines, whose corpus repositories the
+	// metrics are compared with, and AnalysedShare the share of code lines in analysed languages.
+	Language      string  `json:"language"`
+	AnalysedShare float64 `json:"analysedShare"`
+	// Repositories is the number of corpus repositories in the language.
+	Repositories int `json:"repositories"`
+	// Tool is the githealthcheck version that measured the corpus.
+	Tool string `json:"tool"`
 }
 
 type Inputs struct {

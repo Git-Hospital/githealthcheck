@@ -1,0 +1,33 @@
+# The calibration corpus: one repository per line, as language, GitHub owner/name and the commit
+# scanned. Chosen by hand against the criteria in docs/calibration.md; a change to this file is a
+# reviewed PR with the distributions before and after, and calibration/corpus.lock regenerated.
+go      go-chi/chi               9f8adb1aabaa8a91180a821111d3f8e668d1c0bf
+go      urfave/cli               7166c4809bd6164721e11880e5eff8ba24994be9
+go      stretchr/testify         87a7b9d57689f6579db2da795ab8deeab29cb724
+go      charmbracelet/bubbletea  f9df43c4f2c021d8740a2628d59cd810a862eb98
+go      spf13/cobra              adbc8813901bba65827259daa8e22ff94ec1f30e
+go      gin-gonic/gin            0f09c3a9b4626d9fe9979cf4d0521d6ae32ab646
+go      junegunn/fzf             b412a450538e5f4a1d7057732e75d945dafa18a6
+go      caddyserver/caddy        4e8de214bc77bce405a5355a9d17d4845823c684
+go      golangci/golangci-lint   42a527cb467c7cf032e0205372c10c9faaea3ec7
+go      cli/cli                  4f2cfe92e3499f8581bf39db77e0a1431fa7b55c
+go      prometheus/prometheus    a2fda0ef4638518a6a6fb27fc48be88fbd732f4b
+go      etcd-io/etcd             f3221acd10232a9f6ef0c36438517bdbc918ea26
+go      gohugoio/hugo            f63482bfbfe6aab81aaa198d9a006c7047f08d89
+go      grpc/grpc-go             80c1e76a540c29dc38ea33a07c28a4fac23f649b
+go      traefik/traefik          eabc0714b367582dddbec155b5949889675b032d
+python  python-attrs/attrs       c8bb9bfaa2843e7844b5bb13bed4370b51feec4f
+python  pallets/click            2247b35ea1c47c727d7a06e51fa280e12a863ff6
+python  fastapi/typer            a5882dedf0bc7a46cd861fdfca020f88519e0f21
+python  encode/httpx             b5addb64f0161ff6bfe94c124ef76f6a1fba5254
+python  psf/requests             611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60
+python  pallets/flask            d086db856be187255b8ec61ef409357393020f32
+python  psf/black                f56455da375e6d122ae814c3ea9a5138c67f623e
+python  Textualize/rich          9d8f9a372cc5916fd4781fec207ced7ddac2f08f
+python  fastapi/fastapi          7a0a3f0b286c6c865cf4398ea0e957a87b8bffa4
+python  scrapy/scrapy            171ccbedb734c988fd86708fd5e0803029b6c730
+python  pytest-dev/pytest        0f54d41bedf00505bb1ac2c724abf96ba6dcf48d
+python  django/django            0e128d524d0a7c55a955570d6e5da983ac6ce6c7
+python  sqlalchemy/sqlalchemy    10f4d1e2d706a7722ca78e79ce05b00333a7aa5b
+python  pydantic/pydantic        37dc34b4f001191b4f3db707cc52bac95baf17f0
+python  celery/celery            4543e46ecf5b58202c53d3cb308a7ae5549a0be9
