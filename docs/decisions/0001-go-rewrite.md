@@ -334,7 +334,7 @@ Considered and rejected:
 
 #### D31. Scope of v0.2.0
 **A vertical slice.**
-- **In v0.2.0:** Go only, all four families end to end, JSON and terminal output, and fixture pairs. The slice must be verified on the four Git-Hospital repositories, with results checked by hand.
+- **In v0.2.0, as planned:** Go only, all four families end to end (released with three; see the amendment below), JSON and terminal output, and fixture pairs. The slice must be verified on the four Git-Hospital repositories, with results checked by hand.
 - **Later:** Python and JS/TS, SARIF and Markdown, the Action, the image and calibration arrive in v0.3 to v0.5.
 
 Considered and rejected:
