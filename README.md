@@ -26,33 +26,41 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 - **history**: the truck factor of Avelino et al. (ICPC 2016), checked against the authors' own tool, the share of files with a single author, and the share of files whose authors have all stopped committing. It works on every recognised language and needs the full history (not a shallow clone) and at least 50 commits.
 - **complexity**: per function, cognitive complexity (SonarSource's count, checked against gocognit for Go and SonarSource's own test file for Python), cyclomatic complexity, length and nesting depth; and the patterns generated code leaves behind: errors checked and then dropped, imports of packages the module does not provide, functions nothing references, commented-out code and placeholder bodies; and duplication: blocks of 100 tokens or more repeated with renamed locals, and functions with the body of another.
 
-Their rules are documented in [docs/rules](docs/rules). Architecture is `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: each measured family's score with the reason `not_calibrated`, and the overall score with `not_calibrated` once two families are measured, `insufficient_families` before that.
+Their rules are documented in [docs/rules](docs/rules). Architecture is `null` with the reason `not_implemented`.
+
+**Scores.** Each metric scores 0 to 10 by its percentile among 15 well-known repositories of the language ([docs/calibration.md](docs/calibration.md)): 7 means about the 70th percentile. Statement coverage scores X% as X/10. A family scores the mean of its metrics, and the overall score the mean of the scored families. Go and Python are calibrated; JS/TS gets `not_calibrated`. A metric below its minimum input (20 functions, 1000 code lines, 5 Go packages or 50 commits) is `null` and not scored.
 
 ```console
 $ go test -coverprofile=coverage.out ./...
 $ githealthcheck scan --coverage coverage.out .
 Languages
-  go              101 files    10604 lines  analysed
-  shell             2 files       99 lines  not analysed
+  go              112 files    13336 lines  analysed
+  python           62 files     1497 lines  analysed
+  shell             3 files      166 lines  not analysed
 
 Families
-  tests        score null (not_calibrated)
-    statement_coverage       92.5%  (from 21)
-    test_code_line_ratio     0.91  (from 48)
-    untested_package_share   0.0%  (from 10)
+  tests        score 7.1/10
+    statement_coverage       88.5%  (from 26)  scores 8.8
+    test_code_line_ratio     0.73  (from 121)  scores 2.4
+    untested_package_share   0.0%  (from 12)  scores 10.0
   history      score null (history_too_short)
-  complexity   score null (not_calibrated)
-    complex_function_share   20.4%  (from 142)
-    long_function_share      3.5%  (from 142)
+  complexity   score 1.5/10
+    complex_function_share   16.8%  (from 268)  scores 0.0
+    mean_cyclomatic_complexity 7.21  (from 268)  scores 0.1
     ...
   architecture score null (not_implemented)
 
-Findings (37)
-  GHC-CPLX-001  internal/analyze/tests/profile.go:58: parseProfile has cognitive complexity 54
+Findings (67)
+  GHC-CPLX-001  internal/analyze/tests/cobertura.go:55: parseCobertura has cognitive complexity 98
   ...
+
+Overall  4.3/10  (2 of 4 families measured)
+  scored as go against 15 corpus repositories, 99% of the code analysed
 ```
 
-That is this repository scanning itself at 005997c, shortened. History is `null` because the repository has fewer than 50 commits.
+That is this repository scanning itself, shortened: its own complexity is far below the corpus. History is `null` because the repository has fewer than 50 commits.
+
+`githealthcheck calibrate [--check]` measures the corpus at its pinned commits and writes, or checks, `calibration/corpus.lock`.
 
 Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 

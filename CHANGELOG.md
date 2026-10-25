@@ -9,9 +9,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - **Python** is analysed by the complexity family: GHC-CPLX-001 to 004 and 007 to 010, with Python's forms of each rule (an `except` that catches everything and does nothing for 004). The code is parsed with the `ast` and `tokenize` modules of the python3 on `PATH` (3.10 or later), never run; without one, Python is counted and reported as not analysed with the reason `tool_not_found` or `tool_too_old`. Cognitive complexity equals SonarSource's expected values on its own test file (25 functions), and cyclomatic complexity equals radon's on six repositories (37,993 functions, one difference). `scripts/py-oracle.sh` reruns both checks.
 - **Python coverage**: the tests family reads coverage.py's Cobertura XML (`coverage.xml` at the root, or `--coverage`), with GHC-TEST-002 and 003 and `statement_coverage` equal to coverage.py's `line-rate`; `test_code_line_ratio` counts Python's test files (pytest's names, and `tests/` directories). Neither needs python3. GHC-TEST-001 stays Go-only.
 - The report lists the tools code was read with (`inputs.tools`) and, for a language that was not analysed, why (`languages[].reason`).
+- **Scores** for Go and Python (D35, [docs/calibration.md](docs/calibration.md)): each metric scores its percentile, 0 to 10, among 15 well-known repositories of the language (the corpus, `calibration/corpus.txt`, measured into `calibration/corpus.lock`, which is built into the binary); statement coverage scores X% as X/10. A family scores the mean of its metrics' scores (`metricScores`), and the overall score the mean of the scored families. `overall.calibration` names the language a repository was scored as. JS/TS stays `not_calibrated`, and a repository with less than half its code analysed is `low_analysed_share`. `--fail-under` now has a score to compare.
+- `githealthcheck calibrate [--check]` measures the corpus at its pinned commits and writes or checks the lock; the Calibration workflow runs the check.
 
 ### Changed
 
+- Minimum inputs: `smells_per_kloc`, `duplicated_line_share` and `test_code_line_ratio` need 1000 code lines, and `untested_package_share` 5 Go packages that declare functions; below that they are `null` (`insufficient_input`). A family that measures nothing keeps its findings and no longer makes the run incomplete (exit 3).
 - Duplication (GHC-CPLX-009, 010) runs for each language on its own; the exception for Go files written once per platform applies to Go only.
 
 ## [0.2.0] - 2026-10-24

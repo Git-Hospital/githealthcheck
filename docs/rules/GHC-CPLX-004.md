@@ -36,7 +36,9 @@ literal, in a function or in a package-level variable, is judged for the first f
 such as the function given to `filepath.WalkDir`, returns nil on an error to skip an entry by design.
 
 At most 1000 smells of each kind are kept per file and at most 50 findings of the rule are listed per
-file; one more finding gives the count of the rest, and `smells_per_kloc` counts them all.
+file; one more finding gives the count of the rest, and `smells_per_kloc` counts them all. Below 1000
+lines of analysed code `smells_per_kloc` is `null` (`insufficient_input`); the findings are still
+reported.
 
 ## Fix
 

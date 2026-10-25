@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -76,8 +77,9 @@ func TestScanJSON(t *testing.T) {
 	}
 	for _, f := range r.Families {
 		if f.Family == report.Tests {
-			if !f.Measured || f.Score.Reason != report.NotCalibrated || len(f.Findings) != 1 || f.Findings[0].RuleID != tests.UntestedPackage {
-				t.Errorf("tests family = %+v, want measured, not calibrated, one untested package", f)
+			// Three lines of code are too few for any number; the untested package is still a finding.
+			if f.Measured || f.Reason != report.InsufficientInput || len(f.Findings) != 1 || f.Findings[0].RuleID != tests.UntestedPackage {
+				t.Errorf("tests family = %+v, want insufficient_input, one untested package", f)
 			}
 			continue
 		}
@@ -89,9 +91,9 @@ func TestScanJSON(t *testing.T) {
 			continue
 		}
 		if f.Family == report.Complexity {
-			// One function: too few for the shares, enough lines for the smell density.
-			if !f.Measured || len(f.Findings) != 0 || f.Metrics[complexity.ComplexFunctionShare].Reason != report.InsufficientInput ||
-				f.Metrics[complexity.SmellsPerKLOC].IsNull() {
+			// One function and three lines: too few for the shares and the densities.
+			if f.Measured || f.Reason != report.InsufficientInput || len(f.Findings) != 0 ||
+				f.Metrics[complexity.ComplexFunctionShare].Reason != report.InsufficientInput || f.Metrics[complexity.SmellsPerKLOC].Reason != report.InsufficientInput {
 				t.Errorf("complexity family = %+v", f)
 			}
 			continue
@@ -100,8 +102,11 @@ func TestScanJSON(t *testing.T) {
 			t.Errorf("family %s = %+v, want null not_implemented", f.Family, f)
 		}
 	}
-	if r.Overall.Measured != 2 || r.Overall.Score.Reason != report.NotCalibrated || r.Inputs.FilesAnalysed != 1 {
+	if r.Overall.Measured != 0 || r.Overall.Score.Reason != report.InsufficientFamily || r.Inputs.FilesAnalysed != 1 {
 		t.Errorf("overall %+v, filesAnalysed %d", r.Overall, r.Inputs.FilesAnalysed)
+	}
+	if c := r.Overall.Calibration; c == nil || c.Language != "go" || c.AnalysedShare != 1 || c.Repositories != 15 {
+		t.Errorf("calibration %+v", c)
 	}
 	if len(r.Languages) != 1 || r.Languages[0].Name != "go" || r.Languages[0].Lines != 3 || !r.Languages[0].Analysed {
 		t.Errorf("languages = %+v", r.Languages)
@@ -155,9 +160,40 @@ func TestErrors(t *testing.T) {
 }
 
 func TestFailUnderWithNullOverallIsIncomplete(t *testing.T) {
+	// Families are measured, but most of the code is in a language that is not analysed: no score.
+	dir := gitRepoWith(t, map[string]string{
+		"main.go": "package main\n\nfunc main() {}\n",
+		"lib.rs":  strings.Repeat("fn f() {}\n", 20),
+	})
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"scan", "--fail-under", "5", gitRepo(t)}, &stdout, &stderr); code != report.ExitIncomplete {
+	if code := run([]string{"scan", "--fail-under", "5", dir}, &stdout, &stderr); code != report.ExitIncomplete {
 		t.Errorf("exit %d, want %d", code, report.ExitIncomplete)
+	}
+}
+
+// With a calibrated score, --fail-under compares it.
+func TestFailUnderScored(t *testing.T) {
+	// No finding, and enough lines for the line ratio and the densities: one tested package whose
+	// doc comment is long.
+	doc := strings.Repeat("// Package lib is a test of the score gate, and this line is prose.\n", 1000)
+	dir := gitRepoWith(t, map[string]string{
+		"lib.go":      doc + "package lib\n\n// F returns one.\nfunc F() int { return 1 }\n",
+		"lib_test.go": "package lib\n\nimport \"testing\"\n\nfunc TestF(t *testing.T) {\n\tif F() != 1 {\n\t\tt.Fatal()\n\t}\n}\n",
+	})
+	r, code, out := scanJSON(t, dir)
+	if r.Overall.Score.IsNull() || code != report.ExitClean {
+		t.Fatalf("exit %d, overall %+v\n%s", code, r.Overall.Score, out)
+	}
+	s := *r.Overall.Score.Value
+	for _, c := range []struct {
+		gate float64
+		want int
+	}{{s + 0.5, report.ExitFindings}, {s - 0.5, report.ExitClean}} {
+		var stdout, stderr bytes.Buffer
+		gate := strconv.FormatFloat(max(0, min(10, c.gate)), 'f', 2, 64)
+		if code := run([]string{"scan", "--fail-under", gate, dir}, &stdout, &stderr); code != c.want {
+			t.Errorf("gate %s on %.2f: exit %d, want %d", gate, s, code, c.want)
+		}
 	}
 }
 

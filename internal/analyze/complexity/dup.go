@@ -404,9 +404,6 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		lines += f.Lines
 		inputs++
 	}
-	if lines == 0 {
-		return nil, report.Null(report.InsufficientInput), nil
-	}
 	var out []report.Finding
 	for _, l := range slices.Sorted(maps.Keys(byLang)) {
 		found, dup, err := duplicationIn(ctx, byLang[l], l == "go")
@@ -415,6 +412,10 @@ func duplication(ctx context.Context, own []*facts.File) ([]report.Finding, repo
 		}
 		out = append(out, found...)
 		n += dup
+	}
+	// The blocks are findings at any size; their share of the lines needs enough lines.
+	if lines == 0 || lines < minCodeLines {
+		return out, report.Null(report.InsufficientInput), nil
 	}
 	return out, report.Measured(float64(n)/float64(lines), inputs), nil
 }

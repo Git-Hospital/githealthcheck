@@ -1,0 +1,1916 @@
+{
+  "format": 1,
+  "tool": "0.2.0-1298134",
+  "tools": [
+    {
+      "name": "python3",
+      "version": "3.12.3"
+    }
+  ],
+  "repos": [
+    {
+      "language": "go",
+      "name": "go-chi/chi",
+      "commit": "9f8adb1aabaa8a91180a821111d3f8e668d1c0bf",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.15730337078651685,
+          "inputs": 89
+        },
+        "complex_function_share": {
+          "value": 0.06349206349206349,
+          "inputs": 189
+        },
+        "duplicated_line_share": {
+          "value": 0.009685230024213076,
+          "inputs": 36
+        },
+        "long_function_share": {
+          "value": 0.005291005291005291,
+          "inputs": 189
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.328042328042328,
+          "inputs": 189
+        },
+        "single_author_file_share": {
+          "value": 0.797752808988764,
+          "inputs": 89
+        },
+        "smells_per_kloc": {
+          "value": 2.367264119039567,
+          "inputs": 70
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.6035659255998238,
+          "inputs": 70
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 89
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "urfave/cli",
+      "commit": "7166c4809bd6164721e11880e5eff8ba24994be9",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.34177215189873417,
+          "inputs": 79
+        },
+        "complex_function_share": {
+          "value": 0.030434782608695653,
+          "inputs": 460
+        },
+        "duplicated_line_share": {
+          "value": 0.0034406488080609486,
+          "inputs": 45
+        },
+        "long_function_share": {
+          "value": 0.010869565217391304,
+          "inputs": 460
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.9260869565217393,
+          "inputs": 460
+        },
+        "single_author_file_share": {
+          "value": 0.6962025316455697,
+          "inputs": 79
+        },
+        "smells_per_kloc": {
+          "value": 0.06555442656265364,
+          "inputs": 79
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 2.748955517326124,
+          "inputs": 79
+        },
+        "truck_factor": {
+          "value": 4,
+          "inputs": 79
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "stretchr/testify",
+      "commit": "87a7b9d57689f6579db2da795ab8deeab29cb724",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.5333333333333333,
+          "inputs": 60
+        },
+        "complex_function_share": {
+          "value": 0.05964912280701754,
+          "inputs": 285
+        },
+        "duplicated_line_share": {
+          "value": 0.01641206918318394,
+          "inputs": 33
+        },
+        "long_function_share": {
+          "value": 0.010526315789473684,
+          "inputs": 285
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 4.491228070175438,
+          "inputs": 285
+        },
+        "single_author_file_share": {
+          "value": 0.8166666666666667,
+          "inputs": 60
+        },
+        "smells_per_kloc": {
+          "value": 0,
+          "inputs": 54
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.8569625047342506,
+          "inputs": 54
+        },
+        "truck_factor": {
+          "value": 4,
+          "inputs": 60
+        },
+        "untested_package_share": {
+          "value": 0.25,
+          "inputs": 8
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "charmbracelet/bubbletea",
+      "commit": "f9df43c4f2c021d8740a2628d59cd810a862eb98",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.008620689655172414,
+          "inputs": 116
+        },
+        "complex_function_share": {
+          "value": 0.02508361204013378,
+          "inputs": 598
+        },
+        "duplicated_line_share": {
+          "value": 0.014599661902566468,
+          "inputs": 105
+        },
+        "long_function_share": {
+          "value": 0.010033444816053512,
+          "inputs": 598
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.9983277591973243,
+          "inputs": 598
+        },
+        "single_author_file_share": {
+          "value": 0.5689655172413793,
+          "inputs": 116
+        },
+        "smells_per_kloc": {
+          "value": 0,
+          "inputs": 116
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.15506377747041647,
+          "inputs": 116
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 116
+        },
+        "untested_package_share": {
+          "value": 0.9701492537313433,
+          "inputs": 67
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "spf13/cobra",
+      "commit": "adbc8813901bba65827259daa8e22ff94ec1f30e",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.6666666666666666,
+          "inputs": 36
+        },
+        "complex_function_share": {
+          "value": 0.044444444444444446,
+          "inputs": 270
+        },
+        "duplicated_line_share": {
+          "value": 0,
+          "inputs": 19
+        },
+        "long_function_share": {
+          "value": 0.02962962962962963,
+          "inputs": 270
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.477777777777778,
+          "inputs": 270
+        },
+        "single_author_file_share": {
+          "value": 0.6388888888888888,
+          "inputs": 36
+        },
+        "smells_per_kloc": {
+          "value": 0.059648076349537726,
+          "inputs": 36
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.4104960460100646,
+          "inputs": 36
+        },
+        "truck_factor": {
+          "value": 5,
+          "inputs": 36
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "gin-gonic/gin",
+      "commit": "0f09c3a9b4626d9fe9979cf4d0521d6ae32ab646",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.9183673469387755,
+          "inputs": 98
+        },
+        "complex_function_share": {
+          "value": 0.023809523809523808,
+          "inputs": 504
+        },
+        "duplicated_line_share": {
+          "value": 0.012269938650306749,
+          "inputs": 58
+        },
+        "long_function_share": {
+          "value": 0.003968253968253968,
+          "inputs": 504
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.5674603174603177,
+          "inputs": 504
+        },
+        "single_author_file_share": {
+          "value": 0.673469387755102,
+          "inputs": 98
+        },
+        "smells_per_kloc": {
+          "value": 0.7420232500618352,
+          "inputs": 98
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 2.0371854263177664,
+          "inputs": 98
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 98
+        },
+        "untested_package_share": {
+          "value": 0.14285714285714285,
+          "inputs": 7
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "junegunn/fzf",
+      "commit": "b412a450538e5f4a1d7057732e75d945dafa18a6",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.018867924528301886,
+          "inputs": 106
+        },
+        "complex_function_share": {
+          "value": 0.10097323600973236,
+          "inputs": 822
+        },
+        "duplicated_line_share": {
+          "value": 0.008339227876847474,
+          "inputs": 58
+        },
+        "long_function_share": {
+          "value": 0.038929440389294405,
+          "inputs": 822
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 7.688564476885645,
+          "inputs": 822
+        },
+        "single_author_file_share": {
+          "value": 0.9056603773584906,
+          "inputs": 106
+        },
+        "smells_per_kloc": {
+          "value": 0.23602301224369376,
+          "inputs": 89
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.2618666468113622,
+          "inputs": 89
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 106
+        },
+        "untested_package_share": {
+          "value": 0.3333333333333333,
+          "inputs": 6
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "caddyserver/caddy",
+      "commit": "4e8de214bc77bce405a5355a9d17d4845823c684",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.12871287128712872,
+          "inputs": 404
+        },
+        "complex_function_share": {
+          "value": 0.08729081863410222,
+          "inputs": 2211
+        },
+        "duplicated_line_share": {
+          "value": 0.01909364601489463,
+          "inputs": 228
+        },
+        "long_function_share": {
+          "value": 0.02532790592492085,
+          "inputs": 2211
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 5.439620081411126,
+          "inputs": 2211
+        },
+        "single_author_file_share": {
+          "value": 0.8292079207920792,
+          "inputs": 404
+        },
+        "smells_per_kloc": {
+          "value": 0.11630611770179111,
+          "inputs": 399
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.7029789256853114,
+          "inputs": 399
+        },
+        "truck_factor": {
+          "value": 3,
+          "inputs": 404
+        },
+        "untested_package_share": {
+          "value": 0.34782608695652173,
+          "inputs": 46
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "golangci/golangci-lint",
+      "commit": "42a527cb467c7cf032e0205372c10c9faaea3ec7",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.05738476011288805,
+          "inputs": 1063
+        },
+        "complex_function_share": {
+          "value": 0.029571984435797664,
+          "inputs": 1285
+        },
+        "duplicated_line_share": {
+          "value": 0.009494586927574827,
+          "inputs": 347
+        },
+        "long_function_share": {
+          "value": 0.004669260700389105,
+          "inputs": 1285
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.273929961089494,
+          "inputs": 1285
+        },
+        "single_author_file_share": {
+          "value": 0.8438381937911571,
+          "inputs": 1063
+        },
+        "smells_per_kloc": {
+          "value": 0.32050597209461335,
+          "inputs": 537
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.35474439877265096,
+          "inputs": 537
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 1063
+        },
+        "untested_package_share": {
+          "value": 0.21666666666666667,
+          "inputs": 180
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "cli/cli",
+      "commit": "4f2cfe92e3499f8581bf39db77e0a1431fa7b55c",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.5052231718898386,
+          "inputs": 1053
+        },
+        "complex_function_share": {
+          "value": 0.06190338443737344,
+          "inputs": 3457
+        },
+        "duplicated_line_share": {
+          "value": 0.028980171461631517,
+          "inputs": 550
+        },
+        "long_function_share": {
+          "value": 0.027480474399768584,
+          "inputs": 3457
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 4.842927393693954,
+          "inputs": 3457
+        },
+        "single_author_file_share": {
+          "value": 0.7587844254510921,
+          "inputs": 1053
+        },
+        "smells_per_kloc": {
+          "value": 0.37576579055083237,
+          "inputs": 956
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.6127561843650835,
+          "inputs": 956
+        },
+        "truck_factor": {
+          "value": 5,
+          "inputs": 1053
+        },
+        "untested_package_share": {
+          "value": 0.17834394904458598,
+          "inputs": 314
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "prometheus/prometheus",
+      "commit": "a2fda0ef4638518a6a6fb27fc48be88fbd732f4b",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.30318091451292245,
+          "inputs": 1006
+        },
+        "complex_function_share": {
+          "value": 0.05590606379249912,
+          "inputs": 5706
+        },
+        "duplicated_line_share": {
+          "value": 0.03929077203477554,
+          "inputs": 448
+        },
+        "long_function_share": {
+          "value": 0.02050473186119874,
+          "inputs": 5706
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 4.198212407991588,
+          "inputs": 5706
+        },
+        "single_author_file_share": {
+          "value": 0.7803180914512923,
+          "inputs": 1006
+        },
+        "smells_per_kloc": {
+          "value": 0.08101504005017705,
+          "inputs": 738
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.4300012066020182,
+          "inputs": 738
+        },
+        "truck_factor": {
+          "value": 12,
+          "inputs": 1006
+        },
+        "untested_package_share": {
+          "value": 0.22413793103448276,
+          "inputs": 116
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "etcd-io/etcd",
+      "commit": "f3221acd10232a9f6ef0c36438517bdbc918ea26",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.4090909090909091,
+          "inputs": 1122
+        },
+        "complex_function_share": {
+          "value": 0.02725583316126368,
+          "inputs": 4843
+        },
+        "duplicated_line_share": {
+          "value": 0.0038543290350007086,
+          "inputs": 668
+        },
+        "long_function_share": {
+          "value": 0.008672310551311171,
+          "inputs": 4843
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.066281230642164,
+          "inputs": 4843
+        },
+        "single_author_file_share": {
+          "value": 0.6862745098039216,
+          "inputs": 1122
+        },
+        "smells_per_kloc": {
+          "value": 0.15250126674439313,
+          "inputs": 1076
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.9203344197250957,
+          "inputs": 1076
+        },
+        "truck_factor": {
+          "value": 4,
+          "inputs": 1122
+        },
+        "untested_package_share": {
+          "value": 0.43506493506493504,
+          "inputs": 154
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "gohugoio/hugo",
+      "commit": "f63482bfbfe6aab81aaa198d9a006c7047f08d89",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.006423982869379015,
+          "inputs": 934
+        },
+        "complex_function_share": {
+          "value": 0.05501266739051755,
+          "inputs": 5526
+        },
+        "duplicated_line_share": {
+          "value": 0.0061379684953829445,
+          "inputs": 513
+        },
+        "long_function_share": {
+          "value": 0.013572204125950055,
+          "inputs": 5526
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.6053203040173725,
+          "inputs": 5526
+        },
+        "single_author_file_share": {
+          "value": 0.911134903640257,
+          "inputs": 934
+        },
+        "smells_per_kloc": {
+          "value": 0.4761516650294485,
+          "inputs": 908
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.8089470008535734,
+          "inputs": 908
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 934
+        },
+        "untested_package_share": {
+          "value": 0.20540540540540542,
+          "inputs": 185
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "grpc/grpc-go",
+      "commit": "80c1e76a540c29dc38ea33a07c28a4fac23f649b",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.4209039548022599,
+          "inputs": 1062
+        },
+        "complex_function_share": {
+          "value": 0.029001308329699084,
+          "inputs": 4586
+        },
+        "duplicated_line_share": {
+          "value": 0.02074583486839412,
+          "inputs": 631
+        },
+        "long_function_share": {
+          "value": 0.006105538595726123,
+          "inputs": 4586
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.1711731356301787,
+          "inputs": 4586
+        },
+        "single_author_file_share": {
+          "value": 0.7024482109227872,
+          "inputs": 1062
+        },
+        "smells_per_kloc": {
+          "value": 0.060747990000880846,
+          "inputs": 1034
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.6953948176347784,
+          "inputs": 1034
+        },
+        "truck_factor": {
+          "value": 5,
+          "inputs": 1062
+        },
+        "untested_package_share": {
+          "value": 0.5183946488294314,
+          "inputs": 299
+        }
+      }
+    },
+    {
+      "language": "go",
+      "name": "traefik/traefik",
+      "commit": "eabc0714b367582dddbec155b5949889675b032d",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.10151691948658109,
+          "inputs": 857
+        },
+        "complex_function_share": {
+          "value": 0.05749405233941316,
+          "inputs": 2522
+        },
+        "duplicated_line_share": {
+          "value": 0.04602793009373059,
+          "inputs": 379
+        },
+        "long_function_share": {
+          "value": 0.01704996034892942,
+          "inputs": 2522
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 4.461934972244251,
+          "inputs": 2522
+        },
+        "single_author_file_share": {
+          "value": 0.7782963827304551,
+          "inputs": 857
+        },
+        "smells_per_kloc": {
+          "value": 0.19039054366627373,
+          "inputs": 662
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 2.334067151076416,
+          "inputs": 662
+        },
+        "truck_factor": {
+          "value": 3,
+          "inputs": 857
+        },
+        "untested_package_share": {
+          "value": 0.21678321678321677,
+          "inputs": 143
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "python-attrs/attrs",
+      "commit": "c8bb9bfaa2843e7844b5bb13bed4370b51feec4f",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.045454545454545456,
+          "inputs": 66
+        },
+        "complex_function_share": {
+          "value": 0.05235602094240838,
+          "inputs": 191
+        },
+        "duplicated_line_share": {
+          "value": 0,
+          "inputs": 24
+        },
+        "long_function_share": {
+          "value": 0.010471204188481676,
+          "inputs": 191
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.518324607329843,
+          "inputs": 191
+        },
+        "single_author_file_share": {
+          "value": 0.803030303030303,
+          "inputs": 66
+        },
+        "smells_per_kloc": {
+          "value": 0.28536098164177687,
+          "inputs": 56
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.543078524343703,
+          "inputs": 66
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 66
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "pallets/click",
+      "commit": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.21739130434782608,
+          "inputs": 92
+        },
+        "complex_function_share": {
+          "value": 0.033123028391167195,
+          "inputs": 634
+        },
+        "duplicated_line_share": {
+          "value": 0.0024140869071286567,
+          "inputs": 32
+        },
+        "long_function_share": {
+          "value": 0.0015772870662460567,
+          "inputs": 634
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.1640378548895898,
+          "inputs": 634
+        },
+        "single_author_file_share": {
+          "value": 0.5652173913043478,
+          "inputs": 92
+        },
+        "smells_per_kloc": {
+          "value": 0.39502271380604387,
+          "inputs": 91
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.1569156489633627,
+          "inputs": 91
+        },
+        "truck_factor": {
+          "value": 3,
+          "inputs": 92
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "fastapi/typer",
+      "commit": "a5882dedf0bc7a46cd861fdfca020f88519e0f21",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.029411764705882353,
+          "inputs": 646
+        },
+        "complex_function_share": {
+          "value": 0.03470715835140998,
+          "inputs": 922
+        },
+        "duplicated_line_share": {
+          "value": 0.0629014851739555,
+          "inputs": 336
+        },
+        "long_function_share": {
+          "value": 0.004338394793926247,
+          "inputs": 922
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.677874186550976,
+          "inputs": 922
+        },
+        "single_author_file_share": {
+          "value": 0.8173374613003096,
+          "inputs": 646
+        },
+        "smells_per_kloc": {
+          "value": 0.25175529385437356,
+          "inputs": 638
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.8371447659180842,
+          "inputs": 638
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 646
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "encode/httpx",
+      "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.1,
+          "inputs": 60
+        },
+        "complex_function_share": {
+          "value": 0.020454545454545454,
+          "inputs": 440
+        },
+        "duplicated_line_share": {
+          "value": 0.08961141950832673,
+          "inputs": 23
+        },
+        "long_function_share": {
+          "value": 0,
+          "inputs": 440
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.8204545454545453,
+          "inputs": 440
+        },
+        "single_author_file_share": {
+          "value": 0.8,
+          "inputs": 60
+        },
+        "smells_per_kloc": {
+          "value": 0.11265701571565369,
+          "inputs": 60
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.0112155885351761,
+          "inputs": 60
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 60
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "psf/requests",
+      "commit": "611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.5135135135135135,
+          "inputs": 37
+        },
+        "complex_function_share": {
+          "value": 0.05019305019305019,
+          "inputs": 259
+        },
+        "duplicated_line_share": {
+          "value": 0,
+          "inputs": 22
+        },
+        "long_function_share": {
+          "value": 0,
+          "inputs": 259
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.324324324324324,
+          "inputs": 259
+        },
+        "single_author_file_share": {
+          "value": 0.6216216216216216,
+          "inputs": 37
+        },
+        "smells_per_kloc": {
+          "value": 4.488031914893617,
+          "inputs": 37
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.750363689263893,
+          "inputs": 37
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 37
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "pallets/flask",
+      "commit": "d086db856be187255b8ec61ef409357393020f32",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.11904761904761904,
+          "inputs": 84
+        },
+        "complex_function_share": {
+          "value": 0.02577319587628866,
+          "inputs": 388
+        },
+        "duplicated_line_share": {
+          "value": 0.0025793650793650793,
+          "inputs": 35
+        },
+        "long_function_share": {
+          "value": 0,
+          "inputs": 388
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.6443298969072164,
+          "inputs": 388
+        },
+        "single_author_file_share": {
+          "value": 0.5595238095238095,
+          "inputs": 84
+        },
+        "smells_per_kloc": {
+          "value": 0.43637157039218893,
+          "inputs": 83
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.81875,
+          "inputs": 83
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 84
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "psf/black",
+      "commit": "f56455da375e6d122ae814c3ea9a5138c67f623e",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.36363636363636365,
+          "inputs": 407
+        },
+        "complex_function_share": {
+          "value": 0.1227810650887574,
+          "inputs": 676
+        },
+        "duplicated_line_share": {
+          "value": 0,
+          "inputs": 55
+        },
+        "long_function_share": {
+          "value": 0.022189349112426034,
+          "inputs": 676
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 6.579881656804734,
+          "inputs": 676
+        },
+        "single_author_file_share": {
+          "value": 0.7886977886977887,
+          "inputs": 407
+        },
+        "smells_per_kloc": {
+          "value": 0.4716929388664012,
+          "inputs": 388
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.617729798157395,
+          "inputs": 408
+        },
+        "truck_factor": {
+          "value": 6,
+          "inputs": 407
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "Textualize/rich",
+      "commit": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.08450704225352113,
+          "inputs": 213
+        },
+        "complex_function_share": {
+          "value": 0.05501618122977346,
+          "inputs": 927
+        },
+        "duplicated_line_share": {
+          "value": 0.0033703166129548084,
+          "inputs": 146
+        },
+        "long_function_share": {
+          "value": 0.010787486515641856,
+          "inputs": 927
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.208198489751888,
+          "inputs": 927
+        },
+        "single_author_file_share": {
+          "value": 0.9342723004694836,
+          "inputs": 213
+        },
+        "smells_per_kloc": {
+          "value": 0.26992634866772064,
+          "inputs": 213
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 0.2759477477920736,
+          "inputs": 213
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 213
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "fastapi/fastapi",
+      "commit": "7a0a3f0b286c6c865cf4398ea0e957a87b8bffa4",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.023615635179153095,
+          "inputs": 1228
+        },
+        "complex_function_share": {
+          "value": 0.026495726495726495,
+          "inputs": 1170
+        },
+        "duplicated_line_share": {
+          "value": 0.16896541877266627,
+          "inputs": 553
+        },
+        "long_function_share": {
+          "value": 0.008547008547008548,
+          "inputs": 1170
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.6324786324786325,
+          "inputs": 1170
+        },
+        "single_author_file_share": {
+          "value": 0.7890879478827362,
+          "inputs": 1228
+        },
+        "smells_per_kloc": {
+          "value": 0.1592610288262462,
+          "inputs": 1219
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 2.765355949627345,
+          "inputs": 1219
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 1228
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "scrapy/scrapy",
+      "commit": "171ccbedb734c988fd86708fd5e0803029b6c730",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.18853974121996303,
+          "inputs": 541
+        },
+        "complex_function_share": {
+          "value": 0.009606147934678195,
+          "inputs": 2082
+        },
+        "duplicated_line_share": {
+          "value": 0.0015497869043006587,
+          "inputs": 208
+        },
+        "long_function_share": {
+          "value": 0.0004803073967339097,
+          "inputs": 2082
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.7156580211335255,
+          "inputs": 2082
+        },
+        "single_author_file_share": {
+          "value": 0.600739371534196,
+          "inputs": 541
+        },
+        "smells_per_kloc": {
+          "value": 0.00913575735428467,
+          "inputs": 540
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.8273279090791683,
+          "inputs": 540
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 541
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "pytest-dev/pytest",
+      "commit": "0f54d41bedf00505bb1ac2c724abf96ba6dcf48d",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.2801418439716312,
+          "inputs": 282
+        },
+        "complex_function_share": {
+          "value": 0.03296703296703297,
+          "inputs": 2821
+        },
+        "duplicated_line_share": {
+          "value": 0.0017927446569178853,
+          "inputs": 131
+        },
+        "long_function_share": {
+          "value": 0.003544842254519674,
+          "inputs": 2821
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.826302729528536,
+          "inputs": 2821
+        },
+        "single_author_file_share": {
+          "value": 0.6453900709219859,
+          "inputs": 282
+        },
+        "smells_per_kloc": {
+          "value": 0.5469524493214372,
+          "inputs": 274
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.0565944881889764,
+          "inputs": 282
+        },
+        "truck_factor": {
+          "value": 4,
+          "inputs": 282
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "django/django",
+      "commit": "0e128d524d0a7c55a955570d6e5da983ac6ce6c7",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.7146210596914823,
+          "inputs": 2982
+        },
+        "complex_function_share": {
+          "value": 0.041125056028686685,
+          "inputs": 8924
+        },
+        "duplicated_line_share": {
+          "value": 0.0038679477703867948,
+          "inputs": 915
+        },
+        "long_function_share": {
+          "value": 0.006387270282384581,
+          "inputs": 8924
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.1321156432093233,
+          "inputs": 8924
+        },
+        "single_author_file_share": {
+          "value": 0.7314783774723432,
+          "inputs": 2983
+        },
+        "smells_per_kloc": {
+          "value": 0.2586262228112104,
+          "inputs": 2936
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 2.2627063316087708,
+          "inputs": 2937
+        },
+        "truck_factor": {
+          "value": 13,
+          "inputs": 2983
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "sqlalchemy/sqlalchemy",
+      "commit": "10f4d1e2d706a7722ca78e79ce05b00333a7aa5b",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.011816838995568686,
+          "inputs": 677
+        },
+        "complex_function_share": {
+          "value": 0.03232436472346786,
+          "inputs": 10704
+        },
+        "duplicated_line_share": {
+          "value": 0.011745032461144993,
+          "inputs": 333
+        },
+        "long_function_share": {
+          "value": 0.0075672645739910315,
+          "inputs": 10704
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.564088191330344,
+          "inputs": 10704
+        },
+        "single_author_file_share": {
+          "value": 0.8670605612998523,
+          "inputs": 677
+        },
+        "smells_per_kloc": {
+          "value": 0.46162634512358924,
+          "inputs": 675
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.551438127090301,
+          "inputs": 677
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 677
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "pydantic/pydantic",
+      "commit": "37dc34b4f001191b4f3db707cc52bac95baf17f0",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.22727272727272727,
+          "inputs": 594
+        },
+        "complex_function_share": {
+          "value": 0.059481443823080835,
+          "inputs": 1967
+        },
+        "duplicated_line_share": {
+          "value": 0.020900733527659438,
+          "inputs": 117
+        },
+        "long_function_share": {
+          "value": 0.00813421453990849,
+          "inputs": 1967
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 3.538383324860193,
+          "inputs": 1967
+        },
+        "single_author_file_share": {
+          "value": 0.7355371900826446,
+          "inputs": 605
+        },
+        "smells_per_kloc": {
+          "value": 2.9773995892858136,
+          "inputs": 453
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.8438276458562668,
+          "inputs": 455
+        },
+        "truck_factor": {
+          "value": 2,
+          "inputs": 605
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    },
+    {
+      "language": "python",
+      "name": "celery/celery",
+      "commit": "4543e46ecf5b58202c53d3cb308a7ae5549a0be9",
+      "metrics": {
+        "abandoned_file_share": {
+          "value": 0.7631578947368421,
+          "inputs": 456
+        },
+        "complex_function_share": {
+          "value": 0.0284019975031211,
+          "inputs": 3204
+        },
+        "duplicated_line_share": {
+          "value": 0.0010630130514380205,
+          "inputs": 260
+        },
+        "long_function_share": {
+          "value": 0.003433208489388265,
+          "inputs": 3204
+        },
+        "mean_cyclomatic_complexity": {
+          "value": 2.599875156054931,
+          "inputs": 3204
+        },
+        "single_author_file_share": {
+          "value": 0.8114035087719298,
+          "inputs": 456
+        },
+        "smells_per_kloc": {
+          "value": 0.31102214637180703,
+          "inputs": 449
+        },
+        "statement_coverage": {
+          "value": null,
+          "reason": "no_coverage_report",
+          "inputs": 0
+        },
+        "test_code_line_ratio": {
+          "value": 1.4684147325734758,
+          "inputs": 449
+        },
+        "truck_factor": {
+          "value": 1,
+          "inputs": 456
+        },
+        "untested_package_share": {
+          "value": null,
+          "reason": "unsupported_language",
+          "inputs": 0
+        }
+      }
+    }
+  ],
+  "values": {
+    "go": {
+      "abandoned_file_share": [
+        0.006423982869379015,
+        0.008620689655172414,
+        0.018867924528301886,
+        0.05738476011288805,
+        0.10151691948658109,
+        0.12871287128712872,
+        0.15730337078651685,
+        0.30318091451292245,
+        0.34177215189873417,
+        0.4090909090909091,
+        0.4209039548022599,
+        0.5052231718898386,
+        0.5333333333333333,
+        0.6666666666666666,
+        0.9183673469387755
+      ],
+      "complex_function_share": [
+        0.023809523809523808,
+        0.02508361204013378,
+        0.02725583316126368,
+        0.029001308329699084,
+        0.029571984435797664,
+        0.030434782608695653,
+        0.044444444444444446,
+        0.05501266739051755,
+        0.05590606379249912,
+        0.05749405233941316,
+        0.05964912280701754,
+        0.06190338443737344,
+        0.06349206349206349,
+        0.08729081863410222,
+        0.10097323600973236
+      ],
+      "duplicated_line_share": [
+        0,
+        0.0034406488080609486,
+        0.0038543290350007086,
+        0.0061379684953829445,
+        0.008339227876847474,
+        0.009494586927574827,
+        0.009685230024213076,
+        0.012269938650306749,
+        0.014599661902566468,
+        0.01641206918318394,
+        0.01909364601489463,
+        0.02074583486839412,
+        0.028980171461631517,
+        0.03929077203477554,
+        0.04602793009373059
+      ],
+      "long_function_share": [
+        0.003968253968253968,
+        0.004669260700389105,
+        0.005291005291005291,
+        0.006105538595726123,
+        0.008672310551311171,
+        0.010033444816053512,
+        0.010526315789473684,
+        0.010869565217391304,
+        0.013572204125950055,
+        0.01704996034892942,
+        0.02050473186119874,
+        0.02532790592492085,
+        0.027480474399768584,
+        0.02962962962962963,
+        0.038929440389294405
+      ],
+      "mean_cyclomatic_complexity": [
+        2.5674603174603177,
+        2.9260869565217393,
+        2.9983277591973243,
+        3.066281230642164,
+        3.1711731356301787,
+        3.273929961089494,
+        3.328042328042328,
+        3.477777777777778,
+        3.6053203040173725,
+        4.198212407991588,
+        4.461934972244251,
+        4.491228070175438,
+        4.842927393693954,
+        5.439620081411126,
+        7.688564476885645
+      ],
+      "single_author_file_share": [
+        0.5689655172413793,
+        0.6388888888888888,
+        0.673469387755102,
+        0.6862745098039216,
+        0.6962025316455697,
+        0.7024482109227872,
+        0.7587844254510921,
+        0.7782963827304551,
+        0.7803180914512923,
+        0.797752808988764,
+        0.8166666666666667,
+        0.8292079207920792,
+        0.8438381937911571,
+        0.9056603773584906,
+        0.911134903640257
+      ],
+      "smells_per_kloc": [
+        0,
+        0,
+        0.059648076349537726,
+        0.060747990000880846,
+        0.06555442656265364,
+        0.08101504005017705,
+        0.11630611770179111,
+        0.15250126674439313,
+        0.19039054366627373,
+        0.23602301224369376,
+        0.32050597209461335,
+        0.37576579055083237,
+        0.4761516650294485,
+        0.7420232500618352,
+        2.367264119039567
+      ],
+      "test_code_line_ratio": [
+        0.15506377747041647,
+        0.2618666468113622,
+        0.35474439877265096,
+        0.7029789256853114,
+        0.8089470008535734,
+        0.9203344197250957,
+        1.4104960460100646,
+        1.4300012066020182,
+        1.6035659255998238,
+        1.6127561843650835,
+        1.6953948176347784,
+        1.8569625047342506,
+        2.0371854263177664,
+        2.334067151076416,
+        2.748955517326124
+      ],
+      "truck_factor": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        3,
+        3,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        12
+      ],
+      "untested_package_share": [
+        0.14285714285714285,
+        0.17834394904458598,
+        0.20540540540540542,
+        0.21666666666666667,
+        0.21678321678321677,
+        0.22413793103448276,
+        0.25,
+        0.3333333333333333,
+        0.34782608695652173,
+        0.43506493506493504,
+        0.5183946488294314,
+        0.9701492537313433
+      ]
+    },
+    "python": {
+      "abandoned_file_share": [
+        0.011816838995568686,
+        0.023615635179153095,
+        0.029411764705882353,
+        0.045454545454545456,
+        0.08450704225352113,
+        0.1,
+        0.11904761904761904,
+        0.18853974121996303,
+        0.21739130434782608,
+        0.22727272727272727,
+        0.2801418439716312,
+        0.36363636363636365,
+        0.5135135135135135,
+        0.7146210596914823,
+        0.7631578947368421
+      ],
+      "complex_function_share": [
+        0.009606147934678195,
+        0.020454545454545454,
+        0.02577319587628866,
+        0.026495726495726495,
+        0.0284019975031211,
+        0.03232436472346786,
+        0.03296703296703297,
+        0.033123028391167195,
+        0.03470715835140998,
+        0.041125056028686685,
+        0.05019305019305019,
+        0.05235602094240838,
+        0.05501618122977346,
+        0.059481443823080835,
+        0.1227810650887574
+      ],
+      "duplicated_line_share": [
+        0,
+        0,
+        0,
+        0.0010630130514380205,
+        0.0015497869043006587,
+        0.0017927446569178853,
+        0.0024140869071286567,
+        0.0025793650793650793,
+        0.0033703166129548084,
+        0.0038679477703867948,
+        0.011745032461144993,
+        0.020900733527659438,
+        0.0629014851739555,
+        0.08961141950832673,
+        0.16896541877266627
+      ],
+      "long_function_share": [
+        0,
+        0,
+        0,
+        0.0004803073967339097,
+        0.0015772870662460567,
+        0.003433208489388265,
+        0.003544842254519674,
+        0.004338394793926247,
+        0.006387270282384581,
+        0.0075672645739910315,
+        0.00813421453990849,
+        0.008547008547008548,
+        0.010471204188481676,
+        0.010787486515641856,
+        0.022189349112426034
+      ],
+      "mean_cyclomatic_complexity": [
+        2.564088191330344,
+        2.599875156054931,
+        2.6324786324786325,
+        2.6443298969072164,
+        2.677874186550976,
+        2.7156580211335255,
+        2.8204545454545453,
+        2.826302729528536,
+        3.1321156432093233,
+        3.1640378548895898,
+        3.208198489751888,
+        3.324324324324324,
+        3.518324607329843,
+        3.538383324860193,
+        6.579881656804734
+      ],
+      "single_author_file_share": [
+        0.5595238095238095,
+        0.5652173913043478,
+        0.600739371534196,
+        0.6216216216216216,
+        0.6453900709219859,
+        0.7314783774723432,
+        0.7355371900826446,
+        0.7886977886977887,
+        0.7890879478827362,
+        0.8,
+        0.803030303030303,
+        0.8114035087719298,
+        0.8173374613003096,
+        0.8670605612998523,
+        0.9342723004694836
+      ],
+      "smells_per_kloc": [
+        0.00913575735428467,
+        0.11265701571565369,
+        0.1592610288262462,
+        0.25175529385437356,
+        0.2586262228112104,
+        0.26992634866772064,
+        0.28536098164177687,
+        0.31102214637180703,
+        0.39502271380604387,
+        0.43637157039218893,
+        0.46162634512358924,
+        0.4716929388664012,
+        0.5469524493214372,
+        2.9773995892858136,
+        4.488031914893617
+      ],
+      "test_code_line_ratio": [
+        0.2759477477920736,
+        0.617729798157395,
+        0.750363689263893,
+        0.81875,
+        0.8371447659180842,
+        1.0112155885351761,
+        1.0565944881889764,
+        1.1569156489633627,
+        1.4684147325734758,
+        1.543078524343703,
+        1.551438127090301,
+        1.8273279090791683,
+        1.8438276458562668,
+        2.2627063316087708,
+        2.765355949627345
+      ],
+      "truck_factor": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        3,
+        4,
+        6,
+        13
+      ]
+    }
+  }
+}

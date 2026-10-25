@@ -53,6 +53,9 @@ const (
 	MinFunctions = 20
 )
 
+// minCodeLines is analyze.MinCodeLines, lowered by tests of the densities on small sources.
+var minCodeLines = analyze.MinCodeLines
+
 // Analyzer is the complexity family.
 type Analyzer struct{}
 
@@ -156,7 +159,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			res.Metrics[m] = report.Null(report.InsufficientInput)
 		}
 	}
-	if lines > 0 {
+	if lines > 0 && lines >= minCodeLines {
 		res.Metrics[SmellsPerKLOC] = report.Measured(1000*float64(smells)/float64(lines), files)
 	} else {
 		res.Metrics[SmellsPerKLOC] = report.Null(report.InsufficientInput)
@@ -164,13 +167,14 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	for _, m := range res.Metrics {
 		res.Measured = res.Measured || !m.IsNull()
 	}
-	if !res.Measured {
-		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics}
-	}
 	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
 		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))
 	})
 	res.Findings = capPerFile(res.Findings, dropped)
+	if !res.Measured {
+		// Too little code for any number; each finding stands on its own and is still reported.
+		res.Reason = report.InsufficientInput
+	}
 	return res
 }
 

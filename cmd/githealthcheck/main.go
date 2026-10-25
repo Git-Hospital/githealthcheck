@@ -23,6 +23,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Git-Hospital/githealthcheck/calibration"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
@@ -33,7 +34,12 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/lang/golang"
 	"github.com/Git-Hospital/githealthcheck/internal/repo"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
+	"github.com/Git-Hospital/githealthcheck/internal/score"
 )
+
+// corpus is the calibration built into the binary; nil when it does not load, and every score is
+// then null with the reason not_calibrated. A test checks that it loads.
+var corpus, corpusErr = score.Load(calibration.Lock)
 
 // version is set at release time with -ldflags "-X main.version=...". A build by go install has the
 // module version instead, which init reads.
@@ -47,6 +53,7 @@ func init() {
 
 const usage = `usage:
   githealthcheck scan [flags] <path>   measure the repository whose root is <path>
+  githealthcheck calibrate [flags]     measure the calibration corpus and write its lock
   githealthcheck version               print the version
 
 Exit codes: 0 clean, 1 findings or score below --fail-under, 2 error, 3 incomplete.
@@ -67,6 +74,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return report.ExitClean
 	case "scan":
 		return scan(args[1:], stdout, stderr)
+	case "calibrate":
+		return calibrate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return report.ExitClean
@@ -300,7 +309,7 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		if a := byFamily[f]; a != nil && familyReason != report.Timeout {
 			res := a.Run(ctx, rf)
 			fr.Measured, fr.Reason, fr.Metrics, fr.Findings = res.Measured, res.Reason, res.Metrics, res.Findings
-			// Scores are percentiles against the calibration corpus, which does not exist before v0.4.0.
+			// A measured family is scored below, against the calibration corpus.
 			fr.Score = report.Null(report.NotCalibrated)
 			if !res.Measured {
 				fr.Score = report.Null(res.Reason)
@@ -318,6 +327,9 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	r.Overall.Score = report.Null(report.InsufficientFamily)
 	if r.Overall.Measured >= 2 {
 		r.Overall.Score = report.Null(report.NotCalibrated)
+	}
+	if corpus != nil && familyReason != report.Timeout {
+		corpus.Apply(r)
 	}
 	// A report the user named is listed even when no family read it, e.g. in a repository without Go.
 	if r.Inputs.Coverage == nil && cov != nil {
@@ -500,7 +512,11 @@ func text(r *report.Report) string {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			fmt.Fprintf(&b, "    %-24s %s\n", name, metricText(name, f.Metrics[name]))
+			line := metricText(name, f.Metrics[name])
+			if s, ok := f.MetricScores[name]; ok {
+				line += fmt.Sprintf("  scores %.1f", s)
+			}
+			fmt.Fprintf(&b, "    %-24s %s\n", name, line)
 		}
 		findings += len(f.Findings)
 	}
@@ -535,6 +551,9 @@ func text(r *report.Report) string {
 		}
 	}
 	fmt.Fprintf(&b, "\nOverall  %s  (%d of %d families measured)\n", scoreText(r.Overall.Score), r.Overall.Measured, r.Overall.Of)
+	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
+		fmt.Fprintf(&b, "  scored as %s against %d corpus repositories, %.0f%% of the code analysed\n", c.Language, c.Repositories, 100*c.AnalysedShare)
+	}
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
 	}
