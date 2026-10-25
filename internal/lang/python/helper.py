@@ -372,8 +372,8 @@ class File:
         skip, fixed = self.import_spans_and_keywords()
         locals_ = self.local_names if self.tree is not None else {}
         cols = ByteColumns(self.blines)
+        imports = Spans(skip)
         kinds, names, lines, pos = [], [], [], []
-        si = 0
         prev = None
         depth = 0  # inside an f-string (3.12's tokens), read as one literal
         lit = []
@@ -387,9 +387,7 @@ class File:
             if t.type in SKIPPED or (t.type == token.OP and t.string == ";"):
                 continue
             start = cols.start(t.start)
-            while si < len(skip) and skip[si][1] <= start:
-                si += 1
-            if si < len(skip) and skip[si][0] <= start < skip[si][1]:
+            if imports.holds(start):
                 continue
             kind, name = token_kind(t, prev, start not in fixed and start in locals_)
             if t.type in STRING_STARTS:
@@ -413,6 +411,18 @@ class File:
                     fixed.add((node.lineno, node.col_offset))
         skip.sort()
         return skip, fixed
+
+
+class Spans:
+    """Sorted, disjoint spans, asked in increasing order whether they hold a position."""
+
+    def __init__(self, spans):
+        self.spans, self.i = spans, 0
+
+    def holds(self, p):
+        while self.i < len(self.spans) and self.spans[self.i][1] <= p:
+            self.i += 1
+        return self.i < len(self.spans) and self.spans[self.i][0] <= p < self.spans[self.i][1]
 
 
 class ByteColumns:
@@ -822,9 +832,13 @@ class Cognitive:
             if isinstance(child, ast.expr):
                 self.expr(child, level)
             elif isinstance(child, (ast.comprehension, ast.keyword, ast.arguments)):
-                for gc in ast.iter_child_nodes(child):
-                    if isinstance(gc, ast.expr):
-                        self.expr(gc, level)
+                self.exprs_of(child, level)
+
+    def exprs_of(self, node, level):
+        """Visits the expressions directly under a node that is not one."""
+        for gc in ast.iter_child_nodes(node):
+            if isinstance(gc, ast.expr):
+                self.expr(gc, level)
 
     def bool_op(self, e, level):
         """A chain of and/or adds 1 for each run of one operator."""
