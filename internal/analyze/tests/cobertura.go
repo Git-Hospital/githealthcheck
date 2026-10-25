@@ -53,27 +53,21 @@ type pathResolver func(full string) (rel string, atHead bool)
 // counts as the repository's own: unlike a Go profile, it has no module path to tell the
 // repository's code from the rest.
 func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*profile, error) {
-	p := &profile{mode: "set", blocks: map[string]map[blockKey]*block{}}
-	d := xml.NewDecoder(bytes.NewReader(data))
-	d.Strict = true
-	var sources []string
-	var stack []string
-	var text strings.Builder
-	var lines map[blockKey]*block // the lines of the current class, nil when its file is not in the commit
-	type found struct {
-		rel string
-		ok  bool
+	c := &cobertura{
+		ctx:     ctx,
+		d:       xml.NewDecoder(bytes.NewReader(data)),
+		resolve: resolve,
+		p:       &profile{mode: "set", blocks: map[string]map[blockKey]*block{}},
+		names:   map[string]bool{},
+		seen:    map[string]found{},
+		budget:  maxLookups,
 	}
-	names := map[string]bool{} // each file name of the report
-	seen := map[string]found{} // how a name resolved, with the sources so far
-	budget := maxLookups
-	inSource := false
-	sawRoot := false
+	c.d.Strict = true
 	for n := 0; ; n++ {
 		if n%4096 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		tok, err := d.Token()
+		tok, err := c.d.Token()
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -82,107 +76,164 @@ func parseCobertura(ctx context.Context, data []byte, resolve pathResolver) (*pr
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			name := t.Name.Local
-			parent := ""
-			if len(stack) > 0 {
-				parent = stack[len(stack)-1]
-			}
-			stack = append(stack, name)
-			if len(stack) > maxDepth {
-				return nil, fmt.Errorf("line %d: elements nested more than %d deep", lineOf(d), maxDepth)
-			}
-			switch {
-			case len(stack) == 1:
-				if name != "coverage" {
-					return nil, fmt.Errorf("root element %q, not coverage", name)
-				}
-				sawRoot = true
-			case name == "source" && len(stack) == 3 && stack[1] == "sources":
-				// Only coverage/sources/source: a sources element elsewhere names nothing.
-				text.Reset()
-				inSource = true
-			case name == "class":
-				if ctx.Err() != nil {
-					return nil, ctx.Err()
-				}
-				file := strings.ReplaceAll(attr(t, "filename"), `\`, "/")
-				if file != "" {
-					file = path.Clean(file) // one file however it is written
-				}
-				if file == "" || len(file) > maxNameBytes {
-					return nil, fmt.Errorf("line %d: class without a filename, or one longer than %d bytes", lineOf(d), maxNameBytes)
-				}
-				r, known := seen[file]
-				if !known {
-					r.rel, r.ok = find(file, sources, resolve, &budget)
-					if budget < 0 {
-						return nil, fmt.Errorf("line %d: the report's files cost more than %d lookups to map", lineOf(d), maxLookups)
-					}
-					seen[file] = r
-					names[file] = true
-				}
-				rel, ok := r.rel, r.ok
-				lines = nil
-				if ok {
-					if lines = p.blocks[rel]; lines == nil {
-						lines = map[blockKey]*block{}
-						p.blocks[rel] = lines
-					}
-				}
-			case name == "line" && parent == "lines" && len(stack) >= 3 && stack[len(stack)-3] == "class":
-				if lines == nil {
-					continue
-				}
-				num, err1 := strconv.Atoi(attr(t, "number"))
-				hits, err2 := strconv.Atoi(attr(t, "hits"))
-				if err1 != nil || err2 != nil || num < 1 || num > maxLine || hits < 0 {
-					return nil, fmt.Errorf("line %d: bad line element", lineOf(d))
-				}
-				k := blockKey{num, 0, num, 0}
-				if b := lines[k]; b != nil {
-					b.covered = b.covered || hits > 0
-				} else {
-					lines[k] = &block{stmts: 1, covered: hits > 0}
-				}
-			}
+			err = c.start(t)
 		case xml.CharData:
-			if inSource && len(stack) == 3 {
-				if text.Len()+len(t) > maxNameBytes {
-					return nil, fmt.Errorf("line %d: source longer than %d bytes", lineOf(d), maxNameBytes)
-				}
-				text.Write(t)
-			}
+			err = c.charData(t)
 		case xml.EndElement:
-			if len(stack) > 0 {
-				if inSource && len(stack) == 3 {
-					inSource = false
-					if len(sources) == maxSources {
-						return nil, fmt.Errorf("more than %d sources", maxSources)
-					}
-					sources = append(sources, strings.ReplaceAll(strings.TrimSpace(text.String()), `\`, "/"))
-					// A name that was not found is tried again with this source.
-					maps.DeleteFunc(seen, func(_ string, r found) bool { return !r.ok })
-				}
-				if stack[len(stack)-1] == "class" {
-					lines = nil
-				}
-				stack = stack[:len(stack)-1]
-			}
+			err = c.end()
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
-	if !sawRoot {
+	if !c.sawRoot {
 		return nil, fmt.Errorf("no coverage element")
 	}
-	// One file written two ways is one file: the files that count are those found, each once, and
-	// the names that were not.
-	p.files = len(names)
-	p.inModules = len(p.blocks)
-	for n := range names {
-		if !seen[n].ok {
-			p.inModules++
+	return c.finish(), nil
+}
+
+// found is how a file name of the report resolved, with the sources read so far.
+type found struct {
+	rel string
+	ok  bool
+}
+
+// cobertura is the state of parseCobertura while it reads the report's elements.
+type cobertura struct {
+	ctx     context.Context
+	d       *xml.Decoder
+	resolve pathResolver
+	p       *profile
+	sources []string
+	stack   []string
+	text    strings.Builder
+	lines   map[blockKey]*block // the lines of the current class, nil when its file is not in the commit
+	names   map[string]bool     // each file name of the report
+	seen    map[string]found
+	budget  int
+	// inSource is true inside coverage/sources/source; sawRoot once the root element was read.
+	inSource, sawRoot bool
+}
+
+func (c *cobertura) start(t xml.StartElement) error {
+	name := t.Name.Local
+	parent := ""
+	if len(c.stack) > 0 {
+		parent = c.stack[len(c.stack)-1]
+	}
+	c.stack = append(c.stack, name)
+	depth := len(c.stack)
+	switch {
+	case depth > maxDepth:
+		return fmt.Errorf("line %d: elements nested more than %d deep", lineOf(c.d), maxDepth)
+	case depth == 1:
+		if name != "coverage" {
+			return fmt.Errorf("root element %q, not coverage", name)
+		}
+		c.sawRoot = true
+	case name == "source" && depth == 3 && c.stack[1] == "sources":
+		// Only coverage/sources/source: a sources element elsewhere names nothing.
+		c.text.Reset()
+		c.inSource = true
+	case name == "class":
+		return c.class(t)
+	case name == "line" && parent == "lines" && depth >= 3 && c.stack[depth-3] == "class":
+		return c.line(t)
+	}
+	return nil
+}
+
+// class starts a class: its file is resolved once per name, and its lines go to that file's blocks.
+func (c *cobertura) class(t xml.StartElement) error {
+	if c.ctx.Err() != nil {
+		return c.ctx.Err()
+	}
+	file := strings.ReplaceAll(attr(t, "filename"), `\`, "/")
+	if file != "" {
+		file = path.Clean(file) // one file however it is written
+	}
+	if file == "" || len(file) > maxNameBytes {
+		return fmt.Errorf("line %d: class without a filename, or one longer than %d bytes", lineOf(c.d), maxNameBytes)
+	}
+	r, known := c.seen[file]
+	if !known {
+		r.rel, r.ok = find(file, c.sources, c.resolve, &c.budget)
+		if c.budget < 0 {
+			return fmt.Errorf("line %d: the report's files cost more than %d lookups to map", lineOf(c.d), maxLookups)
+		}
+		c.seen[file] = r
+		c.names[file] = true
+	}
+	c.lines = nil
+	if r.ok {
+		if c.lines = c.p.blocks[r.rel]; c.lines == nil {
+			c.lines = map[blockKey]*block{}
+			c.p.blocks[r.rel] = c.lines
 		}
 	}
-	return p, nil
+	return nil
+}
+
+func (c *cobertura) line(t xml.StartElement) error {
+	if c.lines == nil {
+		return nil
+	}
+	num, err1 := strconv.Atoi(attr(t, "number"))
+	hits, err2 := strconv.Atoi(attr(t, "hits"))
+	if err1 != nil || err2 != nil || num < 1 || num > maxLine || hits < 0 {
+		return fmt.Errorf("line %d: bad line element", lineOf(c.d))
+	}
+	k := blockKey{num, 0, num, 0}
+	if b := c.lines[k]; b != nil {
+		b.covered = b.covered || hits > 0
+	} else {
+		c.lines[k] = &block{stmts: 1, covered: hits > 0}
+	}
+	return nil
+}
+
+func (c *cobertura) charData(t xml.CharData) error {
+	if !c.inSource || len(c.stack) != 3 {
+		return nil
+	}
+	if c.text.Len()+len(t) > maxNameBytes {
+		return fmt.Errorf("line %d: source longer than %d bytes", lineOf(c.d), maxNameBytes)
+	}
+	c.text.Write(t)
+	return nil
+}
+
+func (c *cobertura) end() error {
+	if len(c.stack) == 0 {
+		return nil
+	}
+	if c.inSource && len(c.stack) == 3 {
+		c.inSource = false
+		if len(c.sources) == maxSources {
+			return fmt.Errorf("more than %d sources", maxSources)
+		}
+		c.sources = append(c.sources, strings.ReplaceAll(strings.TrimSpace(c.text.String()), `\`, "/"))
+		// A name that was not found is tried again with this source.
+		maps.DeleteFunc(c.seen, func(_ string, r found) bool { return !r.ok })
+	}
+	if c.stack[len(c.stack)-1] == "class" {
+		c.lines = nil
+	}
+	c.stack = c.stack[:len(c.stack)-1]
+	return nil
+}
+
+// finish counts the files. One file written two ways is one file: the files that count are those
+// found, each once, and the names that were not.
+func (c *cobertura) finish() *profile {
+	c.p.files = len(c.names)
+	c.p.inModules = len(c.p.blocks)
+	for n := range c.names {
+		if !c.seen[n].ok {
+			c.p.inModules++
+		}
+	}
+	return c.p
 }
 
 func attr(t xml.StartElement, name string) string {
@@ -207,62 +258,80 @@ func lineOf(d *xml.Decoder) int {
 // longest is taken. The name's own parts are never dropped, so a file missing from the commit does
 // not land on another file with the same tail. Each lookup costs one of budget.
 func find(file string, sources []string, resolve pathResolver, budget *int) (string, bool) {
-	type base struct {
-		full string
-		keep int // the parts at the end that must stay
+	best := ""
+	for _, b := range findBases(file, sources) {
+		if rel, ok := b.longest(len(best), resolve, budget); ok {
+			best = rel
+		}
+		if *budget < 0 {
+			return "", false
+		}
 	}
-	var bases []base
-	if path.IsAbs(file) || isDrive(file) {
-		for _, s := range sources {
-			if rest, ok := strings.CutPrefix(file, strings.TrimSuffix(s, "/")+"/"); ok && s != "" {
-				bases = append(bases, base{file, len(strings.Split(path.Clean(rest), "/"))})
-			}
-		}
-		if bases == nil {
-			bases = []base{{file, min(2, strings.Count(strings.Trim(file, "/"), "/")+1)}}
-		}
-	} else {
+	return best, best != ""
+}
+
+// findBase is a path the repository path may be a suffix of, and how many of its parts at the end
+// must stay.
+type findBase struct {
+	full string
+	keep int
+}
+
+func findBases(file string, sources []string) []findBase {
+	if !path.IsAbs(file) && !isDrive(file) {
 		keep := 0
 		for p := range strings.SplitSeq(path.Clean(file), "/") {
 			if p != ".." && p != "." {
 				keep++
 			}
 		}
+		var bases []findBase
 		for _, s := range sources {
-			bases = append(bases, base{path.Join(s, file), keep})
+			bases = append(bases, findBase{path.Join(s, file), keep})
 		}
-		bases = append(bases, base{file, keep})
+		return append(bases, findBase{file, keep})
 	}
-	best := ""
-	for _, b := range bases {
-		full := strings.TrimPrefix(path.Clean("/"+b.full), "/")
-		parts := strings.Count(full, "/") + 1
-		if b.keep == 0 || full == "" || parts > maxPathSegments {
-			continue
-		}
-		// Suffixes from the longest: full itself, then past each slash, while the name stays whole.
-		for i, drop := 0, 0; drop <= parts-b.keep; drop++ {
-			cand := full[i:]
-			if len(cand) <= len(best) {
-				break // the rest are shorter than what was found
-			}
-			if *budget--; *budget < 0 {
-				return "", false
-			}
-			if cand != "." && !strings.HasPrefix(cand, "../") {
-				if rel, ok := resolve(cand); ok {
-					best = rel
-					break
-				}
-			}
-			next := strings.IndexByte(full[i:], '/')
-			if next < 0 {
-				break
-			}
-			i += next + 1
+	var bases []findBase
+	for _, s := range sources {
+		if rest, ok := strings.CutPrefix(file, strings.TrimSuffix(s, "/")+"/"); ok && s != "" {
+			bases = append(bases, findBase{file, len(strings.Split(path.Clean(rest), "/"))})
 		}
 	}
-	return best, best != ""
+	if bases == nil {
+		bases = []findBase{{file, min(2, strings.Count(strings.Trim(file, "/"), "/")+1)}}
+	}
+	return bases
+}
+
+// longest tries b's suffixes from the longest, full itself and then past each slash, while the kept
+// parts stay whole and the suffix is longer than best, the length of the best match so far. It
+// returns the first one in the commit.
+func (b findBase) longest(best int, resolve pathResolver, budget *int) (string, bool) {
+	full := strings.TrimPrefix(path.Clean("/"+b.full), "/")
+	parts := strings.Count(full, "/") + 1
+	if b.keep == 0 || full == "" || parts > maxPathSegments {
+		return "", false
+	}
+	for i, drop := 0, 0; drop <= parts-b.keep; drop++ {
+		cand := full[i:]
+		if len(cand) <= best {
+			return "", false // the rest are shorter than what was found
+		}
+		if *budget--; *budget < 0 {
+			return "", false
+		}
+		if cand != "." && !strings.HasPrefix(cand, "../") {
+			if rel, ok := resolve(cand); ok {
+				return rel, true
+			}
+		}
+		next := strings.IndexByte(cand, '/')
+		if next < 0 {
+			return "", false
+		}
+		i += next + 1
+	}
+	return "", false
 }
 
 // isDrive reports a Windows path such as C:/work/x.py.

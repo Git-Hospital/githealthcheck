@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"hash/maphash"
 	"regexp"
@@ -56,11 +57,8 @@ type resolver func(importPath string) (rel string, inModule, atHead bool)
 // and blocks that appear more than once, as -coverpkg writes them, are merged: a block is covered
 // when any of its copies ran.
 func parseProfile(ctx context.Context, data []byte, resolve resolver) (*profile, error) {
-	p := &profile{blocks: map[string]map[blockKey]*block{}}
-	seed := maphash.MakeSeed()
-	seen := map[uint64]bool{} // distinct file names, by a hash an attacker cannot predict
-	var last string
-	var lastBlocks map[blockKey]*block
+	g := &goProfile{ctx: ctx, resolve: resolve, p: &profile{blocks: map[string]map[blockKey]*block{}},
+		seed: maphash.MakeSeed(), seen: map[uint64]bool{}}
 	n := 0
 	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
 		n++
@@ -70,79 +68,112 @@ func parseProfile(ctx context.Context, data []byte, resolve resolver) (*profile,
 		if len(line) > maxLineBytes {
 			return nil, fmt.Errorf("line %d: longer than %d bytes", n, maxLineBytes)
 		}
-		s := strings.TrimSuffix(string(line), "\r")
-		if s == "" {
-			continue
-		}
-		if mode, ok := strings.CutPrefix(s, "mode: "); ok {
-			switch {
-			case p.mode == "" && (mode == "set" || mode == "count" || mode == "atomic"):
-				p.mode = mode
-			case p.mode == "":
-				return nil, fmt.Errorf("line %d: unknown mode %q", n, mode)
-			case mode != p.mode:
-				return nil, fmt.Errorf("line %d: mode %q after mode %q", n, mode, p.mode)
+		if err := g.line(strings.TrimSuffix(string(line), "\r")); err != nil {
+			if errors.Is(err, ctx.Err()) {
+				return nil, err
 			}
-			continue
+			return nil, fmt.Errorf("line %d: %w", n, err)
 		}
-		if p.mode == "" {
-			return nil, fmt.Errorf("line %d: no mode line before the first block", n)
-		}
-		m := profileLine.FindStringSubmatch(s)
-		if m == nil {
-			return nil, fmt.Errorf("line %d: not a coverage block", n)
-		}
-		var v [6]int
-		for i := range v {
-			x, err := strconv.Atoi(m[i+2])
-			if err != nil {
-				return nil, fmt.Errorf("line %d: %v", n, err)
-			}
-			v[i] = x
-		}
-		k := blockKey{v[0], v[1], v[2], v[3]}
-		stmts, covered := v[4], v[5] > 0
-		if stmts > maxBlockStmts {
-			return nil, fmt.Errorf("line %d: %d statements in one block", n, stmts)
-		}
-		if name := m[1]; name != last {
-			if strings.Count(name, "/") > maxPathSegments {
-				return nil, fmt.Errorf("line %d: file name has more than %d path segments", n, maxPathSegments)
-			}
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			last, lastBlocks = name, nil
-			h := maphash.String(seed, name)
-			rel, inModule, atHead := resolve(name)
-			if !seen[h] {
-				seen[h] = true
-				p.files++
-				if inModule {
-					p.inModules++
-				}
-			}
-			if atHead {
-				if lastBlocks = p.blocks[rel]; lastBlocks == nil {
-					lastBlocks = map[blockKey]*block{}
-					p.blocks[rel] = lastBlocks
-				}
-			}
-		}
-		if lastBlocks == nil {
-			continue
-		}
-		if b := lastBlocks[k]; b != nil {
-			if b.stmts != stmts {
-				return nil, fmt.Errorf("line %d: block has %d statements, earlier %d", n, stmts, b.stmts)
-			}
-			b.covered = b.covered || covered
-			continue
-		}
-		lastBlocks[k] = &block{stmts: stmts, covered: covered}
 	}
-	if p.mode == "" {
+	if g.p.mode == "" {
 		return nil, fmt.Errorf("no mode line")
 	}
-	return p, nil
+	return g.p, nil
+}
+
+// goProfile is the state of parseProfile while it reads the lines.
+type goProfile struct {
+	ctx        context.Context
+	resolve    resolver
+	p          *profile
+	seed       maphash.Seed
+	seen       map[uint64]bool // distinct file names, by a hash an attacker cannot predict
+	last       string
+	lastBlocks map[blockKey]*block // the blocks of last, nil when it is not in the commit
+}
+
+func (g *goProfile) line(s string) error {
+	if s == "" {
+		return nil
+	}
+	if mode, ok := strings.CutPrefix(s, "mode: "); ok {
+		return g.mode(mode)
+	}
+	if g.p.mode == "" {
+		return fmt.Errorf("no mode line before the first block")
+	}
+	m := profileLine.FindStringSubmatch(s)
+	if m == nil {
+		return fmt.Errorf("not a coverage block")
+	}
+	var v [6]int
+	for i := range v {
+		x, err := strconv.Atoi(m[i+2])
+		if err != nil {
+			return err
+		}
+		v[i] = x
+	}
+	k := blockKey{v[0], v[1], v[2], v[3]}
+	stmts, covered := v[4], v[5] > 0
+	if stmts > maxBlockStmts {
+		return fmt.Errorf("%d statements in one block", stmts)
+	}
+	if name := m[1]; name != g.last {
+		if err := g.file(name); err != nil {
+			return err
+		}
+	}
+	if g.lastBlocks == nil {
+		return nil
+	}
+	if b := g.lastBlocks[k]; b != nil {
+		if b.stmts != stmts {
+			return fmt.Errorf("block has %d statements, earlier %d", stmts, b.stmts)
+		}
+		b.covered = b.covered || covered
+		return nil
+	}
+	g.lastBlocks[k] = &block{stmts: stmts, covered: covered}
+	return nil
+}
+
+func (g *goProfile) mode(mode string) error {
+	switch {
+	case g.p.mode == "" && (mode == "set" || mode == "count" || mode == "atomic"):
+		g.p.mode = mode
+	case g.p.mode == "":
+		return fmt.Errorf("unknown mode %q", mode)
+	case mode != g.p.mode:
+		return fmt.Errorf("mode %q after mode %q", mode, g.p.mode)
+	}
+	return nil
+}
+
+// file starts the blocks of another file: it is counted once, and its blocks are kept when it is in
+// the commit.
+func (g *goProfile) file(name string) error {
+	if strings.Count(name, "/") > maxPathSegments {
+		return fmt.Errorf("file name has more than %d path segments", maxPathSegments)
+	}
+	if g.ctx.Err() != nil {
+		return g.ctx.Err()
+	}
+	g.last, g.lastBlocks = name, nil
+	h := maphash.String(g.seed, name)
+	rel, inModule, atHead := g.resolve(name)
+	if !g.seen[h] {
+		g.seen[h] = true
+		g.p.files++
+		if inModule {
+			g.p.inModules++
+		}
+	}
+	if atHead {
+		if g.lastBlocks = g.p.blocks[rel]; g.lastBlocks == nil {
+			g.lastBlocks = map[blockKey]*block{}
+			g.p.blocks[rel] = g.lastBlocks
+		}
+	}
+	return nil
 }
