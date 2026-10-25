@@ -113,92 +113,107 @@ func validPath(p string) bool {
 var maxTokens = facts.MaxTokens
 
 func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte) string) (*Tree, error) {
-	t := &Tree{Root: root}
 	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	ls := lang.Open(ctx)
-	defer ls.Close()
-	tokens, dropped := 0, false
-	// keep bounds the token streams across the repository: past the bound none is kept. It runs once
-	// a file's facts are final, which for a file read by a helper is when the helper returns it.
-	keep := func(f *facts.File) {
-		if tokens += len(f.Tokens.Kind); tokens > maxTokens {
-			if !dropped {
-				for i := range t.Files {
-					t.Files[i].Tokens, t.Files[i].TokensDropped = facts.Tokens{}, true
-				}
-				dropped = true
-			}
-			f.Tokens, f.TokensDropped = facts.Tokens{}, true
-		}
-	}
-	collect := func(done []lang.Filled) {
-		for _, d := range done {
-			t.Files[d.Index] = d.File
-			keep(&t.Files[d.Index])
-		}
-	}
+	w := &walker{t: &Tree{Root: root}, root: r, ls: lang.Open(ctx), blobID: blobID}
+	defer w.ls.Close()
 	// Files a helper has not returned by the deadline are left with what the walk knows.
 	defer func() {
-		collect(ls.Wait())
-		t.Languages = map[string]lang.Status{"go": ls.Status("go"), "python": ls.Status("python")}
-		t.Tools = ls.Tools()
+		w.collect(w.ls.Wait())
+		w.t.Languages = map[string]lang.Status{"go": w.ls.Status("go"), "python": w.ls.Status("python")}
+		w.t.Tools = w.ls.Tools()
 	}()
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			// The files read so far are still returned, so a timed-out run can report what it did
 			// measure.
-			return t, ctx.Err()
+			return w.t, ctx.Err()
 		}
-		skip := func(reason report.SkipReason, err error) {
-			s := report.Skip{Path: e.Path, Reason: reason}
-			if err != nil {
-				s.Detail = cause(err)
-			}
-			t.Skipped = append(t.Skipped, s)
-		}
-		switch {
-		case !validPath(e.Path):
-			// Not echoed back: the name itself is the attack.
-			t.Skipped = append(t.Skipped, report.Skip{Path: "", Reason: report.SkipInvalidPath})
-			continue
-		case e.Mode == "160000":
-			skip(report.SkipNestedRepo, nil)
-			continue
-		}
-		name := language(e.Path)
-		if name == "" {
-			continue
-		}
-		if e.Mode == "120000" {
-			skip(report.SkipSymlink, nil)
-			continue
-		}
-		src, size, reason, err := readEntry(r, e.Path, MaxSourceBytes)
-		if reason != "" {
-			skip(reason, err)
-			continue
-		}
-		f := facts.File{
-			Path:     e.Path,
-			Language: name,
-			Size:     size,
-			Lines:    countLines(src),
-			Vendored: vendored(e.Path),
-			Modified: blobID(src) != e.OID,
-		}
-		i := len(t.Files)
-		if ls.Fill(i, &f, src) {
-			keep(&f)
-		}
-		t.Files = append(t.Files, f)
-		collect(ls.Done())
+		w.entry(e)
+		w.collect(w.ls.Done())
 	}
-	collect(ls.Wait())
-	return t, nil
+	w.collect(w.ls.Wait())
+	return w.t, nil
+}
+
+// walker is the state of Walk.
+type walker struct {
+	t       *Tree
+	root    *os.Root
+	ls      *lang.Set
+	blobID  func([]byte) string
+	tokens  int  // the tokens of the streams kept so far
+	dropped bool // once the streams are over maxTokens, none is kept
+}
+
+// entry reads one file of the commit, or records why it was skipped.
+func (w *walker) entry(e Entry) {
+	skip := func(reason report.SkipReason, err error) {
+		s := report.Skip{Path: e.Path, Reason: reason}
+		if err != nil {
+			s.Detail = cause(err)
+		}
+		w.t.Skipped = append(w.t.Skipped, s)
+	}
+	switch {
+	case !validPath(e.Path):
+		// Not echoed back: the name itself is the attack.
+		w.t.Skipped = append(w.t.Skipped, report.Skip{Path: "", Reason: report.SkipInvalidPath})
+		return
+	case e.Mode == "160000":
+		skip(report.SkipNestedRepo, nil)
+		return
+	}
+	name := language(e.Path)
+	if name == "" {
+		return
+	}
+	if e.Mode == "120000" {
+		skip(report.SkipSymlink, nil)
+		return
+	}
+	src, size, reason, err := readEntry(w.root, e.Path, MaxSourceBytes)
+	if reason != "" {
+		skip(reason, err)
+		return
+	}
+	f := facts.File{
+		Path:     e.Path,
+		Language: name,
+		Size:     size,
+		Lines:    countLines(src),
+		Vendored: vendored(e.Path),
+		Modified: w.blobID(src) != e.OID,
+	}
+	if w.ls.Fill(len(w.t.Files), &f, src) {
+		w.keep(&f)
+	}
+	w.t.Files = append(w.t.Files, f)
+}
+
+// keep bounds the token streams across the repository: past the bound none is kept. It runs once a
+// file's facts are final, which for a file read by a helper is when the helper returns it.
+func (w *walker) keep(f *facts.File) {
+	if w.tokens += len(f.Tokens.Kind); w.tokens <= maxTokens {
+		return
+	}
+	if !w.dropped {
+		for i := range w.t.Files {
+			w.t.Files[i].Tokens, w.t.Files[i].TokensDropped = facts.Tokens{}, true
+		}
+		w.dropped = true
+	}
+	f.Tokens, f.TokensDropped = facts.Tokens{}, true
+}
+
+func (w *walker) collect(done []lang.Filled) {
+	for _, d := range done {
+		w.t.Files[d.Index] = d.File
+		w.keep(&w.t.Files[d.Index])
+	}
 }
 
 // ReadFile reads one file of the commit, such as a go.mod or a coverage report, with the same guards
