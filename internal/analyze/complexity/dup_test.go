@@ -16,7 +16,7 @@ import (
 
 // parsed fills a Go file as the walk does.
 func parsed(path, src string) facts.File {
-	f := facts.File{Path: path, Language: "go", Lines: strings.Count(src, "\n")}
+	f := facts.File{Path: path, Language: "go", Analysed: true, Lines: strings.Count(src, "\n")}
 	golang.Support{}.Fill(&f, []byte(src))
 	return f
 }

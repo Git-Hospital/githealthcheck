@@ -1,6 +1,6 @@
 # GHC-CPLX-007: commented-out code
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A comment holds code: lines that, without their `//`, parse as Go that does something.
 
@@ -27,6 +27,20 @@ A comment line inside a run, such as a comment that was in the code, stays part 
 
 Checked by hand on seven Go repositories (cobra, logrus, fzf, yaml, MeshMedic, Helmbulance, boards):
 39 findings, of which one is not commented-out code but a formula that explains the line below it.
+
+## Python
+
+The method SonarSource's python:S125 uses: runs of `#` comment lines, without the `#` and the space
+after it, that parse with `ast` as statements of which one does something: a call written as code
+(`f(x)`, not `f (x)`), an `await` or `yield`, an assignment to a name, attribute or item (an annotated one only when the annotation is a type and the name is not a capitalised word such as `Note`), a `return`,
+`raise`, `del`, `import`, `assert`, `def`, `class`, or a control statement. A run that does not parse as a whole is judged line by line. Not
+counted: a comment after code on the same line, directives (`# type:`, `# noqa`, `# pylint:`,
+`# fmt:`, `# pragma`, `# isort:`, the coding line and others), a `#!` first line, and doctest lines
+(`>>>`, `...`).
+
+Checked by hand on samples from django: commented-out settings in `docs/conf.py`, code under a
+`TODO`, and a few comments that are code in form but a note in intent, such as `# g = g1 | g2` above
+`__or__`, or a grammar from an RFC.
 
 ## What is left out
 

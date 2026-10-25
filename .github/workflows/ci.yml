@@ -39,7 +39,12 @@ jobs:
       - run: go vet ./...
       - name: build for every release OS
         run: for os in linux darwin windows; do GOOS=$os go build ./... || exit 1; done
+      # The Python tests use the runner's python3 (3.12 on ubuntu-24.04), and fail rather than skip
+      # without one.
+      - run: python3 --version
       - run: go test -race ./...
+        env:
+          GHC_REQUIRE_PYTHON: "1"
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       # Needs root to give a test repository another owner; last, because it writes the build cache as
       # root.

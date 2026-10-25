@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
+	"github.com/Git-Hospital/githealthcheck/internal/lang/python"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
@@ -177,24 +180,34 @@ func TestRulePairs(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(root, "docs", "rules", rule.ID+".md")); err != nil {
 				t.Errorf("%s has no page: %v", rule.ID, err)
 			}
-			for kind, want := range map[string]int{"defect": report.ExitFindings, "clean": report.ExitClean} {
-				t.Run(rule.ID+"/"+kind, func(t *testing.T) {
-					dir := fixtureRepo(t, filepath.Join(root, "testdata", "pairs", rule.ID, kind))
-					r, code, out := scanJSON(t, dir)
-					var got []string
-					for _, f := range r.Families {
-						for _, fd := range f.Findings {
-							got = append(got, fd.RuleID)
+			// A rule that applies to Python has a second pair under python/.
+			variants := []string{""}
+			if _, err := os.Stat(filepath.Join(root, "testdata", "pairs", rule.ID, "python")); err == nil {
+				variants = append(variants, "python")
+			}
+			for _, variant := range variants {
+				for kind, want := range map[string]int{"defect": report.ExitFindings, "clean": report.ExitClean} {
+					t.Run(path.Join(rule.ID, variant, kind), func(t *testing.T) {
+						if variant == "python" {
+							needPython(t)
 						}
-					}
-					wantIDs := []string(nil)
-					if kind == "defect" {
-						wantIDs = []string{rule.ID}
-					}
-					if !slices.Equal(got, wantIDs) || code != want {
-						t.Errorf("findings %v exit %d, want %v exit %d\n%s", got, code, wantIDs, want, out)
-					}
-				})
+						dir := fixtureRepo(t, filepath.Join(root, "testdata", "pairs", rule.ID, variant, kind))
+						r, code, out := scanJSON(t, dir)
+						var got []string
+						for _, f := range r.Families {
+							for _, fd := range f.Findings {
+								got = append(got, fd.RuleID)
+							}
+						}
+						wantIDs := []string(nil)
+						if kind == "defect" {
+							wantIDs = []string{rule.ID}
+						}
+						if !slices.Equal(got, wantIDs) || code != want {
+							t.Errorf("findings %v exit %d, want %v exit %d\n%s", got, code, wantIDs, want, out)
+						}
+					})
+				}
 			}
 		}
 	}
@@ -208,6 +221,21 @@ func TestRulePairs(t *testing.T) {
 			t.Errorf("testdata/pairs/%s has no rule", e.Name())
 		}
 	}
+}
+
+// needPython skips a test without a python3 the scan can use, unless GHC_REQUIRE_PYTHON is set, as it
+// is in CI, where a skip would hide a broken helper.
+func needPython(t *testing.T) {
+	t.Helper()
+	p, err := python.Start(context.Background())
+	if err == nil {
+		p.Close()
+		return
+	}
+	if os.Getenv("GHC_REQUIRE_PYTHON") != "" {
+		t.Fatalf("python3: %v", err)
+	}
+	t.Skipf("python3: %v", err)
 }
 
 func readTree(t *testing.T, dir string) map[string]string {
@@ -245,15 +273,16 @@ func TestScanIgnoresFixtureModules(t *testing.T) {
 	}
 }
 
-// A repository without Go: the tests family is null with its own reason, and nothing was measured.
-func TestScanWithoutGo(t *testing.T) {
-	r, code, _ := scanJSON(t, gitRepoWith(t, map[string]string{"app.py": "print(1)\n"}))
+// A repository in a language this build does not analyse: the tests family is null with its own
+// reason, and nothing was measured.
+func TestScanUnanalysedLanguage(t *testing.T) {
+	r, code, _ := scanJSON(t, gitRepoWith(t, map[string]string{"main.rs": "fn main() {}\n"}))
 	f := testsFamily(r)
 	if f.Measured || f.Reason != report.UnsupportedLanguage || f.Score.Reason != report.UnsupportedLanguage || code != report.ExitIncomplete {
 		t.Errorf("tests family %+v, exit %d", f, code)
 	}
-	if r.Languages[0].Analysed {
-		t.Errorf("python reported as analysed: %+v", r.Languages)
+	if l := r.Languages[0]; l.Name != "rust" || l.Analysed || l.Reason != "" {
+		t.Errorf("rust reported as analysed: %+v", r.Languages)
 	}
 }
 

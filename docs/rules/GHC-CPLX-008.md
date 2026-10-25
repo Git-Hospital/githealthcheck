@@ -1,6 +1,6 @@
 # GHC-CPLX-008: function that only says it is not implemented
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A function's whole body is `panic("...")`, or a `return` with `errors.New("...")` or
 `fmt.Errorf("...")`, whose message says the function is not implemented: it contains "not implemented", "not yet
@@ -11,6 +11,17 @@ message about a to-do item, such as "todo not found", is not one.
 
 None: each function is a finding. A placeholder compiles and passes review at a glance, and fails only
 when called. Code generators leave them when asked for more than they write (ADR 0001, D32).
+
+## Python
+
+The whole body, after the docstring, is one of:
+
+- `raise NotImplementedError` in a function that is not a method; in a method it is how a base class
+  asks for an override, and is not judged, whatever its message, unless the message is a TODO;
+- a `raise` whose message says the function is not implemented or is a TODO, as for Go;
+- `pass` or `...` with a `# TODO` or `# FIXME` comment in the function.
+
+A decorated function (an abstract method, an overload, a registered handler) is not judged.
 
 ## What is left out
 

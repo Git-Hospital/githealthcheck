@@ -36,6 +36,10 @@ type Tree struct {
 	Root    string
 	Files   []facts.File
 	Skipped []report.Skip
+	// Languages holds whether each language with a support was analysed, and why not.
+	Languages map[string]lang.Status
+	// Tools are the external tools code was read with.
+	Tools []report.Tool
 }
 
 // Entry is one path in a commit's tree, as git ls-tree prints it.
@@ -115,7 +119,34 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 		return nil, err
 	}
 	defer r.Close()
+	ls := lang.Open(ctx)
+	defer ls.Close()
 	tokens, dropped := 0, false
+	// keep bounds the token streams across the repository: past the bound none is kept. It runs once
+	// a file's facts are final, which for a file read by a helper is when the helper returns it.
+	keep := func(f *facts.File) {
+		if tokens += len(f.Tokens.Kind); tokens > maxTokens {
+			if !dropped {
+				for i := range t.Files {
+					t.Files[i].Tokens, t.Files[i].TokensDropped = facts.Tokens{}, true
+				}
+				dropped = true
+			}
+			f.Tokens, f.TokensDropped = facts.Tokens{}, true
+		}
+	}
+	collect := func(done []lang.Filled) {
+		for _, d := range done {
+			t.Files[d.Index] = d.File
+			keep(&t.Files[d.Index])
+		}
+	}
+	// Files a helper has not returned by the deadline are left with what the walk knows.
+	defer func() {
+		collect(ls.Wait())
+		t.Languages = map[string]lang.Status{"go": ls.Status("go"), "python": ls.Status("python")}
+		t.Tools = ls.Tools()
+	}()
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			// The files read so far are still returned, so a timed-out run can report what it did
@@ -159,21 +190,14 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 			Vendored: vendored(e.Path),
 			Modified: blobID(src) != e.OID,
 		}
-		if s := lang.For(name); s != nil {
-			s.Fill(&f, src)
-		}
-		// The token streams are bounded across the repository: past the bound none is kept.
-		if tokens += len(f.Tokens.Kind); tokens > maxTokens {
-			if !dropped {
-				for i := range t.Files {
-					t.Files[i].Tokens, t.Files[i].TokensDropped = facts.Tokens{}, true
-				}
-				dropped = true
-			}
-			f.Tokens, f.TokensDropped = facts.Tokens{}, true
+		i := len(t.Files)
+		if ls.Fill(i, &f, src) {
+			keep(&f)
 		}
 		t.Files = append(t.Files, f)
+		collect(ls.Done())
 	}
+	collect(ls.Wait())
 	return t, nil
 }
 

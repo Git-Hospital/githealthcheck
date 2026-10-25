@@ -2,6 +2,17 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Until 1.0.0 the report schema and the rule set may change between minor versions; the report carries `schemaVersion`.
 
+## [Unreleased]
+
+### Added
+
+- **Python** is analysed by the complexity family: GHC-CPLX-001 to 004 and 007 to 010, with Python's forms of each rule (an `except` that catches everything and does nothing for 004). The code is parsed with the `ast` and `tokenize` modules of the python3 on `PATH` (3.10 or later), never run; without one, Python is counted and reported as not analysed with the reason `tool_not_found` or `tool_too_old`. Cognitive complexity equals SonarSource's expected values on its own test file (25 functions), and cyclomatic complexity equals radon's on six repositories (37,993 functions, one difference). `scripts/py-oracle.sh` reruns both checks.
+- The report lists the tools code was read with (`inputs.tools`) and, for a language that was not analysed, why (`languages[].reason`).
+
+### Changed
+
+- Duplication (GHC-CPLX-009, 010) runs for each language on its own; the exception for Go files written once per platform applies to Go only.
+
 ## [0.2.0] - 2026-10-24
 
 The first release of the Go rewrite (ADR 0001). Go is analysed; other languages are counted. Three of the four families are implemented; architecture is `null` with the reason `not_implemented`, and scores stay `null` (`not_calibrated`) until the calibration corpus exists.

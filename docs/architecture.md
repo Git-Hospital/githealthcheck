@@ -49,9 +49,8 @@ internal/
   config/                  config schema, validation, suppressions (reason required)
   lang/                    LanguageSupport interface + registry
     golang/                go/parser + go/ast
-    python/                lexer (tokens, imports) + optional ruff/radon adapter
-                           (ruff --isolated; radon from a neutral cwd with explicit paths, so the
-                           repository's pyproject/setup.cfg cannot exclude files or change limits)
+    python/                python3 helper (ast + tokenize, stdlib only, isolated mode): functions,
+                           complexity, smells, imports, tokens; the repository's code is never run
     jsts/                  lexer (tokens, imports) + optional ESLint adapter
   gitx/                    git log parsing, .mailmap (git's own is off, see execx)
   facts/                   FileFacts, RepoFacts: the shared model analyzers read
@@ -81,11 +80,14 @@ Dependency direction: `cmd -> analyze, score, report -> facts <- lang, gitx, rep
 Settled with the first two families (tests and history, v0.2.0):
 
 ```go
-// lang: one per analysed language. The walk calls Fill once per file, with the source it read.
-type Support interface {
-    Name() string                         // "go"; later "python", "jsts"
-    Fill(f *facts.File, src []byte)       // sets Test, Generated, Package, Functions
-}
+// lang: the languages of one scan. The walk calls Fill once per file, with the source it read. Go is
+// filled in place; Python goes to a pool of python3 helpers and comes back from Done or Wait.
+type Set struct{ ... }
+func Open(ctx context.Context) *Set       // python3 starts at the first Python file; a missing tool is a Status reason
+func (s *Set) Status(lang string) Status  // Analysed, Reason (tool_not_found, tool_too_old), Tool
+func (s *Set) Fill(i int, f *facts.File, src []byte) (filled bool)
+func (s *Set) Done() []Filled             // files filled since the last call, by walk index
+func (s *Set) Wait() []Filled
 
 // facts: what the analyzers read. Analyzers never open files.
 type File struct {
@@ -199,7 +201,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 ## 9. Open questions
 
 1. **ESLint without the repository's config (D22).** Does `--no-config-lookup` with our own flat config and the typescript-eslint parser give cyclomatic complexity on TS without loading anything from the repository? If not, JS/TS complexity comes from our own lexer-level approximation, and is labelled as such.
-2. **Python cognitive complexity.** radon gives cyclomatic complexity, and ruff gives McCabe complexity. Neither appears to give cognitive complexity (still to be checked). The options are a small indentation-aware Python lexer that is enough for the cognitive rules, or reporting cognitive complexity for Python as `null` in v0.3.
+2. **Python cognitive complexity.** Settled: the helper computes it from python3's `ast`, following sonar-python's `CognitiveComplexityVisitor`, and gives the expected value for all 25 functions of SonarSource's test file; cyclomatic complexity follows radon's visitor and equals it on six repositories (`scripts/py-oracle.sh`).
 3. **The DOA constants** (Avelino et al.): settled. The constants and thresholds were checked against the paper (arXiv 1604.06766) and the authors' tool, and the truck factor matches the tool on six repositories (`scripts/tf-oracle.sh`; [GHC-HIST-001](rules/GHC-HIST-001.md) lists the differences).
 4. **Performance target (D23).** Measure on kubernetes/kubernetes at a pinned SHA on a GitHub runner. The 3-minute figure is a goal, not a measurement.
 5. **Size of the lexer work.** A JS/TS lexer has to handle regex versus division, nested template literals, JSX and TS generics. Mitigations:

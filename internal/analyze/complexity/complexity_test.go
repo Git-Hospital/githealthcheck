@@ -12,7 +12,7 @@ import (
 )
 
 func goFile(path string, funcs ...facts.Function) facts.File {
-	return facts.File{Path: path, Language: "go", Package: dirOf(path), Lines: 100, Funcs: funcs, Functions: len(funcs)}
+	return facts.File{Path: path, Language: "go", Analysed: true, Package: dirOf(path), Lines: 100, Funcs: funcs, Functions: len(funcs)}
 }
 
 func dirOf(p string) string {
@@ -78,9 +78,9 @@ func TestNotMeasured(t *testing.T) {
 		rf   *facts.Repo
 		want report.NullReason
 	}{
-		"cancelled":   {cancelled, &facts.Repo{Files: []facts.File{goFile("a/a.go", fns(30)...)}}, report.Timeout},
-		"no Go":       {context.Background(), py, report.UnsupportedLanguage},
-		"no own code": {context.Background(), &facts.Repo{Files: []facts.File{vendored}}, report.InsufficientInput},
+		"cancelled":    {cancelled, &facts.Repo{Files: []facts.File{goFile("a/a.go", fns(30)...)}}, report.Timeout},
+		"not analysed": {context.Background(), py, report.UnsupportedLanguage},
+		"no own code":  {context.Background(), &facts.Repo{Files: []facts.File{vendored}}, report.InsufficientInput},
 	} {
 		if res := (Analyzer{}).Run(c.ctx, c.rf); res.Measured || res.Reason != c.want {
 			t.Errorf("%s: %+v, want %s", name, res, c.want)

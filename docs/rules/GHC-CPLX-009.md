@@ -1,6 +1,6 @@
 # GHC-CPLX-009: block of 100 tokens or more repeated
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A block of at least 100 tokens, over at least 10 lines, repeats a block earlier in the repository. The
 copy may rename the function's own parameters and locals, consistently, and change literals. A change
@@ -50,6 +50,15 @@ are in a repeated block, either copy, each line counted once: the blocks reporte
 functions [GHC-CPLX-010](GHC-CPLX-010.md) reports, but not those between files written once per
 platform. It is SonarSource's
 `duplicated_lines_density`, whose denominator is also all lines (sonarqube `DuplicationMeasures.java`).
+
+## Python
+
+The same engine over the tokens of Python's `tokenize`, each language on its own. Imports, comments,
+newlines and `;` are not compared; `INDENT` and `DEDENT` are, so a block keeps its shape. An f-string
+or t-string is one literal. A local is a parameter of the function (or of a function around it) or a
+name it assigns, unless declared `global` or `nonlocal`, as Python's own scoping has it; a keyword
+argument's name and an attribute after `.` are never locals. The platform exception below is Go's
+alone.
 
 ## What is left out
 

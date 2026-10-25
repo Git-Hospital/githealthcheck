@@ -1,6 +1,6 @@
 # GHC-CPLX-010: function with the body of another
 
-**Family:** complexity. **Languages:** Go. **Needs:** nothing beyond the commit.
+**Family:** complexity. **Languages:** Go, Python. **Needs:** nothing beyond the commit; for Python, python3 3.10 or later on `PATH`.
 
 A function's signature and body are those of another function in the repository, up to the names of
 its own parameters, results, type parameters and locals. The two do the same thing under two names.
@@ -18,6 +18,12 @@ a function whose body differs only in a string does something else.
 
 Each function after the first of its kind, by path, is a finding that names the first. Methods count
 too: two types with one method body are a sign the body belongs to a shared function.
+
+## Python
+
+The same comparison, with the parameters and their defaults and annotations as the signature. The
+platform exception below is Go's alone: two Python functions of one name in one directory are
+compared.
 
 ## What is left out
 
