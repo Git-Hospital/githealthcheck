@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-25
+
+Python is analysed next to Go, and the scores are no longer `null`: each metric scores its percentile among 15 well-known repositories of the language. The report comes as SARIF and Markdown too, and a GitHub Action runs the scan in CI. githealthcheck passes its own complexity rules; on its own repository it scores 5.2/10. JS/TS is still counted and not analysed, and architecture stays `null` (`not_implemented`).
+
 ### Added
 
 - **Python** is analysed by the complexity family: GHC-CPLX-001 to 004 and 007 to 010, with Python's forms of each rule (an `except` that catches everything and does nothing for 004). The code is parsed with the `ast` and `tokenize` modules of the python3 on `PATH` (3.10 or later), never run; without one, Python is counted and reported as not analysed with the reason `tool_not_found` or `tool_too_old`. Cognitive complexity equals SonarSource's expected values on its own test file (25 functions), and cyclomatic complexity equals radon's on six repositories (37,993 functions, one difference). `scripts/py-oracle.sh` reruns both checks.
@@ -44,4 +48,6 @@ The first release of the Go rewrite (ADR 0001). Go is analysed; other languages 
 
 - The Python version (0.1.0). It read no Go or Rust files yet printed scores.
 
+[Unreleased]: https://github.com/Git-Hospital/githealthcheck/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Git-Hospital/githealthcheck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Git-Hospital/githealthcheck/compare/v0.1.0...v0.2.0
