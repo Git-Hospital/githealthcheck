@@ -422,7 +422,7 @@ Settles D24's SARIF and Markdown and the first part of D26.
   - Not chosen: a level per rule, decided rule by rule.
 - **A finding that is not on a file is not a SARIF result** (code scanning needs a file): a
   repository-wide truck factor, a Go package directory. A notification counts them; they stay in the
-  JSON and Markdown reports.
+  JSON and Markdown reports. So are those past the first 5,000 results, the most code scanning shows.
   - Not chosen: placing them on a root file such as `go.mod`, a location that is not true.
 - **A composite Action that downloads the release it is pinned to**, checks the archive against
   `checksums.txt` and its build provenance with `gh attestation verify`, and runs it. Pinned to a

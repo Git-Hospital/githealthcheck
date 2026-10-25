@@ -66,7 +66,18 @@ runs:
         ACTION_REF: ${{ github.action_ref }}
         FAIL_ON: ${{ inputs.fail-on }}
         UPLOAD: ${{ inputs.upload-sarif }}
+        REPORT_DIR: ${{ inputs.report-dir }}
       run: |
+        # Both are written to $GITHUB_OUTPUT, where a line break would add an output of its own.
+        for v in "$VERSION" "$REPORT_DIR"; do
+          case "$v" in
+            *$'\n'* | *$'\r'*) echo "::error::the version and report-dir inputs cannot hold a line break"; exit 1 ;;
+          esac
+        done
+        if [ -z "$REPORT_DIR" ]; then
+          echo "::error::report-dir cannot be empty"
+          exit 1
+        fi
         case "$RUNNER_OS" in
           Linux | macOS) ;;
           *) echo "::error::githealthcheck's action runs on Linux and macOS runners, not $RUNNER_OS"; exit 1 ;;
@@ -86,6 +97,10 @@ runs:
             exit 1
           fi
           version=$ACTION_REF
+        fi
+        if [ "$version" != source ] && ! [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::version must be a release tag such as v0.3.0, or source, not '$version'"
+          exit 1
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -161,7 +176,9 @@ runs:
           echo "githealthcheck wrote no report (exit $code)." >> "$GITHUB_STEP_SUMMARY"
         fi
 
-    - if: always() && inputs.upload-sarif == 'true' && hashFiles(format('{0}/report.sarif', inputs.report-dir)) != ''
+    # Only after this run's scan: a report.sarif left by an earlier run must not be uploaded when the
+    # install failed and the scan never ran.
+    - if: always() && steps.run.outputs.exit-code != '' && inputs.upload-sarif == 'true' && hashFiles(format('{0}/report.sarif', inputs.report-dir)) != ''
       uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
       with:
         sarif_file: ${{ inputs.report-dir }}/report.sarif

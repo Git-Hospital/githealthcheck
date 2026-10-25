@@ -48,7 +48,9 @@ case "$verify" in
       echo "::error::verify-provenance needs the gh CLI on the runner; install it or set verify-provenance: false"
       exit 1
     fi
-    gh attestation verify "$tmp/$name" --repo Git-Hospital/githealthcheck
+    # Built by the release workflow from this very tag, not by another workflow or ref of the repository.
+    gh attestation verify "$tmp/$name" --repo Git-Hospital/githealthcheck \
+      --signer-workflow Git-Hospital/githealthcheck/.github/workflows/release.yml --source-ref "refs/tags/$version"
     ;;
   false) ;;
   *) echo "::error::verify-provenance must be true or false, not '$verify'"; exit 1 ;;

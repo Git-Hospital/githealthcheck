@@ -14,6 +14,10 @@ type Rule struct {
 	Family Family
 }
 
+// MaxSARIFResults is the number of results a SARIF report holds; the rest are counted in a
+// notification. Code scanning shows 5,000 results of a run and rejects a run of more than 25,000.
+const MaxSARIFResults = 5000
+
 // RulesURL is where each rule's page lives; a SARIF rule links to RulesURL + ID + ".md".
 const RulesURL = "https://github.com/Git-Hospital/githealthcheck/blob/main/docs/rules/"
 
@@ -118,7 +122,7 @@ func SARIF(r *Report, rules []Rule, isFile func(path string) bool) ([]byte, erro
 			HelpURI: RulesURL + rl.ID + ".md", Default: sarifDefault{sarifLevel(rl.Family)}})
 	}
 	run := sarifRun{Tool: sarifTool{driver}, Results: []sarifResult{}}
-	elsewhere := 0
+	elsewhere, over := 0, 0
 	for _, f := range r.Families {
 		for _, fd := range f.Findings {
 			i, known := index[fd.RuleID]
@@ -127,6 +131,10 @@ func SARIF(r *Report, rules []Rule, isFile func(path string) bool) ([]byte, erro
 			}
 			if fd.Path == "" || !isFile(fd.Path) {
 				elsewhere++
+				continue
+			}
+			if len(run.Results) == MaxSARIFResults {
+				over++
 				continue
 			}
 			loc := sarifPhysical{Artifact: sarifArtifact{URI: uriPath(fd.Path), URIBaseID: "%SRCROOT%"}}
@@ -145,6 +153,10 @@ func SARIF(r *Report, rules []Rule, isFile func(path string) bool) ([]byte, erro
 	if elsewhere > 0 {
 		inv.Notifications = append(inv.Notifications, sarifNotification{Level: "note", Message: sarifText{
 			fmt.Sprintf("%d findings on a directory or on the whole repository are not results here; they are in the JSON and Markdown reports.", elsewhere)}})
+	}
+	if over > 0 {
+		inv.Notifications = append(inv.Notifications, sarifNotification{Level: "note", Message: sarifText{
+			fmt.Sprintf("%d more findings on files are past the first %d; they are in the JSON report.", over, MaxSARIFResults)}})
 	}
 	run.Invocations = []sarifInvocation{inv}
 	body, err := json.MarshalIndent(sarifLog{Schema: "https://json.schemastore.org/sarif-2.1.0.json", Version: "2.1.0", Runs: []sarifRun{run}}, "", "  ")

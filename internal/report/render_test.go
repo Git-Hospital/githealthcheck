@@ -180,3 +180,48 @@ func TestMarkdownCaps(t *testing.T) {
 		t.Errorf("no count of the rest:\n%s", md[len(md)-200:])
 	}
 }
+
+// A byte that is not UTF-8, and U+FFFD itself, are escaped and do not stop the render.
+func TestMarkdownEscapesInvalidUTF8(t *testing.T) {
+	cases := map[string]string{
+		"caf\xe9.go":   `caf\\xe9\.go`,
+		"a�b":          `a\\ufffdb`,
+		"tab\there":    `tab\\there`,
+		"\xff\xfe\x00": `\\xff\\xfe\\u0000`,
+	}
+	for in, want := range cases {
+		if got := mdEscape(in); got != want {
+			t.Errorf("mdEscape(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSARIFCaps(t *testing.T) {
+	r := renderReport()
+	for range MaxSARIFResults + 4 {
+		r.Families[2].Findings = append(r.Families[2].Findings, Finding{RuleID: "GHC-CPLX-001", Path: "x.go", Line: 1, Message: "m"})
+	}
+	body, err := SARIF(r, renderRules, func(string) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log struct {
+		Runs []struct {
+			Results     []json.RawMessage `json:"results"`
+			Invocations []struct {
+				Notifications []struct {
+					Message struct{ Text string } `json:"message"`
+				} `json:"toolExecutionNotifications"`
+			} `json:"invocations"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(body, &log); err != nil {
+		t.Fatal(err)
+	}
+	n := log.Runs[0].Invocations[0].Notifications
+	// Four findings of renderReport have a path (isFile is true for all, the directory too) and one
+	// has none: 4 + 5004 on files, of which 5000 are results and 8 are counted.
+	if len(log.Runs[0].Results) != MaxSARIFResults || len(n) != 2 || !strings.HasPrefix(n[1].Message.Text, "8 more findings") {
+		t.Errorf("%d results, notifications %+v", len(log.Runs[0].Results), n)
+	}
+}

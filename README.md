@@ -75,6 +75,7 @@ jobs:
     permissions:
       contents: read
       security-events: write # to upload the SARIF
+      attestations: read # to check the release's provenance
     steps:
       - uses: actions/checkout@v7
         with:

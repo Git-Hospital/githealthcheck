@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // MaxMarkdownFindings is the number of findings the Markdown report lists; the rest are counted. A job
@@ -109,21 +110,29 @@ func valueMD(name string, m Measurement) string {
 
 // mdEscape makes s literal text in CommonMark and GitHub's Markdown: every ASCII punctuation character
 // is backslash-escaped (which CommonMark allows for all of them), so no link, image, emphasis, table
-// cell or HTML tag can start; a character that is not graphic, a line break among them, becomes its
-// Go escape. A bare URL is not turned into a link, since ':' and '/' are escaped.
+// cell or HTML tag can start. A character that is not graphic, a line break among them, becomes an
+// escape such as \\n or \\u202e, and a byte that is not UTF-8 one such as \\xff, each with its
+// backslash escaped. A bare URL is not turned into a link, since ':' and '/' are escaped.
 func mdEscape(s string) string {
 	var b strings.Builder
-	for _, r := range s {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
 		switch {
-		case r < 0x80 && unicode.IsPunct(r) || r < 0x80 && unicode.IsSymbol(r):
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, "\\\\x%02x", s[i])
+		case r == '\n':
+			b.WriteString("\\\\n")
+		case r == '\t':
+			b.WriteString("\\\\t")
+		case r < 0x80 && (unicode.IsPunct(r) || unicode.IsSymbol(r)):
 			b.WriteByte('\\')
 			b.WriteRune(r)
-		case !unicode.IsGraphic(r) || r == unicode.ReplacementChar:
-			q := fmt.Sprintf("%q", string(r))
-			b.WriteString(mdEscape(q[1 : len(q)-1]))
+		case !unicode.IsGraphic(r) || r == utf8.RuneError:
+			fmt.Fprintf(&b, "\\\\u%04x", r)
 		default:
 			b.WriteRune(r)
 		}
+		i += size
 	}
 	return b.String()
 }
