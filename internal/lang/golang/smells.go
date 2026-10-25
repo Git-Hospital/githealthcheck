@@ -48,25 +48,10 @@ func smells(fset *token.FileSet, file *ast.File, code []bool) ([]facts.Smell, ma
 			}
 			sf.check(d.Body, d.Type.Results, name)
 		case *ast.GenDecl:
-			// Function literals in package-level variables.
-			ast.Inspect(d, func(n ast.Node) bool {
-				if fl, ok := n.(*ast.FuncLit); ok {
-					sf.check(fl.Body, nil, "a function literal")
-					return false
-				}
-				return true
-			})
+			sf.literals(d)
 		}
 	}
-	output := exampleOutputs(file)
-	for _, cg := range file.Comments {
-		if output[cg] {
-			continue // the expected output of an example, which go test checks
-		}
-		for _, sp := range commentedCode(fset, cg, code) {
-			sf.out = append(sf.out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
-		}
-	}
+	sf.comments(code)
 	slices.SortStableFunc(sf.out, func(a, b facts.Smell) int { return a.Line - b.Line })
 	return capSmells(sf.out)
 }
@@ -76,6 +61,31 @@ type smellFinder struct {
 	fset *token.FileSet
 	file *ast.File
 	out  []facts.Smell
+}
+
+// literals checks the function literals in package-level variables.
+func (sf *smellFinder) literals(d *ast.GenDecl) {
+	ast.Inspect(d, func(n ast.Node) bool {
+		fl, ok := n.(*ast.FuncLit)
+		if ok {
+			sf.check(fl.Body, nil, "a function literal")
+		}
+		return !ok
+	})
+}
+
+// comments finds commented-out code, except in the expected output of an example, which go test
+// checks.
+func (sf *smellFinder) comments(code []bool) {
+	output := exampleOutputs(sf.file)
+	for _, cg := range sf.file.Comments {
+		if output[cg] {
+			continue
+		}
+		for _, sp := range commentedCode(sf.fset, cg, code) {
+			sf.out = append(sf.out, facts.Smell{Kind: facts.CommentedCode, Line: sp[0], EndLine: sp[1]})
+		}
+	}
 }
 
 func (sf *smellFinder) add(kind facts.SmellKind, n ast.Node, name string) {
@@ -343,22 +353,7 @@ func doesSomething(s ast.Stmt) bool {
 func refs(file *ast.File) []string {
 	seen := map[string]bool{}
 	for _, d := range file.Decls {
-		fd, isFunc := d.(*ast.FuncDecl)
-		ast.Inspect(d, func(n ast.Node) bool {
-			id, ok := n.(*ast.Ident)
-			switch {
-			case !ok:
-			case isFunc && id == fd.Name:
-				if wasmExported(fd) {
-					seen[id.Name] = true // the wasm host calls it
-				}
-			case isFunc && fd.Recv == nil && id.Name == fd.Name.Name:
-				// recursion does not keep a function alive
-			default:
-				seen[id.Name] = true
-			}
-			return true
-		})
+		declRefs(d, seen)
 	}
 	for _, cg := range file.Comments {
 		for _, c := range cg.List {
@@ -370,6 +365,28 @@ func refs(file *ast.File) []string {
 	out := slices.Collect(maps.Keys(seen))
 	slices.Sort(out)
 	return out
+}
+
+// declRefs adds the names a declaration uses to seen.
+func declRefs(d ast.Decl, seen map[string]bool) {
+	fd, isFunc := d.(*ast.FuncDecl)
+	ast.Inspect(d, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		switch {
+		case !ok:
+		case !isFunc:
+			seen[id.Name] = true
+		case id == fd.Name:
+			if wasmExported(fd) {
+				seen[id.Name] = true // the wasm host calls it
+			}
+		case fd.Recv == nil && id.Name == fd.Name.Name:
+			// recursion does not keep a function alive
+		default:
+			seen[id.Name] = true
+		}
+		return true
+	})
 }
 
 func wasmExported(fd *ast.FuncDecl) bool {

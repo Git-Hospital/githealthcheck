@@ -116,23 +116,10 @@ func (sc *scoper) visit(n ast.Node) bool {
 	}
 	switch x := n.(type) {
 	case *ast.FuncType:
-		// Parameters hold for the function or literal the type belongs to.
-		in := sc.whole
-		if len(sc.stack) > 0 {
-			if fl, ok := sc.stack[len(sc.stack)-1].(*ast.FuncLit); ok {
-				in = [2]int{sc.offset(fl.Pos()), sc.offset(fl.End())}
-			}
-		}
-		sc.fields(x.TypeParams, in)
-		sc.fields(x.Params, in)
-		sc.fields(x.Results, in)
+		sc.funcType(x)
 	case *ast.AssignStmt:
 		if x.Tok == token.DEFINE {
-			for _, l := range x.Lhs {
-				if id, ok := l.(*ast.Ident); ok {
-					sc.declare(id, sc.here(id))
-				}
-			}
+			sc.declareHere(x.Lhs)
 		}
 	case *ast.ValueSpec:
 		for _, id := range x.Names {
@@ -142,17 +129,44 @@ func (sc *scoper) visit(n ast.Node) bool {
 		sc.declare(x.Name, sc.here(x.Name))
 	case *ast.RangeStmt:
 		if x.Tok == token.DEFINE {
-			for _, e := range []ast.Expr{x.Key, x.Value} {
-				if id, ok := e.(*ast.Ident); ok {
-					sc.declare(id, [2]int{sc.offset(id.Pos()), sc.offset(x.End())})
-				}
-			}
+			sc.declareRange(x)
 		}
 	case *ast.LabeledStmt:
 		sc.declare(x.Label, sc.whole)
 	}
 	sc.stack = append(sc.stack, n)
 	return true
+}
+
+// funcType declares parameters, which hold for the function or literal the type belongs to.
+func (sc *scoper) funcType(x *ast.FuncType) {
+	in := sc.whole
+	if len(sc.stack) > 0 {
+		if fl, ok := sc.stack[len(sc.stack)-1].(*ast.FuncLit); ok {
+			in = [2]int{sc.offset(fl.Pos()), sc.offset(fl.End())}
+		}
+	}
+	sc.fields(x.TypeParams, in)
+	sc.fields(x.Params, in)
+	sc.fields(x.Results, in)
+}
+
+// declareHere declares the identifiers among exprs from where each is to the end of the scope.
+func (sc *scoper) declareHere(exprs []ast.Expr) {
+	for _, l := range exprs {
+		if id, ok := l.(*ast.Ident); ok {
+			sc.declare(id, sc.here(id))
+		}
+	}
+}
+
+// declareRange declares a range statement's key and value for the statement.
+func (sc *scoper) declareRange(x *ast.RangeStmt) {
+	for _, e := range []ast.Expr{x.Key, x.Value} {
+		if id, ok := e.(*ast.Ident); ok {
+			sc.declare(id, [2]int{sc.offset(id.Pos()), sc.offset(x.End())})
+		}
+	}
 }
 
 // fixedIdents returns the identifiers that keep their name in a copy whatever the scopes say: a field
@@ -164,20 +178,29 @@ func fixedIdents(fd *ast.FuncDecl) map[*ast.Ident]bool {
 		case *ast.SelectorExpr:
 			fixed[x.Sel] = true
 		case *ast.CompositeLit:
-			if _, isMap := x.Type.(*ast.MapType); isMap {
-				return true
-			}
-			for _, e := range x.Elts {
-				if kv, ok := e.(*ast.KeyValueExpr); ok {
-					if id, ok := kv.Key.(*ast.Ident); ok {
-						fixed[id] = true
-					}
-				}
+			for _, id := range fieldKeys(x) {
+				fixed[id] = true
 			}
 		}
 		return true
 	})
 	return fixed
+}
+
+// fieldKeys returns the identifier keys of a composite literal other than a map: struct fields.
+func fieldKeys(x *ast.CompositeLit) []*ast.Ident {
+	if _, isMap := x.Type.(*ast.MapType); isMap {
+		return nil
+	}
+	var keys []*ast.Ident
+	for _, e := range x.Elts {
+		if kv, ok := e.(*ast.KeyValueExpr); ok {
+			if id, ok := kv.Key.(*ast.Ident); ok {
+				keys = append(keys, id)
+			}
+		}
+	}
+	return keys
 }
 
 // tokens returns the token stream of a file after its package clause and imports, without comments or
