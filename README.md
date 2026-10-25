@@ -1,5 +1,9 @@
 # GitHealthCheck
 
+[![CI](https://github.com/Git-Hospital/githealthcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/Git-Hospital/githealthcheck/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Git-Hospital/githealthcheck)](https://github.com/Git-Hospital/githealthcheck/releases)
+[![License](https://img.shields.io/github/license/Git-Hospital/githealthcheck)](LICENSE)
+
 A code health analyzer for Git repositories. It looks at tests and coverage, git history, complexity and duplication, and architecture and dependencies. Every number it prints is a measurement or `null` with a reason.
 
 **Status: v0.2.0, the first release of the Go rewrite.** The plan and its reasons are in [docs/decisions/0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
@@ -24,10 +28,31 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 
 Their rules are documented in [docs/rules](docs/rules). Architecture is `null` with the reason `not_implemented`. Scores stay `null` until the calibration corpus exists: each measured family's score with the reason `not_calibrated`, and the overall score with `not_calibrated` once two families are measured, `insufficient_families` before that.
 
-```sh
-go test -coverprofile=coverage.out ./...
-githealthcheck scan .
+```console
+$ go test -coverprofile=coverage.out ./...
+$ githealthcheck scan --coverage coverage.out .
+Languages
+  go              101 files    10604 lines  analysed
+  shell             2 files       99 lines  not analysed
+
+Families
+  tests        score null (not_calibrated)
+    statement_coverage       92.5%  (from 21)
+    test_code_line_ratio     0.91  (from 48)
+    untested_package_share   0.0%  (from 10)
+  history      score null (history_too_short)
+  complexity   score null (not_calibrated)
+    complex_function_share   20.4%  (from 142)
+    long_function_share      3.5%  (from 142)
+    ...
+  architecture score null (not_implemented)
+
+Findings (37)
+  GHC-CPLX-001  internal/analyze/tests/profile.go:58: parseProfile has cognitive complexity 54
+  ...
 ```
+
+That is this repository scanning itself at 005997c, shortened. History is `null` because the repository has fewer than 50 commits.
 
 Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 
