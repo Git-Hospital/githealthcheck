@@ -1,6 +1,6 @@
 # GitHealthCheck architecture
 
-Status: proposed for the Go rewrite (v0.2.0 onward). Decisions are recorded in [`decisions/0001-go-rewrite.md`](decisions/0001-go-rewrite.md) and cited here as D1-D31. This document sets the boundaries the code is built inside. It changes when the code teaches us something.
+Status: in use since v0.2.0. Decisions are recorded in [`decisions/0001-go-rewrite.md`](decisions/0001-go-rewrite.md) and cited here as D1-D34. This document sets the boundaries the code is built inside. It changes when the code teaches us something.
 
 ## 1. What the system does
 
@@ -189,17 +189,17 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 
 | Version | Contents | Done when |
 |---|---|---|
-| v0.2.0 | Go only; all four families; JSON and terminal output; fixture pairs; offline only. Findings and raw metrics only: scores are `null` (`not_calibrated`) | Run on the four Git-Hospital repos, with the results checked by hand and written up in the release notes |
+| v0.2.0 (released 2026-10-24) | Go only; tests, history and complexity (architecture moved to a later release, D31); JSON and terminal output; fixture pairs; offline only. Findings and raw metrics only: scores are `null` (`not_calibrated`) | Run on the four Git-Hospital repos, with the results checked by hand and written up in the release notes |
 | v0.3.0 | Python and JS/TS (lexers + optional tool adapters), `--allow-exec` | Fixture pairs per language; null tests for missing tools |
 | v0.4.0 | Calibration corpus (45 repos), percentile scores, `calibrate` | `corpus.lock` reproduced in CI |
 | v0.5.0 | SARIF, Markdown, GitHub Action, container image, pre-commit, badge, `--online` | The Action is used in the CI of all four Git-Hospital repositories |
 | v1.0.0 | The exit criteria C1-C9 in ADR 0001 | Every row has its evidence linked |
 | v2 | `--diff-base`, external plugins | Not designed yet |
 
-## 9. Open questions, to settle by spikes before the code depends on them
+## 9. Open questions
 
 1. **ESLint without the repository's config (D22).** Does `--no-config-lookup` with our own flat config and the typescript-eslint parser give cyclomatic complexity on TS without loading anything from the repository? If not, JS/TS complexity comes from our own lexer-level approximation, and is labelled as such.
-2. **Python cognitive complexity.** radon gives cyclomatic complexity, and ruff gives McCabe complexity. Neither gives cognitive complexity (from memory, to verify). The options are a small indentation-aware Python lexer that is enough for the cognitive rules, or reporting cognitive complexity for Python as `null` in v0.3.
+2. **Python cognitive complexity.** radon gives cyclomatic complexity, and ruff gives McCabe complexity. Neither appears to give cognitive complexity (still to be checked). The options are a small indentation-aware Python lexer that is enough for the cognitive rules, or reporting cognitive complexity for Python as `null` in v0.3.
 3. **The DOA constants** (Avelino et al.): settled. The constants and thresholds were checked against the paper (arXiv 1604.06766) and the authors' tool, and the truck factor matches the tool on six repositories (`scripts/tf-oracle.sh`; [GHC-HIST-001](rules/GHC-HIST-001.md) lists the differences).
 4. **Performance target (D23).** Measure on kubernetes/kubernetes at a pinned SHA on a GitHub runner. The 3-minute figure is a goal, not a measurement.
 5. **Size of the lexer work.** A JS/TS lexer has to handle regex versus division, nested template literals, JSX and TS generics. Mitigations:
@@ -207,7 +207,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
    - For Go, gocognit and gocyclo serve as reference oracles in the tests. Their licences are to be checked before use.
 6. **Calibration drift check.** `corpus.lock` records the githealthcheck version and the version of each external tool. The weekly drift check runs only when those versions are unchanged. It uses shallow clones wherever no history metric is calibrated.
 7. **`safe.directory` in the container and the Action.** The repository owner's uid differs from the uid the tool runs as, so git refuses to read the repository. The tool must handle this without trusting every directory globally.
-8. **Unverified, from memory.** These claims come from memory and need checking against the tools' documentation:
+8. **Still to check against the tools' documentation:**
    - whether `git log` applies textconv by default;
    - whether pip-audit builds sdists for unpinned input;
    - whether govulncheck obeys the `toolchain` line in go.mod.
