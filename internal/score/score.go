@@ -142,44 +142,43 @@ func (l *Lock) Apply(r *report.Report) {
 			r.Overall.Calibration.Repositories++
 		}
 	}
-	var scores []float64
-	var families []report.Family
+	sum, weight, scored := 0.0, 0.0, 0
 	for i := range r.Families {
 		fr := &r.Families[i]
 		if !fr.Measured {
 			continue
 		}
-		switch {
-		case share < MinAnalysedShare:
-			fr.Score = report.Null(report.LowAnalysedShare)
-		case values == nil:
-			fr.Score = report.Null(report.NotCalibrated)
-		default:
-			fr.Score, fr.MetricScores = familyScore(fr.Metrics, values)
-		}
+		scoreFamily(fr, share, values)
 		if !fr.Score.IsNull() {
-			scores = append(scores, *fr.Score.Value)
-			families = append(families, fr.Family)
+			sum += Weights[fr.Family] * *fr.Score.Value
+			weight += Weights[fr.Family]
+			scored++
 		}
 	}
 	r.Overall.Weights = Weights
-	if len(scores) < 2 {
-		// The overall score needs two families; when they were measured but not scored, it has their reason.
-		if r.Overall.Measured >= 2 && share < MinAnalysedShare {
-			r.Overall.Score = report.Null(report.LowAnalysedShare)
-		} else if r.Overall.Measured >= 2 && len(scores) == 0 {
-			r.Overall.Score = report.Null(report.NotCalibrated)
-		} else {
-			r.Overall.Score = report.Null(report.InsufficientFamily)
-		}
-		return
+	switch {
+	case scored >= 2:
+		r.Overall.Score = report.Measured(round(sum/weight, 2), scored)
+	// The overall score needs two families; when they were measured but not scored, it has their reason.
+	case r.Overall.Measured >= 2 && share < MinAnalysedShare:
+		r.Overall.Score = report.Null(report.LowAnalysedShare)
+	case r.Overall.Measured >= 2 && scored == 0:
+		r.Overall.Score = report.Null(report.NotCalibrated)
+	default:
+		r.Overall.Score = report.Null(report.InsufficientFamily)
 	}
-	sum, weight := 0.0, 0.0
-	for i, s := range scores {
-		sum += Weights[families[i]] * s
-		weight += Weights[families[i]]
+}
+
+// scoreFamily scores a measured family against the corpus values of the repository's language.
+func scoreFamily(fr *report.FamilyResult, share float64, values map[string][]float64) {
+	switch {
+	case share < MinAnalysedShare:
+		fr.Score = report.Null(report.LowAnalysedShare)
+	case values == nil:
+		fr.Score = report.Null(report.NotCalibrated)
+	default:
+		fr.Score, fr.MetricScores = familyScore(fr.Metrics, values)
 	}
-	r.Overall.Score = report.Measured(round(sum/weight, 2), len(scores))
 }
 
 // familyScore is the mean of the scores of the metrics that have a value: statement coverage as
