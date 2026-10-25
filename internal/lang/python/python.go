@@ -184,7 +184,6 @@ func (p *Pool) work(h *proc) {
 			p.publish(j.index, f)
 			continue
 		}
-		tokens := wantTokens(&f)
 		if h == nil && startFailures < maxStartFailures && p.ctx.Err() == nil {
 			var err error
 			if h, err = p.spawn(); err != nil {
@@ -195,29 +194,33 @@ func (p *Pool) work(h *proc) {
 		}
 		if h == nil {
 			f.Partial = true
-			p.publish(j.index, f)
-			continue
-		}
-		resp, err := h.ask(p.ctx, j.src, tokens)
-		if err != nil {
-			// The helper died, hung or answered past the limit: it is replaced for the next file.
-			h.kill()
-			h = nil
-			f.Partial = true
-			p.publish(j.index, f)
-			continue
-		}
-		restart, err := fill(&f, resp, tokens)
-		f.Analysed, f.Partial = err == nil, f.Partial || err != nil
-		if restart {
-			h.kill()
-			h = nil
+		} else {
+			h = p.measure(h, &f, j.src)
 		}
 		p.publish(j.index, f)
 	}
 	if h != nil {
 		h.stop()
 	}
+}
+
+// measure asks helper h for the facts of f. It returns the helper for the next file, or nil when h
+// died, hung, answered past the limit or ran out of memory, and was killed.
+func (p *Pool) measure(h *proc, f *facts.File, src []byte) *proc {
+	tokens := wantTokens(f)
+	resp, err := h.ask(p.ctx, src, tokens)
+	if err != nil {
+		h.kill()
+		f.Partial = true
+		return nil
+	}
+	restart, err := fill(f, resp, tokens)
+	f.Analysed, f.Partial = err == nil, f.Partial || err != nil
+	if restart {
+		h.kill()
+		return nil
+	}
+	return h
 }
 
 func (p *Pool) publish(index int, f facts.File) {
