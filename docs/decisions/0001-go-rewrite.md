@@ -411,6 +411,32 @@ Settles D18 to D20 for the first calibration ([docs/calibration.md](../calibrati
   python3 version (ubuntu-24.04's 3.12.3). §7's weekly drift job is replaced by it.
   - Not chosen: measuring in CI only, which makes each try wait for CI.
 
+#### D36. SARIF and the GitHub Action (2026-10-25)
+Settles D24's SARIF and Markdown and the first part of D26.
+- **`--format sarif|markdown`, and `--json`, `--sarif` and `--markdown` to write more renderings of
+  the same scan to files**, so the Action scans once.
+  - Not chosen: one scan per format, which runs history and duplication three times.
+- **SARIF levels by family**: complexity and tests are `warning`, history is `note` (who wrote the
+  code, not a defect in it).
+  - Not chosen: one level for all.
+  - Not chosen: a level per rule, decided rule by rule.
+- **A finding that is not on a file is not a SARIF result** (code scanning needs a file): a
+  repository-wide truck factor, a Go package directory. A notification counts them; they stay in the
+  JSON and Markdown reports.
+  - Not chosen: placing them on a root file such as `go.mod`, a location that is not true.
+- **A composite Action that downloads the release it is pinned to**, checks the archive against
+  `checksums.txt` and its build provenance with `gh attestation verify`, and runs it. Pinned to a
+  commit SHA, the Action needs the `version` input. Linux and macOS runners.
+  - Not chosen: `go install` in the Action, a minute of build on every run.
+  - Not chosen: the container image first; it does not exist yet (D26's image stays for later).
+- **The Markdown report goes to the job summary**, which needs no permission; at most 200 findings
+  are listed. Every string from the repository is escaped, so a file name cannot add a link, an image
+  or HTML to the page.
+  - Later: a PR comment (it needs `pull-requests: write`, which a fork's PR does not get) and the
+    badge.
+- **The step fails on errors and incomplete runs by default** (`fail-on: error`), not on findings:
+  almost every repository has some.
+
 ## Exit criteria for v1.0.0
 
 The criteria are the Git-Hospital release rubric (C1-C9), the bar Helmbulance set, made concrete for this tool. v1.0.0 is tagged only when all of them are met.
