@@ -50,90 +50,111 @@ func Log(ctx context.Context, git *execx.Git, head string) ([]facts.Commit, erro
 // ParseLog parses the output of LogArgs. Fields are taken by position, so an author name holding \x01
 // or a newline cannot shift the records. The fields are slices of out, read in place.
 func ParseLog(out []byte) ([]facts.Commit, error) {
+	r := &logReader{out: out, paths: map[string]string{}}
 	var commits []facts.Commit
-	changes := 0
-	// A path is changed by many commits; one copy of it serves all of them.
-	paths := map[string]string{}
-	intern := func(b []byte) string {
-		if s, ok := paths[string(b)]; ok {
-			return s
-		}
-		s := string(b)
-		paths[s] = s
-		return s
-	}
-	pos := 0 // where the next field starts; past len(out) once the last one was taken
-	next := func() ([]byte, bool) {
-		if pos > len(out) {
-			return nil, false
-		}
-		end := bytes.IndexByte(out[pos:], 0)
-		if end < 0 {
-			t := out[pos:]
-			pos = len(out) + 1
-			return t, true
-		}
-		t := out[pos : pos+end]
-		pos += end + 1
-		return t, true
-	}
-	for pos <= len(out) {
-		head, _ := next()
-		if len(head) == 0 && pos > len(out) {
+	for r.pos <= len(out) {
+		head, _ := r.next()
+		if len(head) == 0 && r.pos > len(out) {
 			break // trailing NUL
 		}
-		hash, ok := bytes.CutPrefix(head, []byte{1})
-		if !ok || !isHash(hash) {
-			return nil, fmt.Errorf("git log: expected a commit at byte %d, got %q", pos, truncate(head))
-		}
-		name, ok1 := next()
-		email, ok2 := next()
-		when, ok3 := next()
-		if !ok1 || !ok2 || !ok3 {
-			return nil, fmt.Errorf("git log: commit %s is cut short", hash)
-		}
-		ts, status, hasChanges := bytes.Cut(when, []byte{'\n'})
-		c := facts.Commit{Hash: string(hash), Name: string(name), Email: string(email)}
-		// git prints a crafted or corrupt author time as it is stored, beyond int64, or as nothing.
-		// The commit still counts; only its time is unknown.
-		t, err := strconv.ParseInt(string(ts), 10, 64)
-		c.Time, c.NoTime = t, err != nil
+		c, err := r.commit(head)
 		if err != nil {
-			c.Time = 0
-		}
-		for hasChanges {
-			if len(status) == 0 {
-				break // the NUL that ends the commit
-			}
-			ch := facts.Change{Status: status[0]}
-			switch ch.Status {
-			case 'R', 'C':
-				old, ok1 := next()
-				path, ok2 := next()
-				if !ok1 || !ok2 {
-					return nil, fmt.Errorf("git log: commit %s: rename cut short", hash)
-				}
-				ch.Old, ch.Path = intern(old), intern(path)
-			case 'A', 'M', 'D', 'T', 'U', 'X', 'B':
-				path, ok := next()
-				if !ok {
-					return nil, fmt.Errorf("git log: commit %s: change cut short", hash)
-				}
-				ch.Path = intern(path)
-			default:
-				return nil, fmt.Errorf("git log: commit %s: unknown status %q", hash, truncate(status))
-			}
-			if changes++; changes > MaxChanges {
-				return nil, ErrTooLarge
-			}
-			c.Changes = append(c.Changes, ch)
-			if status, hasChanges = next(); !hasChanges {
-				break
-			}
+			return nil, err
 		}
 		commits = append(commits, c)
 	}
 	return commits, nil
+}
+
+// logReader reads the NUL-separated fields of git log's output.
+type logReader struct {
+	out     []byte
+	pos     int // where the next field starts; past len(out) once the last one was taken
+	changes int
+	paths   map[string]string // a path is changed by many commits; one copy of it serves all of them
+}
+
+func (r *logReader) next() ([]byte, bool) {
+	if r.pos > len(r.out) {
+		return nil, false
+	}
+	end := bytes.IndexByte(r.out[r.pos:], 0)
+	if end < 0 {
+		t := r.out[r.pos:]
+		r.pos = len(r.out) + 1
+		return t, true
+	}
+	t := r.out[r.pos : r.pos+end]
+	r.pos += end + 1
+	return t, true
+}
+
+func (r *logReader) intern(b []byte) string {
+	if s, ok := r.paths[string(b)]; ok {
+		return s
+	}
+	s := string(b)
+	r.paths[s] = s
+	return s
+}
+
+// commit reads one commit: its head field, author, time and changes.
+func (r *logReader) commit(head []byte) (facts.Commit, error) {
+	hash, ok := bytes.CutPrefix(head, []byte{1})
+	if !ok || !isHash(hash) {
+		return facts.Commit{}, fmt.Errorf("git log: expected a commit at byte %d, got %q", r.pos, truncate(head))
+	}
+	name, ok1 := r.next()
+	email, ok2 := r.next()
+	when, ok3 := r.next()
+	if !ok1 || !ok2 || !ok3 {
+		return facts.Commit{}, fmt.Errorf("git log: commit %s is cut short", hash)
+	}
+	ts, status, hasChanges := bytes.Cut(when, []byte{'\n'})
+	c := facts.Commit{Hash: string(hash), Name: string(name), Email: string(email)}
+	// git prints a crafted or corrupt author time as it is stored, beyond int64, or as nothing.
+	// The commit still counts; only its time is unknown.
+	t, err := strconv.ParseInt(string(ts), 10, 64)
+	c.Time, c.NoTime = t, err != nil
+	if err != nil {
+		c.Time = 0
+	}
+	// The NUL that ends the commit is an empty status.
+	for hasChanges && len(status) > 0 {
+		ch, err := r.change(hash, status)
+		if err != nil {
+			return facts.Commit{}, err
+		}
+		if r.changes++; r.changes > MaxChanges {
+			return facts.Commit{}, ErrTooLarge
+		}
+		c.Changes = append(c.Changes, ch)
+		status, hasChanges = r.next()
+	}
+	return c, nil
+}
+
+// change reads the paths of one change with the given status.
+func (r *logReader) change(hash, status []byte) (facts.Change, error) {
+	ch := facts.Change{Status: status[0]}
+	switch ch.Status {
+	case 'R', 'C':
+		old, ok1 := r.next()
+		path, ok2 := r.next()
+		if !ok1 || !ok2 {
+			return ch, fmt.Errorf("git log: commit %s: rename cut short", hash)
+		}
+		ch.Old, ch.Path = r.intern(old), r.intern(path)
+	case 'A', 'M', 'D', 'T', 'U', 'X', 'B':
+		path, ok := r.next()
+		if !ok {
+			return ch, fmt.Errorf("git log: commit %s: change cut short", hash)
+		}
+		ch.Path = r.intern(path)
+	default:
+		return ch, fmt.Errorf("git log: commit %s: unknown status %q", hash, truncate(status))
+	}
+	return ch, nil
 }
 
 func isHash(b []byte) bool {
