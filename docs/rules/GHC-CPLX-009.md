@@ -50,6 +50,8 @@ are in a repeated block, either copy, each line counted once: the blocks reporte
 functions [GHC-CPLX-010](GHC-CPLX-010.md) reports, but not those between files written once per
 platform. It is SonarSource's
 `duplicated_lines_density`, whose denominator is also all lines (sonarqube `DuplicationMeasures.java`).
+Below 1000 lines it is `null` with the reason `insufficient_input`, since one copied block would
+move it from best to worst; the blocks are still reported.
 
 ## Python
 

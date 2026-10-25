@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "tool": "0.2.0-e1161f4",
+  "tool": "0.2.0-1298134",
   "tools": [
     {
       "name": "python3",
@@ -55,8 +55,9 @@
           "inputs": 89
         },
         "untested_package_share": {
-          "value": 0,
-          "inputs": 2
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
         }
       }
     },
@@ -107,8 +108,9 @@
           "inputs": 79
         },
         "untested_package_share": {
-          "value": 0.75,
-          "inputs": 4
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
         }
       }
     },
@@ -263,8 +265,9 @@
           "inputs": 36
         },
         "untested_package_share": {
-          "value": 0,
-          "inputs": 2
+          "value": null,
+          "reason": "insufficient_input",
+          "inputs": 0
         }
       }
     },
@@ -1740,8 +1743,6 @@
         12
       ],
       "untested_package_share": [
-        0,
-        0,
         0.14285714285714285,
         0.17834394904458598,
         0.20540540540540542,
@@ -1753,7 +1754,6 @@
         0.34782608695652173,
         0.43506493506493504,
         0.5183946488294314,
-        0.75,
         0.9701492537313433
       ]
     },

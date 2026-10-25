@@ -379,6 +379,38 @@ Considered and rejected:
 *Amended 2026-10-24 (D32, Go):* `if err != nil {}` and `if err != nil { return nil }` are
 reported; an error assigned to `_` is not, since telling an error result from any other needs types.
 
+#### D35. How scores are computed (2026-10-25)
+Settles D18 to D20 for the first calibration ([docs/calibration.md](../calibration.md)).
+- **Corpus: Go and Python first, 15 each**, picked by hand against written criteria (maintained,
+  at least 1,000 stars, not a fork, not mostly generated code, a mix of sizes and kinds). JS/TS adds
+  its 15 when it is analysed, which brings D19's 45.
+  - Not chosen: waiting for JS/TS before scoring anything.
+  - Not chosen: picking by stars alone.
+- **A metric scores its percentile in the corpus of the repository's language**: the analysed
+  language with the most code lines. The empirical distribution with linear interpolation, ties in
+  the repository's favour.
+  - Not chosen: the nearest rank, which moves in steps of 1/15.
+  - Not chosen: scoring each language of a mixed repository on its own and weighting by lines, which
+    needs per-language metrics; left for later.
+  - Not chosen: one pool of all languages, which would shift scores by language.
+- **A family scores the equal-weight mean of its metrics' scores**, not one statistic per family
+  as §5 of the architecture first had it.
+- **Statement coverage maps X% to X/10**: the corpus is scanned without running its tests.
+- **The truck factor counts as it is**, an absolute number.
+  - Not chosen: the truck factor over the number of active authors, which makes a one-person project
+    perfect.
+- **The overall score weighs the scored families equally** (D20's weights are all 1).
+  - Not chosen: complexity or tests weighted double.
+- **Every scored metric has a minimum input**: 20 functions for the function shares, 1000 code
+  lines for the densities and the test-to-code ratio, 5 Go packages for the untested share, 50 commits
+  for history. Below it the metric is `null` (`insufficient_input`); the findings stay.
+  - Not chosen: one bound per repository (no score below 1000 lines), which misses a weak metric in a
+    larger repository.
+  - Not chosen: both.
+- **The lock is measured locally and reproduced in CI** by a workflow run by hand, with the same
+  python3 version (ubuntu-24.04's 3.12.3). §7's weekly drift job is replaced by it.
+  - Not chosen: measuring in CI only, which makes each try wait for CI.
+
 ## Exit criteria for v1.0.0
 
 The criteria are the Git-Hospital release rubric (C1-C9), the bar Helmbulance set, made concrete for this tool. v1.0.0 is tagged only when all of them are met.

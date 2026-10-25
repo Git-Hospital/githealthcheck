@@ -64,10 +64,10 @@ internal/
                            pip-audit only as `-r <file> --no-deps --disable-pip` on fully pinned files,
                            otherwise a direct OSV query from the lockfile; govulncheck with GOTOOLCHAIN=local;
                            npm audit with --ignore-scripts. Any path that would build a package needs --allow-exec.
-  score/                   thresholds, percentile lookup against calibration, overall score
-  calibrate/               corpus fetch at pinned SHAs, distribution, corpus.lock writer
+  score/                   corpus.lock model, percentiles, family and overall scores (D35)
   report/                  Report model + JSON (schema), SARIF, Markdown, terminal renderers
-calibration/corpus.lock    45 repos x SHA + derived thresholds (D19)
+calibration/corpus.txt     the corpus: language, repository and commit per line (D19, D35)
+calibration/corpus.lock    what `githealthcheck calibrate` measured on it, built into the binary
 docs/rules/                one page per rule ID (also served by `explain`)
 schema/report.v1.json      published JSON Schema
 testdata/pairs/            defect/clean fixture repositories per rule (§7)
@@ -132,16 +132,16 @@ type Result struct {
 ## 5. Scoring
 
 - **Findings.** Each rule has a literature threshold, documented in `docs/rules/<ID>.md` with its source. Examples: cognitive complexity per function > 15; a function with more than 90 lines of code; an import cycle of any length; a duplicated block of 100 or more tokens over 10 lines; a file with DOA owners = 1 inside a hotspot.
-- **Family score.** Each family reduces its metrics to one statistic per repository, for example the share of functions over the threshold, or the truck factor relative to the number of active files. The statistic is converted to 0-10 by its percentile in the calibration distribution for that language. Mixed-language repositories weight the per-language results by analysed lines.
-- **Overall score.** The weighted mean of the measured families. The weights are fixed per schema version and printed in the report. The report always shows the families measured out of 4.
+- **Family score** (D35, [calibration.md](calibration.md)). Each calibrated metric scores 0-10 by its percentile among the corpus repositories of the repository's language, the analysed language with the most code lines; statement coverage scores X% as X/10. The family score is the mean of its metrics' scores. Scoring each language of a mixed repository on its own is left for later.
+- **Overall score.** The mean of the scored families, with equal weights, fixed per schema version and printed in the report. The report always shows the families measured out of 4.
 - **Suppressed findings** (D21) are shown but do not count against the score.
 
 Guards against the "measured or null" principle being bypassed:
 
-- **Minimum input.** Each statistic has a documented minimum input, for example 20 functions or 50 commits. Below it, the value is `null` with the reason `insufficient_input` (`history_too_short` for the history family, D15), decided from `Measurement.Inputs`. Without this guard, a repository with 2 functions would score 10/10.
+- **Minimum input.** Each statistic has a documented minimum input: 20 functions for the function shares and the mean cyclomatic complexity, 1000 code lines for the densities (`smells_per_kloc`, `duplicated_line_share`) and `test_code_line_ratio`, 5 Go packages that declare functions for `untested_package_share`, and 50 commits for the history family. Below it, the value is `null` with the reason `insufficient_input` (`history_too_short` for the history family, D15). Without this guard, a repository with 2 functions would score 10/10. The findings do not depend on it: a family that measured nothing is `insufficient_input`, keeps its findings, and counts as a finished run for the exit code.
 - **Analysed share.** Each language result prints its share of the repository's code lines. A family score is `null` (`low_analysed_share`) when the analysed lines are under 50%. Without this guard, a repository that is 95% Rust would be scored from its 5% Python.
 - **Enough families.** The overall score is `null` (`insufficient_families`) when fewer than 2 families are measured.
-- **No calibration, no score.** Until the corpus exists (v0.4.0), every family score and the overall score is `null` with the reason `not_calibrated`. v0.2.0 and v0.3.0 report findings and raw metrics only.
+- **No calibration, no score.** A language without a corpus (JS/TS for now) gets no score: every family score and the overall score is `null` with the reason `not_calibrated`, as was every score before the first corpus. A metric is scored only when at least 10 corpus repositories of the language measured it.
 - **Thresholds stay fixed.** Family statistics always use the calibration thresholds. Thresholds tuned in `.githealthcheck.yml` change findings only. Excluded paths are listed with their share of the code lines.
 - **Fresh coverage only.** The report is the file named by `--coverage`, or else the first of `coverage.out`, `cover.out`, `coverage.txt`, `c.out` and `profile.cov` at the root of the work tree, tracked or not, since CI writes it just before the scan. A discovered name that is a symlink, a FIFO or over 50 MiB is not read and is listed in `skipped[]`; a `--coverage` file that cannot be read is a usage error (exit 2). `inputs.coverage` names the report, records whether it is tracked by git, how many files it lists, how many of those are under the repository's module paths (the rest are the standard library and dependencies, which `-coverpkg=all` adds) and how many of those exist at HEAD. If fewer than 90% of the module files are at HEAD, or a block of the repository's own non-generated code does not fit inside its file, coverage is `null` with the reason `stale_coverage_report`. A file that is found but is not a report of a supported format gives `invalid_coverage_report`, and the counts are then absent. A profile line over 4096 bytes, or a file name of more than 128 path segments, makes the report invalid; real profiles are far inside both. With those bounds and the 50 MiB cap, resolving a file name costs at most 128 map lookups, the deadline is checked at every new file name, and memory stays linear in the report.
 - **Full history only.** The history family reads `git log --no-merges --find-renames=100% --name-status` from HEAD once; only exact renames are followed, since scoring a similar one inflates both blobs. A shallow clone has lost the commits before its depth, so the family is `null` with the reason `history_too_short`, as it is below 50 commits by people; commits by GitHub Apps (an author ending in `[bot]`) are not counted and not authors. git's own `.mailmap` support stays off (execx): the `.mailmap` at the root of the work tree is read with the walk's guards and applied by `gitx`, matching `git check-mailmap`. Output over 512 MiB, over 5 million changed paths, or rename chains that would read over 50 million entries give `too_large`; a failing `git log` gives `tool_crashed`, and the other families still report. Known limit: the `git log` output is buffered whole before it is parsed, so a crafted repository of half a megabyte can still cost about 0.6 GB (measured) and at most about 1.2 GB before `too_large`; parsing the output as it streams would lower that and is left for a later change. Abandonment is measured against the latest commit in the history, not the clock, so a report on a commit does not change with the date it is made.
@@ -154,7 +154,7 @@ Guards against the "measured or null" principle being bypassed:
 - `repository`: `path` (the directory name only, so reports carry no home directory), `head` (the HEAD SHA; absent on a branch with no commits yet), `shallow`, `modifiedFiles` (source files read whose work-tree content differs from the commit's blob; a checkout filter such as Git LFS or line-ending conversion also counts) and `dirty` (any modified or missing file)
 - `languages`: analysed and present-not-analysed, with file and line counts
 - `families[]`: `measured` (true only when at least one metric has a value), score or null, reason, metrics, findings. The text output quotes any path from the repository that holds a non-graphic character, so a crafted name cannot inject terminal control sequences
-- `overall`: score, measured count, family count, and the weights once scores are calibrated (v0.4.0)
+- `overall`: score, measured count, family count, the weights, and `calibration` (the language scored as, the analysed share of the code, the number of corpus repositories in the language, the version that measured them). Each family also lists `metricScores`, the 0-10 scores its own is the mean of
 - `inputs`: files analysed/total, `coverage` (the report found or named: `path`, relative to the root or only the base name when outside it, `tracked`, and once it is parsed `format`, `files`, `moduleFiles`, `filesAtHead`), `walkComplete` (false when `--timeout` ran out during the walk; the file and line counts are then partial, and the text output says so), commits read, elapsed time
 - `skipped[]`: what was not done, and why; always an array, `[]` when empty
 
@@ -184,7 +184,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
   A coverage lock fails CI when a rule ID has no pair.
 - **Null tests.** For every family and language there is a fixture where the input is absent: no coverage report, a shallow clone, the tool not installed, offline. CI asserts `null` and the exact reason. This is the regression test for the Python version's main defect.
 - **Golden reports.** These run on the four Git-Hospital repositories at pinned SHAs. A change in the output is a reviewed diff.
-- **Calibration reproducibility.** A weekly CI job re-derives `corpus.lock` and fails on drift.
+- **Calibration reproducibility.** The Calibration workflow, run by hand, re-derives `corpus.lock` with `githealthcheck calibrate --check` and fails on any difference (D35).
 - **Schema.** Every fixture's JSON is validated against `schema/report.v1.json`.
 
 ## 8. Milestones
@@ -207,7 +207,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 5. **Size of the lexer work.** A JS/TS lexer has to handle regex versus division, nested template literals, JSX and TS generics. Mitigations:
    - In v0.3, JS/TS imports resolve relative specifiers only. Every other import is listed as unresolved.
    - For Go, gocognit and gocyclo serve as reference oracles in the tests. Their licences are to be checked before use.
-6. **Calibration drift check.** `corpus.lock` records the githealthcheck version and the version of each external tool. The weekly drift check runs only when those versions are unchanged. It uses shallow clones wherever no history metric is calibrated.
+6. **Calibration drift check:** settled (D35). `corpus.lock` records the githealthcheck version and python3's; the check compares the metrics and python3's version, not githealthcheck's, and clones without blobs, since history metrics are calibrated.
 7. **`safe.directory` in the container and the Action.** The repository owner's uid differs from the uid the tool runs as, so git refuses to read the repository. The tool must handle this without trusting every directory globally.
 8. **Still to check against the tools' documentation:**
    - whether `git log` applies textconv by default;

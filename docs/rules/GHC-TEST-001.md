@@ -9,7 +9,9 @@ has no `_test.go` file.
 
 None: the rule is a fact, not a cut-off. A package is counted once it declares a function with a body
 in a non-test file. A package of only types, constants or a doc comment has nothing to run, and is not
-counted. The metric `untested_package_share` is the share of counted packages that have no test file.
+counted. The metric `untested_package_share` is the share of counted packages that have no test file;
+with fewer than 5 counted packages it is `null` (`insufficient_input`), and the findings are still
+reported.
 
 ## What is left out
 
