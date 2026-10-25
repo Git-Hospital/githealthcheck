@@ -223,6 +223,29 @@ func TestRulePairs(t *testing.T) {
 	}
 }
 
+// Python's coverage needs no python3: without one, the files are counted, their tests found by
+// name, and the report mapped to them, while complexity says Python was not analysed.
+func TestScanPythonCoverageWithoutPython(t *testing.T) {
+	defer func(p string) { python.Interpreter = p }(python.Interpreter)
+	python.Interpreter = "githealthcheck-no-such-python"
+	dir := gitRepoWith(t, map[string]string{
+		"pkg/__init__.py":   "",
+		"pkg/mod.py":        "def f(a):\n    if a:\n        return 1\n    return 2\n",
+		"tests/test_mod.py": "from pkg.mod import f\n\n\ndef test_f():\n    assert f(1) == 1\n",
+	})
+	xml := `<?xml version="1.0" ?><coverage><sources><source>/home/runner/work/x/x</source></sources><packages><package name="pkg"><classes>
+<class filename="pkg/mod.py"><lines><line number="1" hits="1"/><line number="2" hits="1"/><line number="3" hits="1"/><line number="4" hits="0"/></lines></class>
+</classes></package></packages></coverage>`
+	os.WriteFile(filepath.Join(dir, "coverage.xml"), []byte(xml), 0o644)
+	r, _, out := scanJSON(t, dir)
+	if c := coverageOf(t, r); c.IsNull() || *c.Value != 0.75 {
+		t.Errorf("coverage %+v\n%s", c, out)
+	}
+	if l := r.Languages[0]; l.Name != "python" || l.Analysed || l.Reason != report.ToolNotFound {
+		t.Errorf("languages %+v", r.Languages)
+	}
+}
+
 // needPython skips a test without a python3 the scan can use, unless GHC_REQUIRE_PYTHON is set, as it
 // is in CI, where a skip would hide a broken helper.
 func needPython(t *testing.T) {

@@ -38,8 +38,8 @@ const (
 )
 
 // ReportNames are the coverage reports looked for at the repository root, in this order, when the
-// user names none.
-var ReportNames = []string{"coverage.out", "cover.out", "coverage.txt", "c.out", "profile.cov"}
+// user names none: Go profiles, then coverage.py's Cobertura XML.
+var ReportNames = []string{"coverage.out", "cover.out", "coverage.txt", "c.out", "profile.cov", "coverage.xml"}
 
 // Analyzer is the tests family.
 type Analyzer struct{}
@@ -54,7 +54,7 @@ func (Analyzer) Rules() []analyze.Rule {
 	}
 }
 
-// pkg is one Go package of the repository's own code.
+// pkg is one Go package of the repository's own code, or a directory of Python.
 type pkg struct {
 	functions int
 	tested    bool
@@ -64,20 +64,23 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	if ctx.Err() != nil {
 		return analyze.Result{Reason: report.Timeout}
 	}
-	anyGo := false
-	own := map[string]*facts.File{} // the repository's own Go code: not vendored, generated or ignored
+	analysed := false
+	// The repository's own code in the languages the family reads: not vendored, generated or
+	// ignored by the go command. The family needs only a file's package and whether it is a test,
+	// which a Python file has without python3.
+	own := map[string]*facts.File{}
 	for i := range rf.Files {
 		f := &rf.Files[i]
-		if f.Language != "go" {
+		if !f.Analysed && f.Language != "python" {
 			continue
 		}
-		anyGo = true
+		analysed = true
 		if !f.Vendored && !f.Generated && f.Package != "" {
 			own[f.Path] = f
 		}
 	}
 	switch {
-	case !anyGo:
+	case !analysed:
 		return analyze.Result{Reason: report.UnsupportedLanguage}
 	case len(own) == 0:
 		return analyze.Result{Reason: report.InsufficientInput}
@@ -87,16 +90,24 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	var testLines, codeLines int
 	pkgs := map[string]*pkg{}
 	for _, f := range own {
+		if f.Test {
+			testLines += f.Lines
+		} else {
+			codeLines += f.Lines
+		}
+		// A package without a test file says something in Go, whose tests sit beside the code; Python
+		// keeps them in a tests directory of its own.
+		if f.Language != "go" {
+			continue
+		}
 		p := pkgs[f.Package]
 		if p == nil {
 			p = &pkg{}
 			pkgs[f.Package] = p
 		}
 		if f.Test {
-			testLines += f.Lines
 			p.tested = true
 		} else {
-			codeLines += f.Lines
 			p.functions += f.Functions
 		}
 	}
@@ -123,9 +134,12 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			})
 		}
 	}
-	if counted > 0 {
+	switch {
+	case counted > 0:
 		res.Metrics[UntestedPackageShare] = report.Measured(float64(untested)/float64(counted), counted)
-	} else {
+	case len(pkgs) == 0:
+		res.Metrics[UntestedPackageShare] = report.Null(report.UnsupportedLanguage) // no Go
+	default:
 		res.Metrics[UntestedPackageShare] = report.Null(report.InsufficientInput)
 	}
 
@@ -162,18 +176,28 @@ func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (
 		return report.Null(report.NoCoverageReport), nil, nil
 	}
 	in := &report.CoverageInput{Path: rf.Coverage.Name, Tracked: rf.Coverage.Tracked}
-	mods := indexModules(rf.Modules)
-	p, err := parseProfile(ctx, rf.Coverage.Data, func(ip string) (string, bool, bool) {
-		rel, ok := mods.resolve(ip)
-		return rel, ok, ok && rf.Paths[rel]
-	})
+	var p *profile
+	var err error
+	format := "go-coverprofile"
+	if isCobertura(rf.Coverage.Data) {
+		format = "cobertura"
+		p, err = parseCobertura(ctx, rf.Coverage.Data, func(full string) (string, bool) {
+			return full, rf.Paths[full]
+		})
+	} else {
+		mods := indexModules(rf.Modules)
+		p, err = parseProfile(ctx, rf.Coverage.Data, func(ip string) (string, bool, bool) {
+			rel, ok := mods.resolve(ip)
+			return rel, ok, ok && rf.Paths[rel]
+		})
+	}
 	switch {
 	case ctx.Err() != nil:
 		return report.Null(report.Timeout), in, nil
 	case err != nil:
 		return report.Null(report.InvalidCoverageReport), in, nil
 	}
-	in.Format = "go-coverprofile"
+	in.Format = format
 	in.Files, in.ModuleFiles, in.FilesAtHead = &p.files, &p.inModules, new(len(p.blocks))
 	switch {
 	case p.files == 0:
@@ -186,8 +210,8 @@ func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (
 	var total tally
 	for rel, blocks := range p.blocks {
 		f := own[rel]
-		if f == nil {
-			continue // vendored, generated, ignored by the go command, or not read
+		if f == nil || f.Test {
+			continue // vendored, generated, ignored by the go command, not read, or a test
 		}
 		for k := range blocks {
 			if k.startLine < 1 || k.endLine < k.startLine || k.endLine > f.Lines {
