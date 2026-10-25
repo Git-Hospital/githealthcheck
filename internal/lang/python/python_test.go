@@ -452,7 +452,17 @@ func TestLinearInCraftedFiles(t *testing.T) {
 	if !got[0].Analysed || len(got[0].Imports) != 30000 || !got[0].Imports[0].Optional {
 		t.Errorf("imports: analysed %v, %d imports", got[0].Analysed, len(got[0].Imports))
 	}
-	if !got[2].Analysed || len(got[2].Tokens.Kind) < 120000 {
-		t.Errorf("long line: analysed %v, %d tokens", got[2].Analysed, len(got[2].Tokens.Kind))
+	// Before 3.13 tokenize is quadratic on a long line, which is then read without tokens.
+	p, err := Start(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if long := got[2]; atLeast(p.Version(), [2]int{3, 13}) {
+		if !long.Analysed || long.Partial || len(long.Tokens.Kind) < 120000 {
+			t.Errorf("long line: analysed %v partial %v, %d tokens", long.Analysed, long.Partial, len(long.Tokens.Kind))
+		}
+	} else if !long.Analysed || !long.Partial || len(long.Tokens.Kind) != 0 {
+		t.Errorf("long line on %s: analysed %v partial %v, %d tokens", p.Version(), long.Analysed, long.Partial, len(long.Tokens.Kind))
 	}
 }

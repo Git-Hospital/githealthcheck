@@ -5,6 +5,7 @@
 # bytecode. It uses the standard library only.
 
 import ast
+import collections
 import io
 import json
 import keyword
@@ -36,6 +37,12 @@ SKIPPED = {token.COMMENT, token.NL, token.NEWLINE, token.ENCODING, token.ENDMARK
 STRING_STARTS = {getattr(token, n) for n in ("FSTRING_START", "TSTRING_START") if hasattr(token, n)}
 STRING_ENDS = {getattr(token, n) for n in ("FSTRING_END", "TSTRING_END") if hasattr(token, n)}
 KEYWORDS = {k: i for i, k in enumerate(keyword.kwlist)}
+
+# A token as kept: tokenize's own carry their line, which for a long line is most of the memory.
+Tok = collections.namedtuple("Tok", "type string start end exact_type")
+
+# The length from which a line is too long for tokenize before Python 3.13, in bytes.
+LONG_LINE = 16384
 
 FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
 SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
@@ -104,25 +111,37 @@ class File:
         self.src = src
         self.want_tokens = want_tokens
         self.partial = False
-        self.toks = []  # every token tokenize gives, until it stops
-        try:
-            for t in tokenize.tokenize(io.BytesIO(src).readline):
-                self.toks.append(t)
-        except (tokenize.TokenError, SyntaxError, ValueError):
+        self.blines = utf8_lines(src)
+        # Every token tokenize gives, until it stops, without the line it is on.
+        self.toks = []
+        # Lines that hold code, and lines that hold a comment.
+        self.code, self.comments = set(), {}
+        if sys.version_info < (3, 13) and any(len(line) > LONG_LINE for line in self.blines):
+            # Before 3.13 tokenize builds each token's line anew, so a long line costs its length for
+            # every token on it: the lines are classified by their text, and there are no tokens.
             self.partial = True
+            for n, line in enumerate(self.blines, 1):
+                text = line.strip()
+                if text.startswith(b"#"):
+                    self.comments[n] = text.decode("utf-8", "replace")
+                elif text:
+                    self.code.add(n)
+        else:
+            try:
+                for t in tokenize.tokenize(io.BytesIO(src).readline):
+                    self.toks.append(Tok(t.type, t.string, t.start, t.end, t.exact_type))
+            except (tokenize.TokenError, SyntaxError, ValueError):
+                self.partial = True
+            for t in self.toks:
+                if t.type == token.COMMENT:
+                    self.comments[t.start[0]] = t.string
+                elif t.type not in SKIPPED and t.type not in (token.INDENT, token.DEDENT):
+                    self.code.update(range(t.start[0], t.end[0] + 1))
         try:
             self.tree = ast.parse(src)
         except (SyntaxError, ValueError):
             self.tree = None
             self.partial = True
-        # Lines that hold code, and lines that hold a comment.
-        self.code, self.comments = set(), {}
-        for t in self.toks:
-            if t.type == token.COMMENT:
-                self.comments[t.start[0]] = t.string
-            elif t.type not in SKIPPED and t.type not in (token.INDENT, token.DEDENT):
-                self.code.update(range(t.start[0], t.end[0] + 1))
-        self.blines = utf8_lines(src)
 
     def facts(self):
         resp = {"partial": self.partial, "parsed": self.tree is not None}
@@ -402,10 +421,10 @@ class File:
             start = t.start
             if start[0] != row:
                 row, offsets = start[0], None
-                first = t.line.split("\n", 1)[0]
-                if not first.isascii():
+                line = self.blines[row - 1] if row <= len(self.blines) else b""
+                if not line.isascii():
                     offsets = [0]
-                    for ch in first:
+                    for ch in line.decode("utf-8", "replace"):
                         offsets.append(offsets[-1] + len(ch.encode("utf-8", "replace")))
             if offsets is not None and start[1] < len(offsets):
                 start = (start[0], offsets[start[1]])
