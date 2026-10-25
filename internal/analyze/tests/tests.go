@@ -67,11 +67,50 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	if ctx.Err() != nil {
 		return analyze.Result{Reason: report.Timeout}
 	}
-	analysed := false
-	// The repository's own code in the languages the family reads: not vendored, generated or
-	// ignored by the go command. The family needs only a file's package and whether it is a test,
-	// which a Python file has without python3.
-	own := map[string]*facts.File{}
+	own, analysed := ownFiles(rf)
+	switch {
+	case !analysed:
+		return analyze.Result{Reason: report.UnsupportedLanguage}
+	case len(own) == 0:
+		return analyze.Result{Reason: report.InsufficientInput}
+	}
+
+	res := analyze.Result{Measured: true, Metrics: map[string]report.Measurement{}}
+	res.Metrics[TestCodeLineRatio] = lineRatio(own)
+	res.Metrics[UntestedPackageShare], res.Findings = untestedPackages(own)
+
+	m, input, findings := coverage(ctx, rf, own)
+	if ctx.Err() != nil {
+		return analyze.Result{Reason: report.Timeout, Coverage: input}
+	}
+	res.Metrics[StatementCoverage] = m
+	res.Coverage = input
+	res.Findings = append(res.Findings, findings...)
+	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
+		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
+	})
+	// A family with no measured number is not measured, and has no score; what it found it still
+	// reports, since each finding stands on its own.
+	if !anyMeasured(res.Metrics) {
+		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics, Findings: res.Findings, Coverage: input}
+	}
+	return res
+}
+
+func anyMeasured(metrics map[string]report.Measurement) bool {
+	for _, m := range metrics {
+		if !m.IsNull() {
+			return true
+		}
+	}
+	return false
+}
+
+// ownFiles returns the repository's own code in the languages the family reads: not vendored,
+// generated or ignored by the go command. The family needs only a file's package and whether it is a
+// test, which a Python file has without python3. analysed is false when no file is in such a language.
+func ownFiles(rf *facts.Repo) (own map[string]*facts.File, analysed bool) {
+	own = map[string]*facts.File{}
 	for i := range rf.Files {
 		f := &rf.Files[i]
 		if !f.Analysed && f.Language != "python" {
@@ -82,24 +121,31 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			own[f.Path] = f
 		}
 	}
-	switch {
-	case !analysed:
-		return analyze.Result{Reason: report.UnsupportedLanguage}
-	case len(own) == 0:
-		return analyze.Result{Reason: report.InsufficientInput}
-	}
+	return own, analysed
+}
 
-	res := analyze.Result{Measured: true, Metrics: map[string]report.Measurement{}}
+func lineRatio(own map[string]*facts.File) report.Measurement {
 	var testLines, codeLines int
-	pkgs := map[string]*pkg{}
 	for _, f := range own {
 		if f.Test {
 			testLines += f.Lines
 		} else {
 			codeLines += f.Lines
 		}
-		// A package without a test file says something in Go, whose tests sit beside the code; Python
-		// keeps them in a tests directory of its own.
+	}
+	if codeLines < analyze.MinCodeLines {
+		return report.Null(report.InsufficientInput)
+	}
+	return report.Measured(float64(testLines)/float64(codeLines), len(own))
+}
+
+// untestedPackages measures the share of Go packages without a test file. A package without one
+// says something in Go, whose tests sit beside the code; Python keeps them in a tests directory of
+// its own. A package counts once it declares a function outside its tests; a package of only types,
+// constants or a doc comment has nothing to test.
+func untestedPackages(own map[string]*facts.File) (report.Measurement, []report.Finding) {
+	pkgs := map[string]*pkg{}
+	for _, f := range own {
 		if f.Language != "go" {
 			continue
 		}
@@ -114,14 +160,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			p.functions += f.Functions
 		}
 	}
-	if codeLines >= analyze.MinCodeLines {
-		res.Metrics[TestCodeLineRatio] = report.Measured(float64(testLines)/float64(codeLines), len(own))
-	} else {
-		res.Metrics[TestCodeLineRatio] = report.Null(report.InsufficientInput)
-	}
-
-	// A package counts once it declares a function outside its tests; a package of only types,
-	// constants or a doc comment has nothing to test.
+	var findings []report.Finding
 	counted, untested := 0, 0
 	for dir, p := range pkgs {
 		if p.functions == 0 {
@@ -130,7 +169,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		counted++
 		if !p.tested {
 			untested++
-			res.Findings = append(res.Findings, report.Finding{
+			findings = append(findings, report.Finding{
 				RuleID:  UntestedPackage,
 				Path:    dir,
 				Message: fmt.Sprintf("package declares %d functions and has no _test.go file", p.functions),
@@ -139,36 +178,19 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	}
 	switch {
 	case counted >= MinPackages:
-		res.Metrics[UntestedPackageShare] = report.Measured(float64(untested)/float64(counted), counted)
+		return report.Measured(float64(untested)/float64(counted), counted), findings
 	case len(pkgs) == 0:
-		res.Metrics[UntestedPackageShare] = report.Null(report.UnsupportedLanguage) // no Go
-	default:
-		res.Metrics[UntestedPackageShare] = report.Null(report.InsufficientInput)
+		return report.Null(report.UnsupportedLanguage), findings // no Go
 	}
-
-	m, input, findings := coverage(ctx, rf, own)
-	if ctx.Err() != nil {
-		return analyze.Result{Reason: report.Timeout, Coverage: input}
-	}
-	res.Metrics[StatementCoverage] = m
-	res.Coverage = input
-	res.Findings = append(res.Findings, findings...)
-	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
-		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
-	})
-	// A family with no measured number is not measured, and has no score; what it found it still
-	// reports, since each finding stands on its own.
-	measured := false
-	for _, m := range res.Metrics {
-		measured = measured || !m.IsNull()
-	}
-	if !measured {
-		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics, Findings: res.Findings, Coverage: input}
-	}
-	return res
+	return report.Null(report.InsufficientInput), findings
 }
 
 type tally struct{ stmts, covered int }
+
+func (t *tally) add(o tally) {
+	t.stmts += o.stmts
+	t.covered += o.covered
+}
 
 // coverage reads the coverage report. Only files under one of the repository's module paths count:
 // -coverpkg=all also lists the standard library and dependencies. A report is used only when at least
@@ -180,21 +202,7 @@ func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (
 		return report.Null(report.NoCoverageReport), nil, nil
 	}
 	in := &report.CoverageInput{Path: rf.Coverage.Name, Tracked: rf.Coverage.Tracked}
-	var p *profile
-	var err error
-	format := "go-coverprofile"
-	if isCobertura(rf.Coverage.Data) {
-		format = "cobertura"
-		p, err = parseCobertura(ctx, rf.Coverage.Data, func(full string) (string, bool) {
-			return full, rf.Paths[full]
-		})
-	} else {
-		mods := indexModules(rf.Modules)
-		p, err = parseProfile(ctx, rf.Coverage.Data, func(ip string) (string, bool, bool) {
-			rel, ok := mods.resolve(ip)
-			return rel, ok, ok && rf.Paths[rel]
-		})
-	}
+	p, format, err := readReport(ctx, rf)
 	switch {
 	case ctx.Err() != nil:
 		return report.Null(report.Timeout), in, nil
@@ -209,40 +217,67 @@ func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (
 	case p.inModules == 0 || len(p.blocks)*100 < MinPercentAtHead*p.inModules:
 		return report.Null(report.StaleCoverageReport), in, nil
 	}
-
-	files, pkgs := map[string]*tally{}, map[string]*tally{}
+	files, pkgs, ok := tallies(p, own)
+	if !ok {
+		return report.Null(report.StaleCoverageReport), in, nil
+	}
 	var total tally
+	for _, t := range files {
+		total.add(*t)
+	}
+	if total.stmts == 0 {
+		return report.Null(report.InsufficientInput), in, nil
+	}
+	return report.Measured(float64(total.covered)/float64(total.stmts), len(files)), in, coverageFindings(files, pkgs)
+}
+
+// readReport parses the coverage report, a Cobertura XML report or a Go profile.
+func readReport(ctx context.Context, rf *facts.Repo) (*profile, string, error) {
+	if isCobertura(rf.Coverage.Data) {
+		p, err := parseCobertura(ctx, rf.Coverage.Data, func(full string) (string, bool) {
+			return full, rf.Paths[full]
+		})
+		return p, "cobertura", err
+	}
+	mods := indexModules(rf.Modules)
+	p, err := parseProfile(ctx, rf.Coverage.Data, func(ip string) (string, bool, bool) {
+		rel, ok := mods.resolve(ip)
+		return rel, ok, ok && rf.Paths[rel]
+	})
+	return p, "go-coverprofile", err
+}
+
+// tallies sums the statements of the repository's own code by file and by package. ok is false when a
+// block does not fit inside its file.
+func tallies(p *profile, own map[string]*facts.File) (files, pkgs map[string]*tally, ok bool) {
+	files, pkgs = map[string]*tally{}, map[string]*tally{}
 	for rel, blocks := range p.blocks {
 		f := own[rel]
 		if f == nil || f.Test {
 			continue // vendored, generated, ignored by the go command, not read, or a test
 		}
-		for k := range blocks {
+		ft := &tally{}
+		for k, b := range blocks {
 			if k.startLine < 1 || k.endLine < k.startLine || k.endLine > f.Lines {
-				return report.Null(report.StaleCoverageReport), in, nil
+				return nil, nil, false
 			}
-		}
-		ft, pt := &tally{}, pkgs[f.Package]
-		if pt == nil {
-			pt = &tally{}
-			pkgs[f.Package] = pt
-		}
-		for _, b := range blocks {
 			ft.stmts += b.stmts
 			if b.covered {
 				ft.covered += b.stmts
 			}
 		}
 		files[rel] = ft
-		pt.stmts += ft.stmts
-		pt.covered += ft.covered
-		total.stmts += ft.stmts
-		total.covered += ft.covered
+		pt := pkgs[f.Package]
+		if pt == nil {
+			pt = &tally{}
+			pkgs[f.Package] = pt
+		}
+		pt.add(*ft)
 	}
-	if total.stmts == 0 {
-		return report.Null(report.InsufficientInput), in, nil
-	}
+	return files, pkgs, true
+}
 
+func coverageFindings(files, pkgs map[string]*tally) []report.Finding {
 	var findings []report.Finding
 	for dir, t := range pkgs {
 		if t.stmts > 0 && t.covered*100 < AcceptablePercent*t.stmts {
@@ -262,7 +297,7 @@ func coverage(ctx context.Context, rf *facts.Repo, own map[string]*facts.File) (
 			})
 		}
 	}
-	return report.Measured(float64(total.covered)/float64(total.stmts), len(files)), in, findings
+	return findings
 }
 
 func percent(t *tally) string {

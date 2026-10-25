@@ -63,12 +63,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	case h.Failed:
 		return analyze.Result{Reason: report.ToolCrashed}
 	}
-	var commits []facts.Commit
-	for _, c := range h.Commits {
-		if !IsBot(c.Name, c.Email) {
-			commits = append(commits, c)
-		}
-	}
+	commits := slices.DeleteFunc(slices.Clone(h.Commits), func(c facts.Commit) bool { return IsBot(c.Name, c.Email) })
 	if len(commits) < MinCommits {
 		return analyze.Result{Reason: report.HistoryTooShort}
 	}
@@ -94,21 +89,40 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	res := analyze.Result{Measured: true, Metrics: map[string]report.Measurement{}}
 	res.Metrics[TruckFactorMetric] = report.Measured(float64(tf.TF), tf.Files)
 	if tf.TF == 1 {
-		msg := fmt.Sprintf("one developer authors so much of the code that without them %d of the %d files with history keep an author",
-			tf.CoveredWithoutTF, tf.Files)
-		if 2*tf.CoveredWithoutTF >= tf.Files {
-			// Pruning dropped the other developers the estimate removed: each authors under 10% as
-			// many files as this one.
-			msg = fmt.Sprintf("one developer is the truck factor: without them %d of the %d files with history keep an author, nearly all through developers who each author under 10%% as many files",
-				tf.CoveredWithoutTF, tf.Files)
-		}
-		res.Findings = append(res.Findings, report.Finding{RuleID: TruckFactorOne, Message: msg})
+		res.Findings = append(res.Findings, truckFactorOne(tf))
 	}
+	single := 0
+	for _, f := range tf.files {
+		if len(f.authors) == 1 {
+			single++
+		}
+	}
+	res.Metrics[SingleAuthorFileShare] = report.Measured(float64(single)/float64(tf.Files), tf.Files)
+	share, findings := abandonedFiles(commits, developer, tf)
+	res.Metrics[AbandonedFileShare] = share
+	res.Findings = append(res.Findings, findings...)
+	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
+		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
+	})
+	return res
+}
 
-	// When each developer last committed, and the latest commit of all. A commit whose author time
-	// git could not print, in a corrupt or crafted object, has no time and is left out here.
-	last := map[string]int64{}
-	var latest int64
+func truckFactorOne(tf *Result) report.Finding {
+	msg := fmt.Sprintf("one developer authors so much of the code that without them %d of the %d files with history keep an author",
+		tf.CoveredWithoutTF, tf.Files)
+	if 2*tf.CoveredWithoutTF >= tf.Files {
+		// Pruning dropped the other developers the estimate removed: each authors under 10% as
+		// many files as this one.
+		msg = fmt.Sprintf("one developer is the truck factor: without them %d of the %d files with history keep an author, nearly all through developers who each author under 10%% as many files",
+			tf.CoveredWithoutTF, tf.Files)
+	}
+	return report.Finding{RuleID: TruckFactorOne, Message: msg}
+}
+
+// lastCommits returns when each developer last committed, and the latest commit of all. A commit
+// whose author time git could not print, in a corrupt or crafted object, has no time and is left out.
+func lastCommits(commits []facts.Commit, developer func(*facts.Commit) string) (last map[string]int64, latest int64) {
+	last = map[string]int64{}
 	timed := false
 	for i := range commits {
 		c := &commits[i]
@@ -123,46 +137,53 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			latest, timed = c.Time, true
 		}
 	}
-	single, judged, abandoned := 0, 0, 0
+	return last, latest
+}
+
+// abandonedFiles measures the share of files whose authors all stopped committing a year or more
+// before the latest commit. A file is judged when it has authors and the last commit of each is known.
+func abandonedFiles(commits []facts.Commit, developer func(*facts.Commit) string, tf *Result) (report.Measurement, []report.Finding) {
+	last, latest := lastCommits(commits, developer)
+	var findings []report.Finding
+	judged := 0
 	for _, f := range tf.files {
-		if len(f.authors) == 1 {
-			single++
-		}
-		// A file is judged when it has authors and the last commit of each is known.
-		recent, known := int64(0), len(f.authors) > 0
-		for i, a := range f.authors {
-			t, ok := last[a]
-			known = known && ok
-			if i == 0 || t > recent {
-				recent = t
-			}
-		}
+		recent, known := lastOfAuthors(f.authors, last)
 		if !known {
 			continue
 		}
 		judged++
 		// latest >= recent; the difference of two int64 fits in a uint64.
 		if gone := uint64(latest) - uint64(recent); gone >= AbandonedSeconds {
-			abandoned++
-			msg := fmt.Sprintf("none of its %d authors committed in the year before the latest commit; the last of them stopped %d days before it",
-				len(f.authors), gone/(24*60*60))
-			if len(f.authors) == 1 {
-				msg = fmt.Sprintf("its only author made no commit in the year before the latest commit; their last was %d days before it",
-					gone/(24*60*60))
-			}
-			res.Findings = append(res.Findings, report.Finding{RuleID: AbandonedFile, Path: f.path, Message: msg})
+			findings = append(findings, abandonedFile(f, gone/(24*60*60)))
 		}
 	}
-	res.Metrics[SingleAuthorFileShare] = report.Measured(float64(single)/float64(tf.Files), tf.Files)
-	if judged > 0 {
-		res.Metrics[AbandonedFileShare] = report.Measured(float64(abandoned)/float64(judged), judged)
-	} else {
-		res.Metrics[AbandonedFileShare] = report.Null(report.InsufficientInput)
+	if judged == 0 {
+		return report.Null(report.InsufficientInput), findings
 	}
-	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
-		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
-	})
-	return res
+	return report.Measured(float64(len(findings))/float64(judged), judged), findings
+}
+
+// lastOfAuthors returns the latest last commit of a file's authors; known is false when the file has
+// no authors or one of them has no timed commit.
+func lastOfAuthors(authors []string, last map[string]int64) (recent int64, known bool) {
+	known = len(authors) > 0
+	for i, a := range authors {
+		t, ok := last[a]
+		known = known && ok
+		if i == 0 || t > recent {
+			recent = t
+		}
+	}
+	return recent, known
+}
+
+func abandonedFile(f fileAuthors, days uint64) report.Finding {
+	msg := fmt.Sprintf("none of its %d authors committed in the year before the latest commit; the last of them stopped %d days before it",
+		len(f.authors), days)
+	if len(f.authors) == 1 {
+		msg = fmt.Sprintf("its only author made no commit in the year before the latest commit; their last was %d days before it", days)
+	}
+	return report.Finding{RuleID: AbandonedFile, Path: f.path, Message: msg}
 }
 
 // Developers groups the authors of commits into developers, as the truck-factor tool does with its

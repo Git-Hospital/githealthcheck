@@ -114,53 +114,66 @@ type sarifSuppression struct {
 // on the whole repository (isFile false) stay in the JSON and Markdown reports, and a notification
 // says how many. Paths are relative to the scanned root (%SRCROOT%).
 func SARIF(r *Report, rules []Rule, isFile func(path string) bool) ([]byte, error) {
-	index := map[string]int{}
-	driver := sarifDriver{Name: "githealthcheck", Version: r.Tool.Version, InformationURI: "https://github.com/Git-Hospital/githealthcheck"}
-	for _, rl := range rules {
-		index[rl.ID] = len(driver.Rules)
-		driver.Rules = append(driver.Rules, sarifRule{ID: rl.ID, ShortDescription: sarifText{rl.Title},
-			HelpURI: RulesURL + rl.ID + ".md", Default: sarifDefault{sarifLevel(rl.Family)}})
-	}
+	driver, index := sarifRules(r.Tool.Version, rules)
 	run := sarifRun{Tool: sarifTool{driver}, Results: []sarifResult{}}
 	elsewhere, over := 0, 0
 	for _, f := range r.Families {
 		for _, fd := range f.Findings {
 			i, known := index[fd.RuleID]
-			if !known {
+			switch {
+			case !known:
 				return nil, fmt.Errorf("sarif: finding of unknown rule %s", fd.RuleID)
-			}
-			if fd.Path == "" || !isFile(fd.Path) {
+			case fd.Path == "" || !isFile(fd.Path):
 				elsewhere++
-				continue
-			}
-			if len(run.Results) == MaxSARIFResults {
+			case len(run.Results) == MaxSARIFResults:
 				over++
-				continue
+			default:
+				run.Results = append(run.Results, sarifResultOf(fd, i, f.Family))
 			}
-			loc := sarifPhysical{Artifact: sarifArtifact{URI: uriPath(fd.Path), URIBaseID: "%SRCROOT%"}}
-			if fd.Line > 0 {
-				loc.Region = &sarifRegion{StartLine: fd.Line}
-			}
-			res := sarifResult{RuleID: fd.RuleID, RuleIndex: i, Level: sarifLevel(f.Family),
-				Message: sarifText{fd.Message}, Locations: []sarifLocation{{loc}}}
-			if fd.Suppressed {
-				res.Suppressions = []sarifSuppression{{Kind: "external", Justification: fd.SuppressReason}}
-			}
-			run.Results = append(run.Results, res)
 		}
 	}
 	inv := sarifInvocation{ExecutionSuccessful: ExitCode(r, nil) != ExitIncomplete}
 	if elsewhere > 0 {
-		inv.Notifications = append(inv.Notifications, sarifNotification{Level: "note", Message: sarifText{
-			fmt.Sprintf("%d findings on a directory or on the whole repository are not results here; they are in the JSON and Markdown reports.", elsewhere)}})
+		inv.Notifications = append(inv.Notifications, sarifNote(
+			"%d findings on a directory or on the whole repository are not results here; they are in the JSON and Markdown reports.", elsewhere))
 	}
 	if over > 0 {
-		inv.Notifications = append(inv.Notifications, sarifNotification{Level: "note", Message: sarifText{
-			fmt.Sprintf("%d more findings on files are past the first %d; they are in the JSON report.", over, MaxSARIFResults)}})
+		inv.Notifications = append(inv.Notifications, sarifNote(
+			"%d more findings on files are past the first %d; they are in the JSON report.", over, MaxSARIFResults))
 	}
 	run.Invocations = []sarifInvocation{inv}
 	body, err := json.MarshalIndent(sarifLog{Schema: "https://json.schemastore.org/sarif-2.1.0.json", Version: "2.1.0", Runs: []sarifRun{run}}, "", "  ")
 	return append(body, '\n'), err
+}
+
+// sarifRules describes the rules, and returns each one's index among them.
+func sarifRules(version string, rules []Rule) (sarifDriver, map[string]int) {
+	index := map[string]int{}
+	driver := sarifDriver{Name: "githealthcheck", Version: version, InformationURI: "https://github.com/Git-Hospital/githealthcheck"}
+	for _, rl := range rules {
+		index[rl.ID] = len(driver.Rules)
+		driver.Rules = append(driver.Rules, sarifRule{ID: rl.ID, ShortDescription: sarifText{rl.Title},
+			HelpURI: RulesURL + rl.ID + ".md", Default: sarifDefault{sarifLevel(rl.Family)}})
+	}
+	return driver, index
+}
+
+// sarifResultOf is the result of a finding on a file; rule is its rule's index.
+func sarifResultOf(fd Finding, rule int, family Family) sarifResult {
+	loc := sarifPhysical{Artifact: sarifArtifact{URI: uriPath(fd.Path), URIBaseID: "%SRCROOT%"}}
+	if fd.Line > 0 {
+		loc.Region = &sarifRegion{StartLine: fd.Line}
+	}
+	res := sarifResult{RuleID: fd.RuleID, RuleIndex: rule, Level: sarifLevel(family),
+		Message: sarifText{fd.Message}, Locations: []sarifLocation{{loc}}}
+	if fd.Suppressed {
+		res.Suppressions = []sarifSuppression{{Kind: "external", Justification: fd.SuppressReason}}
+	}
+	return res
+}
+
+func sarifNote(format string, args ...any) sarifNotification {
+	return sarifNotification{Level: "note", Message: sarifText{fmt.Sprintf(format, args...)}}
 }
 
 // uriPath escapes each segment of a slash-separated relative path for a URI reference, so a name

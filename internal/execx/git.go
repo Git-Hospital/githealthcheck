@@ -86,7 +86,7 @@ var gitSubcommands = map[string][]string{
 // gitAllowed are the arguments each subcommand accepts: exact flags, and flags that take a value after
 // "=". Anything else, including -p and every patch format (which inflate blobs without limit), panics.
 // Revisions must be full object names or HEAD; after "--" come pathspecs.
-var gitAllowed = map[string]struct{ exact, prefix []string }{
+var gitAllowed = map[string]argRule{
 	"rev-parse": {
 		exact: []string{"--show-toplevel", "--absolute-git-dir", "--git-common-dir", "--verify", "--quiet",
 			"--is-shallow-repository", "--show-object-format"},
@@ -155,45 +155,17 @@ func NewGit(ctx context.Context, root string) (*Git, error) {
 		return nil, fmt.Errorf("%s has no .git directory; only a repository root with its own .git directory can be scanned (not a worktree, submodule or bare repository)", root)
 	}
 	if err := checkGitDir(ctx, dotGit); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%s: timed out while opening the repository: %w", root, err)
-		}
-		return nil, fmt.Errorf("%s: refused: %w", root, err)
+		return nil, opening(root, err, "%s: refused: %w", root)
 	}
-	out, err := g.Run(ctx, "rev-parse", "--show-toplevel", "--absolute-git-dir", "--git-common-dir")
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%s: timed out while opening the repository: %w", root, err)
-		}
-		return nil, fmt.Errorf("%s is not a git repository: %w", root, err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) != 3 {
-		return nil, fmt.Errorf("%s: unexpected rev-parse output %q", root, out)
-	}
-	top, err := filepath.EvalSymlinks(lines[0])
-	if err != nil {
+	if err := g.checkLayout(ctx, root, dotGit); err != nil {
 		return nil, err
-	}
-	if top != abs {
-		// Either root is a subdirectory, or the repository's core.worktree points somewhere else.
-		return nil, fmt.Errorf("%s: the repository's work tree is %s, not this directory; pass the repository root", root, top)
-	}
-	for _, dir := range lines[1:] {
-		if !filepath.IsAbs(dir) {
-			dir = filepath.Join(abs, dir)
-		}
-		resolved, err := filepath.EvalSymlinks(dir)
-		if err != nil || resolved != dotGit {
-			return nil, fmt.Errorf("%s: its git directory resolves to %s, outside the repository root", root, dir)
-		}
 	}
 	if _, err := os.Lstat(filepath.Join(dotGit, "objects", "info", "alternates")); err == nil {
 		return nil, fmt.Errorf("%s borrows objects from another repository (objects/info/alternates); not supported", root)
 	}
 	// Attributes come from the empty tree, never from the work tree's .gitattributes (a FIFO there
 	// blocks every diff). The empty tree's name depends on the object format.
-	out, err = g.Run(ctx, "rev-parse", "--show-object-format")
+	out, err := g.Run(ctx, "rev-parse", "--show-object-format")
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", root, err)
 	}
@@ -204,6 +176,47 @@ func NewGit(ctx context.Context, root string) (*Git, error) {
 	g.runner.Env = append(g.runner.Env, "GIT_ATTR_SOURCE="+tree)
 	g.objectFormat = strings.TrimSpace(string(out))
 	return g, nil
+}
+
+// opening wraps an error met while opening the repository at root: a timeout says so, any other
+// error is formatted with format and args, which end with the error.
+func opening(root string, err error, format string, args ...any) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s: timed out while opening the repository: %w", root, err)
+	}
+	return fmt.Errorf(format, append(args, err)...)
+}
+
+// checkLayout checks that git sees the directory as the root of its work tree, and its git
+// directory and common directory as dotGit, so that core.worktree or a gitdir file cannot point the
+// scan elsewhere.
+func (g *Git) checkLayout(ctx context.Context, root, dotGit string) error {
+	out, err := g.Run(ctx, "rev-parse", "--show-toplevel", "--absolute-git-dir", "--git-common-dir")
+	if err != nil {
+		return opening(root, err, "%s is not a git repository: %w", root)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) != 3 {
+		return fmt.Errorf("%s: unexpected rev-parse output %q", root, out)
+	}
+	top, err := filepath.EvalSymlinks(lines[0])
+	if err != nil {
+		return err
+	}
+	if top != g.root {
+		// Either root is a subdirectory, or the repository's core.worktree points somewhere else.
+		return fmt.Errorf("%s: the repository's work tree is %s, not this directory; pass the repository root", root, top)
+	}
+	for _, dir := range lines[1:] {
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(g.root, dir)
+		}
+		resolved, err := filepath.EvalSymlinks(dir)
+		if err != nil || resolved != dotGit {
+			return fmt.Errorf("%s: its git directory resolves to %s, outside the repository root", root, dir)
+		}
+	}
+	return nil
 }
 
 // checkGitDir refuses a .git that holds anything but directories and regular files. A symlink (objects,
@@ -316,23 +329,13 @@ func gitArgs(root, subcommand string, args []string) []string {
 			break // the rest are pathspecs
 		}
 		if strings.HasPrefix(a, "--format=") {
+			checkFormat(a)
 			formats++
-			// Only format:/tformat: strings: a bare name would be looked up as the repository's own
-			// pretty.<name> alias, whose expansion is never seen here.
-			f := strings.TrimPrefix(a, "--format=")
-			if !strings.HasPrefix(f, "format:") && !strings.HasPrefix(f, "tformat:") {
-				panic("execx: git log --format must start with format: or tformat:, got " + a)
-			}
-			if formatDenied.MatchString(f) {
-				panic("execx: placeholder not allowed in " + a)
-			}
 			continue
 		}
-		if slices.Contains(allowed.exact, a) || revisionRE.MatchString(a) ||
-			slices.ContainsFunc(allowed.prefix, func(p string) bool { return strings.HasPrefix(a, p) }) {
-			continue
+		if !allowed.allows(a) {
+			panic("execx: git " + subcommand + " argument not allowed: " + a)
 		}
-		panic("execx: git " + subcommand + " argument not allowed: " + a)
 	}
 	// Without an explicit --format, log would use the repository's format.pretty, which can name a
 	// pretty.<alias> with %G placeholders that run gpg.program.
@@ -342,6 +345,28 @@ func gitArgs(root, subcommand string, args []string) []string {
 	full := append(gitPrefix(root), subcommand)
 	full = append(full, safety...)
 	return append(full, args...)
+}
+
+// argRule lists the arguments a subcommand takes: exact ones and prefixes of ones with a value.
+type argRule struct{ exact, prefix []string }
+
+// allows reports an argument the rule lists, or a revision.
+func (r argRule) allows(a string) bool {
+	return slices.Contains(r.exact, a) || revisionRE.MatchString(a) ||
+		slices.ContainsFunc(r.prefix, func(p string) bool { return strings.HasPrefix(a, p) })
+}
+
+// checkFormat panics on a --format= that is not a format:/tformat: string, or that holds a denied
+// placeholder. A bare name would be looked up as the repository's own pretty.<name> alias, whose
+// expansion is never seen here.
+func checkFormat(a string) {
+	f := strings.TrimPrefix(a, "--format=")
+	if !strings.HasPrefix(f, "format:") && !strings.HasPrefix(f, "tformat:") {
+		panic("execx: git log --format must start with format: or tformat:, got " + a)
+	}
+	if formatDenied.MatchString(f) {
+		panic("execx: placeholder not allowed in " + a)
+	}
 }
 
 // gitEnv is the reduced environment plus the variables that keep git away from system and global

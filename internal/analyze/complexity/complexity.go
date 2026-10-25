@@ -80,65 +80,28 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	if ctx.Err() != nil {
 		return analyze.Result{Reason: report.Timeout}
 	}
-	measured, anyFile := 0, false
-	var complex, long, cyclomatic, lines, files, smells int
+	own, anyFile, err := ownFiles(ctx, rf)
+	if err != nil {
+		return analyze.Result{Reason: report.Timeout}
+	}
 	res := analyze.Result{Metrics: map[string]report.Measurement{}}
-	var own []*facts.File
-	for i := range rf.Files {
-		if i%256 == 0 && ctx.Err() != nil {
-			return analyze.Result{Reason: report.Timeout}
-		}
-		f := &rf.Files[i]
-		if !f.Analysed {
-			continue
-		}
-		anyFile = true
-		// The repository's own code: not vendored, generated, or ignored by the go command.
-		if f.Vendored || f.Generated || f.Package == "" {
-			continue
-		}
-		own = append(own, f)
-		files++
-		lines += f.Lines
-		if f.Test {
-			continue // tests are judged for smells, not for their shape
-		}
-		for _, fn := range f.Funcs {
-			measured++
-			cyclomatic += fn.Cyclomatic
-			if fn.Cognitive > MaxCognitive {
-				complex++
-				res.Findings = append(res.Findings, report.Finding{RuleID: ComplexFunction, Path: f.Path, Line: fn.Line,
-					Message: fmt.Sprintf("%s has cognitive complexity %d", fn.Name, fn.Cognitive)})
-			}
-			if fn.Lines > MaxLines {
-				long++
-				res.Findings = append(res.Findings, report.Finding{RuleID: LongFunction, Path: f.Path, Line: fn.Line,
-					Message: fmt.Sprintf("%s has %d lines of code", fn.Name, fn.Lines)})
-			}
-			if fn.Nesting > MaxNesting {
-				res.Findings = append(res.Findings, report.Finding{RuleID: DeepNesting, Path: f.Path, Line: fn.Line,
-					Message: fmt.Sprintf("%s nests control flow %d deep", fn.Name, fn.Nesting)})
-			}
+	var sh shapes
+	for _, f := range own {
+		if !f.Test { // tests are judged for smells, not for their shape
+			res.Findings = append(res.Findings, sh.add(f)...)
 		}
 	}
 	found, err := smellFindings(ctx, rf, own)
 	if err != nil {
 		return analyze.Result{Reason: report.Timeout}
 	}
-	dropped := map[[2]string]int{} // by rule and path
-	for _, f := range own {
-		for kind, n := range f.SmellsDropped {
-			smells += n
-			dropped[[2]string{smellRule[kind], f.Path}] += n
-		}
-	}
+	smells, dropped := droppedSmells(own)
 	for _, fd := range found {
 		if fd.RuleID != UnusedFunction {
 			smells++
 		}
-		res.Findings = append(res.Findings, fd)
 	}
+	res.Findings = append(res.Findings, found...)
 	dups, share, err := duplication(ctx, own)
 	if err != nil {
 		return analyze.Result{Reason: report.Timeout}
@@ -148,19 +111,13 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	if !anyFile {
 		return analyze.Result{Reason: report.UnsupportedLanguage}
 	}
-	// Each finding stands on its own; the shares need enough functions to say something.
-	if measured >= MinFunctions {
-		n := float64(measured)
-		res.Metrics[ComplexFunctionShare] = report.Measured(float64(complex)/n, measured)
-		res.Metrics[LongFunctionShare] = report.Measured(float64(long)/n, measured)
-		res.Metrics[MeanCyclomatic] = report.Measured(float64(cyclomatic)/n, measured)
-	} else {
-		for _, m := range []string{ComplexFunctionShare, LongFunctionShare, MeanCyclomatic} {
-			res.Metrics[m] = report.Null(report.InsufficientInput)
-		}
+	sh.metrics(res.Metrics)
+	lines := 0
+	for _, f := range own {
+		lines += f.Lines
 	}
 	if lines > 0 && lines >= minCodeLines {
-		res.Metrics[SmellsPerKLOC] = report.Measured(1000*float64(smells)/float64(lines), files)
+		res.Metrics[SmellsPerKLOC] = report.Measured(1000*float64(smells)/float64(lines), len(own))
 	} else {
 		res.Metrics[SmellsPerKLOC] = report.Null(report.InsufficientInput)
 	}
@@ -176,6 +133,79 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		res.Reason = report.InsufficientInput
 	}
 	return res
+}
+
+// ownFiles returns the repository's own analysed code: not vendored, generated, or ignored by the go
+// command. anyFile is false when no file was analysed.
+func ownFiles(ctx context.Context, rf *facts.Repo) (own []*facts.File, anyFile bool, err error) {
+	for i := range rf.Files {
+		if i%256 == 0 && ctx.Err() != nil {
+			return nil, false, ctx.Err()
+		}
+		f := &rf.Files[i]
+		if !f.Analysed {
+			continue
+		}
+		anyFile = true
+		if !f.Vendored && !f.Generated && f.Package != "" {
+			own = append(own, f)
+		}
+	}
+	return own, anyFile, nil
+}
+
+// shapes counts the functions of the code and those too complex or too long.
+type shapes struct{ measured, complex, long, cyclomatic int }
+
+// add counts the functions of f and returns the findings on their shape.
+func (sh *shapes) add(f *facts.File) []report.Finding {
+	var out []report.Finding
+	finding := func(rule string, fn facts.Function, format string, n int) {
+		out = append(out, report.Finding{RuleID: rule, Path: f.Path, Line: fn.Line, Message: fmt.Sprintf(format, fn.Name, n)})
+	}
+	for _, fn := range f.Funcs {
+		sh.measured++
+		sh.cyclomatic += fn.Cyclomatic
+		if fn.Cognitive > MaxCognitive {
+			sh.complex++
+			finding(ComplexFunction, fn, "%s has cognitive complexity %d", fn.Cognitive)
+		}
+		if fn.Lines > MaxLines {
+			sh.long++
+			finding(LongFunction, fn, "%s has %d lines of code", fn.Lines)
+		}
+		if fn.Nesting > MaxNesting {
+			finding(DeepNesting, fn, "%s nests control flow %d deep", fn.Nesting)
+		}
+	}
+	return out
+}
+
+// metrics sets the shares, which need enough functions to say something.
+func (sh *shapes) metrics(m map[string]report.Measurement) {
+	if sh.measured < MinFunctions {
+		for _, name := range []string{ComplexFunctionShare, LongFunctionShare, MeanCyclomatic} {
+			m[name] = report.Null(report.InsufficientInput)
+		}
+		return
+	}
+	n := float64(sh.measured)
+	m[ComplexFunctionShare] = report.Measured(float64(sh.complex)/n, sh.measured)
+	m[LongFunctionShare] = report.Measured(float64(sh.long)/n, sh.measured)
+	m[MeanCyclomatic] = report.Measured(float64(sh.cyclomatic)/n, sh.measured)
+}
+
+// droppedSmells counts the smells files found but did not keep, in all and by rule and path.
+func droppedSmells(own []*facts.File) (int, map[[2]string]int) {
+	n := 0
+	dropped := map[[2]string]int{}
+	for _, f := range own {
+		for kind, k := range f.SmellsDropped {
+			n += k
+			dropped[[2]string{smellRule[kind], f.Path}] += k
+		}
+	}
+	return n, dropped
 }
 
 // MaxPerFile is the number of findings of one rule listed for one file; the rest are summed up in

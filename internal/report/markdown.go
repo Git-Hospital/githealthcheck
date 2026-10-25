@@ -2,7 +2,8 @@ package report
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -34,59 +35,63 @@ func Markdown(r *Report) string {
 	}
 	b.WriteString("\n\n| Family | Score | Metrics |\n|---|---|---|\n")
 	for _, f := range r.Families {
-		names := make([]string, 0, len(f.Metrics))
-		for n := range f.Metrics {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		var ms []string
-		for _, n := range names {
-			m := f.Metrics[n]
-			s := n + " " + valueMD(n, m)
-			if sc, ok := f.MetricScores[n]; ok {
-				s += fmt.Sprintf(" (%.1f)", sc)
-			}
-			ms = append(ms, s)
-		}
-		fmt.Fprintf(&b, "| %s | %s | %s |\n", f.Family, scoreMD(f.Score), strings.Join(ms, "<br>"))
+		fmt.Fprintf(&b, "| %s | %s | %s |\n", f.Family, scoreMD(f.Score), metricsMD(f))
 	}
-
-	total := 0
-	for _, f := range r.Families {
-		total += len(f.Findings)
-	}
-	if total > 0 {
-		fmt.Fprintf(&b, "\n### Findings (%d)\n\n", total)
-		listed := 0
-		for _, f := range r.Families {
-			for _, fd := range f.Findings {
-				if listed == MaxMarkdownFindings {
-					break
-				}
-				listed++
-				where := ""
-				switch {
-				case fd.Path != "" && fd.Line > 0:
-					where = fmt.Sprintf("%s:%d: ", mdEscape(fd.Path), fd.Line)
-				case fd.Path != "":
-					where = mdEscape(fd.Path) + ": "
-				}
-				rule := fmt.Sprintf("[%s](%s%s.md)", fd.RuleID, RulesURL, fd.RuleID)
-				line := fmt.Sprintf("- %s %s%s", rule, where, mdEscape(fd.Message))
-				if fd.Suppressed {
-					line += " (suppressed: " + mdEscape(fd.SuppressReason) + ")"
-				}
-				b.WriteString(line + "\n")
-			}
-		}
-		if listed < total {
-			fmt.Fprintf(&b, "\n%d more findings are in the JSON report.\n", total-listed)
-		}
-	}
+	mdFindings(&b, r)
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(&b, "\n%d paths were not read; the JSON report lists them.\n", len(r.Skipped))
 	}
 	return b.String()
+}
+
+// metricsMD is a family's metrics, one per line of its table cell.
+func metricsMD(f FamilyResult) string {
+	var ms []string
+	for _, n := range slices.Sorted(maps.Keys(f.Metrics)) {
+		s := n + " " + valueMD(n, f.Metrics[n])
+		if sc, ok := f.MetricScores[n]; ok {
+			s += fmt.Sprintf(" (%.1f)", sc)
+		}
+		ms = append(ms, s)
+	}
+	return strings.Join(ms, "<br>")
+}
+
+// mdFindings lists up to MaxMarkdownFindings findings and counts the rest.
+func mdFindings(b *strings.Builder, r *Report) {
+	total := 0
+	for _, f := range r.Families {
+		total += len(f.Findings)
+	}
+	if total == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\n### Findings (%d)\n\n", total)
+	listed := 0
+	for _, f := range r.Families {
+		for _, fd := range f.Findings[:min(len(f.Findings), MaxMarkdownFindings-listed)] {
+			b.WriteString(findingMD(fd) + "\n")
+			listed++
+		}
+	}
+	if listed < total {
+		fmt.Fprintf(b, "\n%d more findings are in the JSON report.\n", total-listed)
+	}
+}
+
+func findingMD(fd Finding) string {
+	where := ""
+	switch {
+	case fd.Path != "" && fd.Line > 0:
+		where = fmt.Sprintf("%s:%d: ", mdEscape(fd.Path), fd.Line)
+	case fd.Path != "":
+		where = mdEscape(fd.Path) + ": "
+	}
+	line := fmt.Sprintf("- [%s](%s%s.md) %s%s", fd.RuleID, RulesURL, fd.RuleID, where, mdEscape(fd.Message))
+	if fd.Suppressed {
+		line += " (suppressed: " + mdEscape(fd.SuppressReason) + ")"
+	}
+	return line
 }
 
 func scoreMD(m Measurement) string {

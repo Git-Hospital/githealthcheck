@@ -56,73 +56,101 @@ func value(t *facts.Tokens, i int) uint64 {
 // earlier places, in the order of files, whose first MinCloneTokens tokens are the same up to a
 // consistent renaming.
 func clones(ctx context.Context, files []*facts.File) ([]clone, error) {
-	type at struct{ file, tok int32 }
-	// A base chosen per run: a crafted repository cannot plant blocks whose hashes collide.
-	base := new(maphash.Hash).Sum64() | 1
-	// Places are keyed by the window's values and by the pattern of its locals, so only windows that
-	// are the same up to a consistent renaming meet, and up to candidates places are kept per key.
-	// The pattern costs a pass over the window, so it is computed only once a second window with
-	// the same values appears: until then the first waits in lone.
-	lone := map[uint64]at{}
-	places := map[uint64][]at{}
-	key := func(h uint64, o at) uint64 {
-		return h ^ localsHash(&files[o.file].Tokens, int(o.tok), base)
+	cf := &cloneFinder{
+		files: files,
+		// A base chosen per run: a crafted repository cannot plant blocks whose hashes collide.
+		base:   new(maphash.Hash).Sum64() | 1,
+		lone:   map[uint64]at{},
+		places: map[uint64][]at{},
 	}
-	var out []clone
 	for fi, f := range files {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		t := &f.Tokens
-		n := len(t.Kind)
-		if n < MinCloneTokens {
-			continue
-		}
-		hashes := windowHashes(t, MinCloneTokens, base)
-		covered := 0 // tokens before this are already in a reported copy
-		// failed holds, for an alignment of this file with an earlier place (its file and the
-		// difference of positions), how far a comparison that reported nothing reached: a later
-		// start on that alignment is the same comparison.
-		failed := map[[2]int]int{}
-		for i := 0; i+MinCloneTokens <= n; i++ {
-			if i > 0 && t.Line[i] == t.Line[i-1] {
-				continue // blocks start at a line
-			}
-			h, here := hashes[i], at{int32(fi), int32(i)}
-			switch o, ok := lone[h]; {
-			case !ok:
-				lone[h] = here
-				continue
-			case o.file >= 0:
-				places[key(h, o)] = []at{o}
-				lone[h] = at{-1, -1} // no longer alone
-			}
-			k := key(h, here)
-			cands := places[k]
-			if len(cands) < candidates {
-				places[k] = append(cands, here)
-			}
-			if i < covered {
-				continue
-			}
-			for _, o := range cands {
-				align := [2]int{int(o.file), int(o.tok) - i}
-				if failed[align] > i {
-					continue
-				}
-				c, l, ok := compare(files, int(o.file), int(o.tok), fi, i)
-				if ok {
-					for _, x := range c {
-						covered = max(covered, x.to)
-					}
-					out = append(out, c...)
-					break
-				}
-				failed[align] = i + max(l, 1)
-			}
+		if len(f.Tokens.Kind) >= MinCloneTokens {
+			cf.file(fi)
 		}
 	}
-	return out, nil
+	return cf.out, nil
+}
+
+// at is a token of a file.
+type at struct{ file, tok int32 }
+
+// cloneFinder holds the places seen so far. Places are keyed by the window's values and by the
+// pattern of its locals, so only windows that are the same up to a consistent renaming meet, and up
+// to candidates places are kept per key. The pattern costs a pass over the window, so it is computed
+// only once a second window with the same values appears: until then the first waits in lone.
+type cloneFinder struct {
+	files  []*facts.File
+	base   uint64
+	lone   map[uint64]at
+	places map[uint64][]at
+	out    []clone
+}
+
+func (cf *cloneFinder) key(h uint64, o at) uint64 {
+	return h ^ localsHash(&cf.files[o.file].Tokens, int(o.tok), cf.base)
+}
+
+// file finds the copies of earlier blocks in file fi.
+func (cf *cloneFinder) file(fi int) {
+	t := &cf.files[fi].Tokens
+	hashes := windowHashes(t, MinCloneTokens, cf.base)
+	covered := 0 // tokens before this are already in a reported copy
+	// failed holds, for an alignment of this file with an earlier place (its file and the difference
+	// of positions), how far a comparison that reported nothing reached: a later start on that
+	// alignment is the same comparison.
+	failed := map[[2]int]int{}
+	for i := 0; i+MinCloneTokens <= len(t.Kind); i++ {
+		if i > 0 && t.Line[i] == t.Line[i-1] {
+			continue // blocks start at a line
+		}
+		cands, ok := cf.place(hashes[i], at{int32(fi), int32(i)})
+		if ok && i >= covered {
+			covered = cf.match(cands, fi, i, covered, failed)
+		}
+	}
+}
+
+// place records the window at here and returns the earlier places it may copy; ok is false for the
+// first window with its values.
+func (cf *cloneFinder) place(h uint64, here at) ([]at, bool) {
+	switch o, ok := cf.lone[h]; {
+	case !ok:
+		cf.lone[h] = here
+		return nil, false
+	case o.file >= 0:
+		cf.places[cf.key(h, o)] = []at{o}
+		cf.lone[h] = at{-1, -1} // no longer alone
+	}
+	k := cf.key(h, here)
+	cands := cf.places[k]
+	if len(cands) < candidates {
+		cf.places[k] = append(cands, here)
+	}
+	return cands, true
+}
+
+// match compares the block at token i of file fi with each candidate until one is a copy, and returns
+// how far the reported copies reach.
+func (cf *cloneFinder) match(cands []at, fi, i, covered int, failed map[[2]int]int) int {
+	for _, o := range cands {
+		align := [2]int{int(o.file), int(o.tok) - i}
+		if failed[align] > i {
+			continue
+		}
+		c, l, ok := compare(cf.files, int(o.file), int(o.tok), fi, i)
+		if ok {
+			for _, x := range c {
+				covered = max(covered, x.to)
+			}
+			cf.out = append(cf.out, c...)
+			return covered
+		}
+		failed[align] = i + max(l, 1)
+	}
+	return covered
 }
 
 // localsHash hashes the pattern of the locals in the MinCloneTokens tokens from i: each numbered by
@@ -288,21 +316,25 @@ func sameBodies(files []*facts.File, platforms bool) [][2]fnRef {
 			}
 			h := spanHash(t, from, to)
 			ref := fnRef{fi, gi}
-			found := false
-			for _, o := range first[h] {
-				of := files[o.file]
-				if !(platforms && platformVariants(of, of.Funcs[o.fn], f, fn)) && equalSpans(&of.Tokens, of.Funcs[o.fn].Span, t, fn.Span) {
-					out = append(out, [2]fnRef{ref, o})
-					found = true
-					break
-				}
-			}
-			if !found && len(first[h]) < candidates {
+			if o, ok := sameAs(files, first[h], f, fn, platforms); ok {
+				out = append(out, [2]fnRef{ref, o})
+			} else if len(first[h]) < candidates {
 				first[h] = append(first[h], ref)
 			}
 		}
 	}
 	return out
+}
+
+// sameAs returns the first of cands whose function has fn's body.
+func sameAs(files []*facts.File, cands []fnRef, f *facts.File, fn facts.Function, platforms bool) (fnRef, bool) {
+	for _, o := range cands {
+		of := files[o.file]
+		if !(platforms && platformVariants(of, of.Funcs[o.fn], f, fn)) && equalSpans(&of.Tokens, of.Funcs[o.fn].Span, &f.Tokens, fn.Span) {
+			return o, true
+		}
+	}
+	return fnRef{}, false
 }
 
 // platformVariants reports two functions of one name, other than init and _, in one package. Go

@@ -84,16 +84,11 @@ type response struct {
 		Line     int    `json:"l"`
 		Optional bool   `json:"o"`
 	} `json:"i"`
-	Smells []struct {
-		Kind    facts.SmellKind `json:"k"`
-		Line    int             `json:"l"`
-		EndLine int             `json:"e"`
-		Func    string          `json:"f"`
-	} `json:"sm"`
-	Refs  []string `json:"r"`
-	Kinds []uint8  `json:"tk"`
-	Names []uint32 `json:"tn"`
-	Lines []int32  `json:"tl"`
+	Smells []smell  `json:"sm"`
+	Refs   []string `json:"r"`
+	Kinds  []uint8  `json:"tk"`
+	Names  []uint32 `json:"tn"`
+	Lines  []int32  `json:"tl"`
 }
 
 // MaxSmells is the number of smells of each kind kept per file, as for Go.
@@ -121,31 +116,47 @@ func fill(f *facts.File, resp []byte, tokens bool) (restart bool, err error) {
 	for _, im := range r.Imports {
 		f.Imports = append(f.Imports, facts.Import{Path: im.Path, Line: im.Line, Optional: im.Optional})
 	}
+	fillSmells(f, r.Smells)
+	f.Refs = r.Refs
+	fillTokens(f, &r, tokens)
+	return restart, nil
+}
+
+// smell is a smell as the helper writes it.
+type smell struct {
+	Kind    facts.SmellKind `json:"k"`
+	Line    int             `json:"l"`
+	EndLine int             `json:"e"`
+	Func    string          `json:"f"`
+}
+
+// fillSmells keeps at most MaxSmells smells of each kind, and counts the rest.
+func fillSmells(f *facts.File, smells []smell) {
 	count := map[facts.SmellKind]int{}
-	for _, s := range r.Smells {
-		if count[s.Kind]++; count[s.Kind] > MaxSmells {
-			if f.SmellsDropped == nil {
-				f.SmellsDropped = map[facts.SmellKind]int{}
-			}
-			f.SmellsDropped[s.Kind]++
+	for _, s := range smells {
+		if count[s.Kind]++; count[s.Kind] <= MaxSmells {
+			f.Smells = append(f.Smells, facts.Smell{Kind: s.Kind, Line: s.Line, EndLine: s.EndLine, Func: s.Func})
 			continue
 		}
-		f.Smells = append(f.Smells, facts.Smell{Kind: s.Kind, Line: s.Line, EndLine: s.EndLine, Func: s.Func})
-	}
-	f.Refs = r.Refs
-	if tokens && len(r.Kinds) == len(r.Names) && len(r.Kinds) == len(r.Lines) {
-		f.Tokens = facts.Tokens{Kind: r.Kinds, Name: r.Names, Line: r.Lines}
-		for i := range f.Funcs {
-			if sp := f.Funcs[i].Span; sp[0] < 0 || sp[1] > int32(len(r.Kinds)) || sp[0] > sp[1] {
-				f.Funcs[i].Span = [2]int32{}
-			}
+		if f.SmellsDropped == nil {
+			f.SmellsDropped = map[facts.SmellKind]int{}
 		}
-	} else {
-		for i := range f.Funcs {
+		f.SmellsDropped[s.Kind]++
+	}
+}
+
+// fillTokens keeps the token stream when it was asked for and is whole, and each function's span in
+// it when the span fits; otherwise the spans are cleared.
+func fillTokens(f *facts.File, r *response, tokens bool) {
+	whole := tokens && len(r.Kinds) == len(r.Names) && len(r.Kinds) == len(r.Lines)
+	if whole {
+		f.Tokens = facts.Tokens{Kind: r.Kinds, Name: r.Names, Line: r.Lines}
+	}
+	for i := range f.Funcs {
+		if sp := f.Funcs[i].Span; !whole || sp[0] < 0 || sp[1] > int32(len(r.Kinds)) || sp[0] > sp[1] {
 			f.Funcs[i].Span = [2]int32{}
 		}
 	}
-	return restart, nil
 }
 
 // wantTokens reports whether duplication is looked for in a file: the repository's own code, not
