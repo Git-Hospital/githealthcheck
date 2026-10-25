@@ -90,3 +90,12 @@ func TestCalibrateKeepNeedsWork(t *testing.T) {
 		t.Errorf("exit %d, stderr %q", code, stderr.String())
 	}
 }
+
+// A lock entry without metrics differs from a scan that measured some, metric by metric.
+func TestMetricDiffWithoutLockMetrics(t *testing.T) {
+	now := score.Repo{Name: "r", Metrics: map[string]report.Measurement{"m": report.Measured(0.5, 3)}}
+	diff := metricDiff(score.Repo{Name: "r"}, now)
+	if len(diff) != 1 || !strings.HasPrefix(diff[0], "r m: ") {
+		t.Errorf("diff %q", diff)
+	}
+}

@@ -145,7 +145,10 @@ func NewGit(ctx context.Context, root string) (*Git, error) {
 	g := &Git{root: abs, runner: Runner{Env: gitEnv(os.Environ(), abs), Dir: abs}}
 
 	if err := g.checkVersion(ctx); err != nil {
-		return nil, opening(root, err, "%w")
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%s: timed out while opening the repository: %w", root, err)
+		}
+		return nil, err
 	}
 	dotGit := filepath.Join(abs, ".git")
 	if fi, err := os.Lstat(dotGit); err != nil || !fi.IsDir() {

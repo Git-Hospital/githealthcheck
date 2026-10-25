@@ -362,7 +362,7 @@ func refs(file *ast.File) []string {
 			}
 		}
 	}
-	out := slices.Collect(maps.Keys(seen))
+	out := slices.AppendSeq(make([]string, 0, len(seen)), maps.Keys(seen))
 	slices.Sort(out)
 	return out
 }

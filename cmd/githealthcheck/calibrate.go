@@ -266,7 +266,8 @@ func lockDiff(was, now *score.Lock) []string {
 
 // metricDiff lists the metrics of one repository whose values differ.
 func metricDiff(was, now score.Repo) []string {
-	names := maps.Clone(was.Metrics)
+	names := map[string]report.Measurement{}
+	maps.Copy(names, was.Metrics)
 	maps.Copy(names, now.Metrics)
 	var out []string
 	for _, m := range slices.Sorted(maps.Keys(names)) {
