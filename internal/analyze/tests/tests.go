@@ -35,6 +35,9 @@ const (
 	// MinPercentAtHead is the share of a report's files that must exist in the commit for the report
 	// to count as fresh (architecture §5).
 	MinPercentAtHead = 90
+	// MinPackages is the number of Go packages that declare functions below which the share of
+	// untested packages says nothing (architecture §5).
+	MinPackages = 5
 )
 
 // ReportNames are the coverage reports looked for at the repository root, in this order, when the
@@ -111,7 +114,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 			p.functions += f.Functions
 		}
 	}
-	if codeLines > 0 {
+	if codeLines >= analyze.MinCodeLines {
 		res.Metrics[TestCodeLineRatio] = report.Measured(float64(testLines)/float64(codeLines), len(own))
 	} else {
 		res.Metrics[TestCodeLineRatio] = report.Null(report.InsufficientInput)
@@ -135,7 +138,7 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 		}
 	}
 	switch {
-	case counted > 0:
+	case counted >= MinPackages:
 		res.Metrics[UntestedPackageShare] = report.Measured(float64(untested)/float64(counted), counted)
 	case len(pkgs) == 0:
 		res.Metrics[UntestedPackageShare] = report.Null(report.UnsupportedLanguage) // no Go
@@ -153,13 +156,14 @@ func (Analyzer) Run(ctx context.Context, rf *facts.Repo) analyze.Result {
 	slices.SortFunc(res.Findings, func(a, b report.Finding) int {
 		return cmp.Or(cmp.Compare(a.RuleID, b.RuleID), cmp.Compare(a.Path, b.Path))
 	})
-	// A family with no measured number did not measure anything, whatever it found.
+	// A family with no measured number is not measured, and has no score; what it found it still
+	// reports, since each finding stands on its own.
 	measured := false
 	for _, m := range res.Metrics {
 		measured = measured || !m.IsNull()
 	}
 	if !measured {
-		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics, Coverage: input}
+		return analyze.Result{Reason: report.InsufficientInput, Metrics: res.Metrics, Findings: res.Findings, Coverage: input}
 	}
 	return res
 }

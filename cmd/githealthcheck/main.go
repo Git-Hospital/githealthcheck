@@ -512,7 +512,11 @@ func text(r *report.Report) string {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			fmt.Fprintf(&b, "    %-24s %s\n", name, metricText(name, f.Metrics[name]))
+			line := metricText(name, f.Metrics[name])
+			if s, ok := f.MetricScores[name]; ok {
+				line += fmt.Sprintf("  scores %.1f", s)
+			}
+			fmt.Fprintf(&b, "    %-24s %s\n", name, line)
 		}
 		findings += len(f.Findings)
 	}
@@ -547,6 +551,9 @@ func text(r *report.Report) string {
 		}
 	}
 	fmt.Fprintf(&b, "\nOverall  %s  (%d of %d families measured)\n", scoreText(r.Overall.Score), r.Overall.Measured, r.Overall.Of)
+	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
+		fmt.Fprintf(&b, "  scored as %s against %d corpus repositories, %.0f%% of the code analysed\n", c.Language, c.Repositories, 100*c.AnalysedShare)
+	}
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(&b, "\nSkipped %d paths (see --format json for the list)\n", len(r.Skipped))
 	}

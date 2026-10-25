@@ -3,10 +3,12 @@ package complexity
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"slices"
 	"testing"
 
+	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
@@ -251,5 +253,38 @@ func TestCapPerFile(t *testing.T) {
 	}
 	if res.Metrics[ComplexFunctionShare].Inputs != MaxPerFile+5 {
 		t.Errorf("the share counts every function: %+v", res.Metrics[ComplexFunctionShare])
+	}
+}
+
+// The tests of the densities use small sources; TestMinCodeLines checks the bound itself.
+func TestMain(m *testing.M) {
+	minCodeLines = 0
+	os.Exit(m.Run())
+}
+
+// Below analyze.MinCodeLines the densities are null, and the findings are still reported.
+func TestMinCodeLines(t *testing.T) {
+	minCodeLines = analyze.MinCodeLines
+	defer func() { minCodeLines = 0 }()
+	f := goFile("a/a.go", fns(MinFunctions)...)
+	f.Lines = analyze.MinCodeLines - 1
+	f.Smells = []facts.Smell{{Kind: facts.CommentedCode, Line: 1, EndLine: 1}}
+	res := Analyzer{}.Run(context.Background(), &facts.Repo{Files: []facts.File{f}})
+	if res.Metrics[SmellsPerKLOC].Reason != report.InsufficientInput || res.Metrics[DuplicatedLineShare].Reason != report.InsufficientInput {
+		t.Errorf("metrics %+v", res.Metrics)
+	}
+	if !res.Measured || res.Metrics[ComplexFunctionShare].IsNull() || len(res.Findings) != 1 {
+		t.Errorf("measured %v, findings %v", res.Measured, ids(res.Findings))
+	}
+	// With nothing measured, the family is not measured, and keeps its findings.
+	small := goFile("a/a.go", fns(2)...)
+	small.Smells = f.Smells
+	res = Analyzer{}.Run(context.Background(), &facts.Repo{Files: []facts.File{small}})
+	if res.Measured || res.Reason != report.InsufficientInput || len(res.Findings) != 1 {
+		t.Errorf("small: %+v", res)
+	}
+	f.Lines = analyze.MinCodeLines
+	if res := (Analyzer{}).Run(context.Background(), &facts.Repo{Files: []facts.File{f}}); res.Metrics[SmellsPerKLOC].IsNull() {
+		t.Errorf("at the bound: %+v", res.Metrics[SmellsPerKLOC])
 	}
 }

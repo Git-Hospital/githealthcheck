@@ -28,7 +28,9 @@ type corpusEntry struct {
 }
 
 var (
-	repoName  = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	// GitHub's own rules: an owner of letters, digits and inner hyphens; a repository name of letters,
+	// digits, '.', '_' and '-', not starting with '-'.
+	repoName  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.][A-Za-z0-9_.-]*$`)
 	commitSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 

@@ -1,0 +1,36 @@
+# Reproduces calibration/corpus.lock from scratch: clones each repository of calibration/corpus.txt at
+# its commit, scans it and compares what it measured with the lock (docs/calibration.md). Run by hand,
+# since it clones thirty repositories; it fails when the lock does not match. Same security model as
+# CI: read-only token, no secrets, no caches, actions pinned by commit SHA. The corpus is cloned over
+# HTTPS without the runner's git config, and its code is parsed, never run.
+name: Calibration
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: reproduce corpus.lock
+    # The lock was measured with this image's python3 (3.12.3); another version can read a file
+    # differently (see GHC-CPLX-001).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: python3 --version
+      - run: go build -o "$RUNNER_TEMP/githealthcheck" ./cmd/githealthcheck
+      - run: '"$RUNNER_TEMP/githealthcheck" calibrate --check --work "$RUNNER_TEMP/corpus"'

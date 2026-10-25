@@ -17,6 +17,10 @@ type Rule struct {
 	Title string
 }
 
+// MinCodeLines is the number of code lines below which a density or a ratio of lines says nothing:
+// on a few hundred lines one smell or one copied block moves it from best to worst (architecture §5).
+const MinCodeLines = 1000
+
 // Analyzer is one metric family.
 type Analyzer interface {
 	Family() report.Family

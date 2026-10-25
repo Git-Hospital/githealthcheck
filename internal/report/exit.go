@@ -26,7 +26,8 @@ func ExitCode(r *Report, failUnder *float64) int {
 				return ExitIncomplete
 			}
 		}
-		if f.Measured {
+		// A family that read too little to measure is a finished run of it, not an incomplete one.
+		if f.Measured || f.Reason == InsufficientInput {
 			measured++
 		}
 	}

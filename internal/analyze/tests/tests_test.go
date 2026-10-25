@@ -57,8 +57,8 @@ func value(t *testing.T, m report.Measurement) float64 {
 // Python that was analysed counts in the line ratio and coverage, not in the untested packages; test
 // files are left out of coverage.
 func TestRunPython(t *testing.T) {
-	code := facts.File{Path: "pkg/mod.py", Language: "python", Analysed: true, Package: "pkg", Lines: 10, Functions: 2}
-	test := facts.File{Path: "tests/test_mod.py", Language: "python", Analysed: true, Package: "tests", Lines: 5, Functions: 1, Test: true}
+	code := facts.File{Path: "pkg/mod.py", Language: "python", Analysed: true, Package: "pkg", Lines: 1000, Functions: 2}
+	test := facts.File{Path: "tests/test_mod.py", Language: "python", Analysed: true, Package: "tests", Lines: 500, Functions: 1, Test: true}
 	rf := repoOf(code, test)
 	rf.Coverage = &facts.Coverage{Name: "coverage.xml", Data: []byte(`<coverage><sources><source>/ci/proj</source></sources><packages><package><classes>
 <class filename="pkg/mod.py"><lines><line number="1" hits="1"/><line number="2" hits="1"/><line number="3" hits="0"/><line number="4" hits="1"/></lines></class>
@@ -83,8 +83,8 @@ func TestRunWithoutGo(t *testing.T) {
 		t.Errorf("rust: %+v", r)
 	}
 	// Python needs no python3 here: its package and test flag come from its path.
-	code := facts.File{Path: "a.py", Language: "python", Package: ".", Lines: 10}
-	test := facts.File{Path: "tests/test_a.py", Language: "python", Package: "tests", Lines: 5, Test: true}
+	code := facts.File{Path: "a.py", Language: "python", Package: ".", Lines: 1000}
+	test := facts.File{Path: "tests/test_a.py", Language: "python", Package: "tests", Lines: 500, Test: true}
 	if r := (Analyzer{}).Run(ctx, repoOf(code, test)); !r.Measured || value(t, r.Metrics[TestCodeLineRatio]) != 0.5 {
 		t.Errorf("python without python3: %+v", r)
 	}
@@ -112,27 +112,29 @@ func TestRunWithoutCoverage(t *testing.T) {
 	ignored := goFile("testdata/fixture.go", 1000, 50)
 	ignored.Package = ""
 	r := Analyzer{}.Run(context.Background(), repoOf(
-		goFile("a/a.go", 60, 3), goFile("a/a_test.go", 30, 2),
-		goFile("b/b.go", 40, 1),
-		goFile("types/types.go", 20, 0), // only types: nothing to test
-		goFile("main.go", 10, 1),
+		goFile("a/a.go", 600, 3), goFile("a/a_test.go", 300, 2),
+		goFile("b/b.go", 400, 1),
+		goFile("c/c.go", 100, 1), goFile("c/c_test.go", 100, 1),
+		goFile("d/d.go", 100, 2),
+		goFile("types/types.go", 200, 0), // only types: nothing to test
+		goFile("main.go", 100, 1),
 		vendored, gen, ignored,
 	))
 	if !r.Measured || r.Reason != "" {
 		t.Fatalf("result %+v", r)
 	}
-	// Test lines over code lines of own, non-test code only: 30 / (60+40+20+10).
-	if got := value(t, r.Metrics[TestCodeLineRatio]); got != 30.0/130 || r.Metrics[TestCodeLineRatio].Inputs != 5 {
+	// Test lines over code lines of own, non-test code only: (300+100) / (600+400+100+100+200+100).
+	if got := value(t, r.Metrics[TestCodeLineRatio]); got != 400.0/1500 || r.Metrics[TestCodeLineRatio].Inputs != 8 {
 		t.Errorf("ratio = %v (%d inputs)", got, r.Metrics[TestCodeLineRatio].Inputs)
 	}
-	// a, b and the root package declare functions; a is tested.
-	if got := value(t, r.Metrics[UntestedPackageShare]); got != 2.0/3 || r.Metrics[UntestedPackageShare].Inputs != 3 {
+	// a, b, c, d and the root package declare functions; a and c are tested.
+	if got := value(t, r.Metrics[UntestedPackageShare]); got != 3.0/5 || r.Metrics[UntestedPackageShare].Inputs != 5 {
 		t.Errorf("untested share = %v", got)
 	}
 	if m := r.Metrics[StatementCoverage]; m.Reason != report.NoCoverageReport || r.Coverage != nil {
 		t.Errorf("coverage = %+v, input %+v", m, r.Coverage)
 	}
-	if got, want := ids(r.Findings), []string{UntestedPackage + " .", UntestedPackage + " b"}; !slices.Equal(got, want) {
+	if got, want := ids(r.Findings), []string{UntestedPackage + " .", UntestedPackage + " b", UntestedPackage + " d"}; !slices.Equal(got, want) {
 		t.Errorf("findings = %v, want %v", got, want)
 	}
 	if !strings.Contains(r.Findings[1].Message, "1 functions") {
@@ -339,5 +341,26 @@ func TestCoverageCostIsBoundedByTheCommit(t *testing.T) {
 	}
 	if d := time.Since(start); d > 10*time.Second {
 		t.Errorf("took %v", d)
+	}
+}
+
+// Below the bounds the line ratio and the untested share are null; the findings stay.
+func TestRunMinimums(t *testing.T) {
+	r := Analyzer{}.Run(context.Background(), repoOf(
+		goFile("a/a.go", analyze.MinCodeLines-1, 1), goFile("a/a_test.go", 100, 1),
+		goFile("b/b.go", 0, 1), goFile("c/c.go", 0, 1), goFile("d/d.go", 0, 1),
+	))
+	if r.Metrics[TestCodeLineRatio].Reason != report.InsufficientInput || r.Metrics[UntestedPackageShare].Reason != report.InsufficientInput {
+		t.Errorf("metrics %+v", r.Metrics)
+	}
+	if r.Measured || r.Reason != report.InsufficientInput || len(r.Findings) != 3 {
+		t.Errorf("result %+v", r)
+	}
+	r = Analyzer{}.Run(context.Background(), repoOf(
+		goFile("a/a.go", analyze.MinCodeLines, 1), goFile("a/a_test.go", 100, 1),
+		goFile("b/b.go", 0, 1), goFile("c/c.go", 0, 1), goFile("d/d.go", 0, 1), goFile("e/e.go", 0, 1),
+	))
+	if r.Metrics[TestCodeLineRatio].IsNull() || value(t, r.Metrics[UntestedPackageShare]) != 4.0/5 {
+		t.Errorf("at the bounds: %+v", r.Metrics)
 	}
 }
