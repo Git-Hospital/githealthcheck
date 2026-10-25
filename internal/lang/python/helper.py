@@ -120,28 +120,34 @@ class File:
             # Before 3.13 tokenize builds each token's line anew, so a long line costs its length for
             # every token on it: the lines are classified by their text, and there are no tokens.
             self.partial = True
-            for n, line in enumerate(self.blines, 1):
-                text = line.strip()
-                if text.startswith(b"#"):
-                    self.comments[n] = text.decode("utf-8", "replace")
-                elif text:
-                    self.code.add(n)
+            self.classify_by_text()
         else:
-            try:
-                for t in tokenize.tokenize(io.BytesIO(src).readline):
-                    self.toks.append(Tok(t.type, t.string, t.start, t.end, t.exact_type))
-            except (tokenize.TokenError, SyntaxError, ValueError):
-                self.partial = True
-            for t in self.toks:
-                if t.type == token.COMMENT:
-                    self.comments[t.start[0]] = t.string
-                elif t.type not in SKIPPED and t.type not in (token.INDENT, token.DEDENT):
-                    self.code.update(range(t.start[0], t.end[0] + 1))
+            self.tokenize()
         try:
             self.tree = ast.parse(src)
         except (SyntaxError, ValueError):
             self.tree = None
             self.partial = True
+
+    def classify_by_text(self):
+        for n, line in enumerate(self.blines, 1):
+            text = line.strip()
+            if text.startswith(b"#"):
+                self.comments[n] = text.decode("utf-8", "replace")
+            elif text:
+                self.code.add(n)
+
+    def tokenize(self):
+        try:
+            for t in tokenize.tokenize(io.BytesIO(self.src).readline):
+                self.toks.append(Tok(t.type, t.string, t.start, t.end, t.exact_type))
+        except (tokenize.TokenError, SyntaxError, ValueError):
+            self.partial = True
+        for t in self.toks:
+            if t.type == token.COMMENT:
+                self.comments[t.start[0]] = t.string
+            elif t.type not in SKIPPED and t.type not in (token.INDENT, token.DEDENT):
+                self.code.update(range(t.start[0], t.end[0] + 1))
 
     def facts(self):
         resp = {"partial": self.partial, "parsed": self.tree is not None}
@@ -226,16 +232,8 @@ class File:
         ImportError or broader, or in a with contextlib.suppress(ImportError)."""
         child, parent = node, self.parents.get(node)
         while parent is not None:
-            if isinstance(parent, ast.Try) and self.in_body(child, parent):
-                if any(catches_import_error(h.type) for h in parent.handlers):
-                    return True
-            if isinstance(parent, (ast.With, ast.AsyncWith)) and self.in_body(child, parent):
-                for item in parent.items:
-                    c = item.context_expr
-                    if isinstance(c, ast.Call) and dotted(c.func).endswith("suppress") and any(
-                        catches_import_error(a) for a in c.args
-                    ):
-                        return True
+            if expects_import_error(parent) and self.in_body(child, parent):
+                return True
             if isinstance(parent, SCOPES + (ast.ClassDef,)):
                 return False
             child, parent = parent, self.parents.get(parent)
@@ -280,10 +278,8 @@ class File:
         while stack:
             node, scopes = stack.pop()
             if isinstance(node, ast.Name):
-                for sc in reversed(scopes):
-                    if node.id in scope_locals(sc):
-                        local.add((node.lineno, node.col_offset))
-                        break
+                if any(node.id in scope_locals(sc) for sc in reversed(scopes)):
+                    local.add((node.lineno, node.col_offset))
                 fn = next((sc for sc in reversed(scopes) if isinstance(sc, FUNCS)), None)
                 if fn is None or fn.name != node.id:
                     used.add(node.id)
@@ -333,15 +329,7 @@ class File:
             return False
         s = body[0]
         if isinstance(s, ast.Raise) and s.exc is not None:
-            exc = s.exc.func if isinstance(s.exc, ast.Call) else s.exc
-            messages = [a.value for a in getattr(s.exc, "args", []) if isinstance(a, ast.Constant) and isinstance(a.value, str)]
-            if isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
-                # In a method it is how a base class asks for an override, whatever it says, unless
-                # it says TODO.
-                if method:
-                    return any(TODO_MESSAGE.search(m) for m in messages)
-                return True
-            return any(NOT_IMPLEMENTED.search(m) for m in messages)
+            return raises_not_implemented(s.exc, method)
         if isinstance(s, ast.Pass) or (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant) and s.value.value is Ellipsis):
             return any(TODO.search(self.comments[n]) for n in range(fn.lineno, fn.end_lineno + 1) if n in self.comments)
         return False
@@ -350,36 +338,30 @@ class File:
         """Runs of comment lines that, without the #, parse as statements that do something."""
         spans = []
         run = []
-
-        def flush():
-            if not run:
-                return
-            text = "\n".join(t for _, t in run)
-            if is_code(text):
-                spans.append((run[0][0], run[-1][0]))
-            else:
-                for n, t in run:
-                    if is_code(t):
-                        spans.append((n, n))
-            run.clear()
-
         last = None
         for n in sorted(self.comments):
-            c = self.comments[n]
-            text = c[1:]
-            if text.startswith(" "):
-                text = text[1:]
-            if n in self.code or DIRECTIVE.match(c) or (n == 1 and c.startswith("#!")) or not text.strip() \
-                    or text.lstrip().startswith((">>>", "...")):
-                flush()
+            text = self.comment_text(n)
+            if text is None or (last is not None and n != last + 1):
+                spans += run_spans(run)
+                run = []
+            if text is None:
                 last = None
                 continue
-            if last is not None and n != last + 1:
-                flush()
             run.append((n, text))
             last = n
-        flush()
-        return spans
+        return spans + run_spans(run)
+
+    def comment_text(self, n):
+        """The text of the comment on line n without its #, or None when it cannot be code: a
+        comment after code, a directive, a shebang, an empty comment or a doctest."""
+        c = self.comments[n]
+        text = c[1:]
+        if text.startswith(" "):
+            text = text[1:]
+        if n in self.code or DIRECTIVE.match(c) or (n == 1 and c.startswith("#!")) or not text.strip() \
+                or text.lstrip().startswith((">>>", "...")):
+            return None
+        return text
 
     # Tokens
 
@@ -476,6 +458,37 @@ def token_kind(t, prev, local):
 LOCALS_CACHE = {}
 
 
+def expects_import_error(parent):
+    """Whether a statement's failure to import is expected in parent's body: a try that catches
+    ImportError or broader, or a with contextlib.suppress(ImportError)."""
+    if isinstance(parent, ast.Try):
+        return any(catches_import_error(h.type) for h in parent.handlers)
+    if isinstance(parent, (ast.With, ast.AsyncWith)):
+        return any(isinstance(c, ast.Call) and dotted(c.func).endswith("suppress") and any(catches_import_error(a) for a in c.args)
+                   for c in (item.context_expr for item in parent.items))
+    return False
+
+
+def raises_not_implemented(exc, method):
+    """Whether a raise says it is not implemented. NotImplementedError in a method is how a base
+    class asks for an override, whatever it says, unless it says TODO."""
+    name = exc.func if isinstance(exc, ast.Call) else exc
+    messages = [a.value for a in getattr(exc, "args", []) if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    if isinstance(name, ast.Name) and name.id == "NotImplementedError":
+        return not method or any(TODO_MESSAGE.search(m) for m in messages)
+    return any(NOT_IMPLEMENTED.search(m) for m in messages)
+
+
+def run_spans(run):
+    """A run of comment lines as one span when it parses as a whole, and otherwise each line that
+    does so on its own."""
+    if not run:
+        return []
+    if is_code("\n".join(t for _, t in run)):
+        return [(run[0][0], run[-1][0])]
+    return [(n, n) for n, t in run if is_code(t)]
+
+
 def scope_locals(scope):
     """The names a function or lambda binds itself: its parameters and every name it assigns, unless
     declared global or nonlocal; names bound in nested functions belong to those."""
@@ -485,34 +498,40 @@ def scope_locals(scope):
         return cached[1]
     names, declared = set(), set()
     a = scope.args
-    for arg in a.posonlyargs + a.args + a.kwonlyargs + [a.vararg, a.kwarg]:
-        if arg is not None:
-            names.add(arg.arg)
+    names.update(arg.arg for arg in a.posonlyargs + a.args + a.kwonlyargs + [a.vararg, a.kwarg] if arg is not None)
     stack = list(ast.iter_child_nodes(scope)) if isinstance(scope, ast.Lambda) else list(scope.body)
     while stack:
         node = stack.pop()
         if isinstance(node, (ast.Global, ast.Nonlocal)):
             declared.update(node.names)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
-            names.add(node.id)
-        elif isinstance(node, ast.ExceptHandler) and node.name:
-            names.add(node.name)
-        elif isinstance(node, ast.alias):
-            names.add(node.asname or node.name.split(".")[0])
-        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
-            names.add(node.name)
-        elif isinstance(node, ast.MatchMapping) and node.rest:
-            names.add(node.rest)
+        name = bound_name(node)
+        if name:
+            names.add(name)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            names.add(node.name)
             stack.extend(node.decorator_list)
             continue  # its body is its own scope
-        if isinstance(node, ast.Lambda):
-            continue
-        stack.extend(ast.iter_child_nodes(node))
+        if not isinstance(node, ast.Lambda):
+            stack.extend(ast.iter_child_nodes(node))
     names -= declared
     LOCALS_CACHE[key] = (scope, names)
     return names
+
+
+def bound_name(node):
+    """The name a node binds in its scope, or None."""
+    if isinstance(node, ast.Name):
+        return node.id if isinstance(node.ctx, (ast.Store, ast.Del)) else None
+    if isinstance(node, ast.ExceptHandler):
+        return node.name
+    if isinstance(node, ast.alias):
+        return node.asname or node.name.split(".")[0]
+    if isinstance(node, (ast.MatchAs, ast.MatchStar)):
+        return node.name
+    if isinstance(node, ast.MatchMapping):
+        return node.rest
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return node.name
+    return None
 
 
 def span(fn, pos):
