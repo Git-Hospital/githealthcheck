@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -324,24 +325,36 @@ func TestCoverageTimeout(t *testing.T) {
 // A profile that lists millions of files under the module path, with as many go.mod files as an
 // attacker likes, is read in time and memory bounded by the commit, not by the profile.
 func TestCoverageCostIsBoundedByTheCommit(t *testing.T) {
+	// Wall time on a shared runner is noise, so the test compares two sizes in the same process: a cost
+	// linear in the commit grows 4x when the input grows 4x, a cost of lines times modules grows 16x.
+	small, large := coverageCost(t, 18750, 1250), coverageCost(t, 75000, 5000)
+	if large > 8*small {
+		t.Errorf("4x the input took %v, against %v", large, small)
+	}
+}
+
+// coverageCost is the fastest of three runs over a stale profile of lines blocks in modules modules.
+func coverageCost(t *testing.T, lines, modules int) time.Duration {
 	var b strings.Builder
 	b.WriteString("mode: set\n")
-	for i := range 300000 {
+	for i := range lines {
 		fmt.Fprintf(&b, "example.com/m/x%07d.go:1.1,1.2 1 1\n", i)
 	}
 	rf := repoOf(goFile("a/a.go", 10, 1))
-	for i := range 20000 {
+	for i := range modules {
 		rf.Modules = append(rf.Modules, facts.Module{Dir: fmt.Sprintf("d%d", i), Path: "example.com/m"})
 	}
 	rf.Coverage = &facts.Coverage{Name: "coverage.out", Data: []byte(b.String())}
-	start := time.Now()
-	m, in, _ := coverage(context.Background(), rf, nil)
-	if m.Reason != report.StaleCoverageReport || counts(in) != [3]int{300000, 300000, 0} {
-		t.Errorf("coverage = %+v, input %v", m, counts(in))
+	best := time.Duration(math.MaxInt64)
+	for range 3 {
+		start := time.Now()
+		m, in, _ := coverage(context.Background(), rf, nil)
+		best = min(best, time.Since(start))
+		if m.Reason != report.StaleCoverageReport || counts(in) != [3]int{lines, lines, 0} {
+			t.Fatalf("coverage = %+v, input %v", m, counts(in))
+		}
 	}
-	if d := time.Since(start); d > 10*time.Second {
-		t.Errorf("took %v", d)
-	}
+	return best
 }
 
 // Below the bounds the line ratio and the untested share are null; the findings stay.
