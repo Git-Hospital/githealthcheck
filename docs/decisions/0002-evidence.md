@@ -45,7 +45,7 @@ What it showed:
 #### E1. One question, answered with evidence
 **githealthcheck answers "which files of this repository will attract the next fixes, and why should I believe it?"** The headline output is a short list of the riskiest files. Each entry carries the evidence for it. A scorecard says how well the same method did on the repository's past. The 0-10 score of D35 stays in the JSON report but is no longer the headline.
 - Not chosen: the 0-10 score as the headline, with hotspots added. It would be a free copy of CodeScene, with less evidence.
-- Not chosen: an agent guard that blocks each AI edit that lowers the score. aislop and others already do this, and it answers a different question.
+- Not chosen: an agent guard that blocks each AI edit that lowers the score. aislop already does this, and it answers a different question.
 
 #### E2. The method: a backtest within size bands
 - **Windows**: one-year windows, starting up to three years before HEAD, every six months.
@@ -54,7 +54,7 @@ What it showed:
 - **The comparison**: files are compared with files of the same size. The result is a rate ratio pooled over size quartiles, with a bootstrap 90% interval.
 - **What is shown**: a measure is shown only when its interval lies above 1 in this repository.
 - **The scorecard**: the share of the fixes the method would have caught by reading 20% of the code lines. It sits next to two baselines, a random pick and the largest files first. Which ranking it uses is settled in v0.4.0 on repositories other than the experiment's.
-- **Counting**: a fix commit counts once per file it touches. The bootstrap resamples files, not file-windows. Size bands with no fixes are dropped, and the report says how many.
+- **Counting**: a fix commit counts once per file it touches, and once across overlapping windows; the 30 of E4 counts them that way. The bootstrap resamples files, not file-windows. Size bands with no fixes are dropped, and the report says how many.
 
 Considered and rejected:
 - Not chosen: AUC over all files, without a size control. As repowise's numbers show, it mostly measures size.
