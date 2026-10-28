@@ -6,6 +6,36 @@
 
 A code health analyzer for Git repositories. It looks at tests and coverage, git history, complexity and duplication, and architecture and dependencies. Every number it prints is a measurement or `null` with a reason.
 
+```console
+$ go test -coverprofile=coverage.out ./...
+$ githealthcheck scan --coverage coverage.out .
+Languages
+  go              117 files    14726 lines  analysed
+  python           62 files     1561 lines  analysed
+  shell             4 files      229 lines  not analysed
+
+Families
+  tests        score 7.0/10
+    statement_coverage       89.4%  (from 28)  scores 8.9
+    test_code_line_ratio     0.70  (from 126)  scores 2.1
+    untested_package_share   0.0%  (from 12)  scores 10.0
+  history      score null (history_too_short)
+  complexity   score 5.4/10
+    complex_function_share   0.5%  (from 409)  scores 10.0
+    duplicated_line_share    2.6%  (from 76)  scores 1.7
+    ...
+  architecture score null (not_implemented)
+
+Findings (13)
+  GHC-CPLX-001  internal/lang/python/helper.py:368: File.tokens has cognitive complexity 16
+  ...
+
+Overall  6.2/10  (2 of 4 families measured)
+  scored as go against 15 corpus repositories, 99% of the code analysed
+```
+
+That is this repository scanning itself at commit `3029e9b`, shortened. History is `null` because the repository has 43 commits and the family needs 50, and 12 of the 13 findings are the defect fixtures under `testdata/`, which are there on purpose.
+
 **Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in [docs/decisions/0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md) and, for v0.4.0, [0002-evidence.md](docs/decisions/0002-evidence.md), the design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
 
 ## Install
@@ -29,36 +59,6 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 Their rules are documented in [docs/rules](docs/rules). Architecture is `null` with the reason `not_implemented`.
 
 **Scores.** Each metric scores 0 to 10 by its percentile among 15 well-known repositories of the language ([docs/calibration.md](docs/calibration.md)): 7 means about the 70th percentile. Statement coverage scores X% as X/10. A family scores the mean of its metrics, and the overall score the mean of the scored families. Go and Python are calibrated; JS/TS gets `not_calibrated`. A metric below its minimum input (20 functions, 1000 code lines, 5 Go packages or 50 commits) is `null` and not scored.
-
-```console
-$ go test -coverprofile=coverage.out ./...
-$ githealthcheck scan --coverage coverage.out .
-Languages
-  go              112 files    13336 lines  analysed
-  python           62 files     1497 lines  analysed
-  shell             3 files      166 lines  not analysed
-
-Families
-  tests        score 7.1/10
-    statement_coverage       88.5%  (from 26)  scores 8.8
-    test_code_line_ratio     0.73  (from 121)  scores 2.4
-    untested_package_share   0.0%  (from 12)  scores 10.0
-  history      score null (history_too_short)
-  complexity   score 1.5/10
-    complex_function_share   16.8%  (from 268)  scores 0.0
-    mean_cyclomatic_complexity 7.21  (from 268)  scores 0.1
-    ...
-  architecture score null (not_implemented)
-
-Findings (67)
-  GHC-CPLX-001  internal/analyze/tests/cobertura.go:55: parseCobertura has cognitive complexity 98
-  ...
-
-Overall  4.3/10  (2 of 4 families measured)
-  scored as go against 15 corpus repositories, 99% of the code analysed
-```
-
-That is this repository scanning itself, shortened: its own complexity is far below the corpus. History is `null` because the repository has fewer than 50 commits.
 
 `githealthcheck calibrate [--check]` measures the corpus at its pinned commits and writes, or checks, `calibration/corpus.lock`.
 
