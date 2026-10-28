@@ -22,3 +22,11 @@ Ten repositories that are in neither ADR 0002's experiment nor the calibration c
 1. The dev commits are labelled first. The rule may be revised while looking at them.
 2. The rule is frozen in a commit.
 3. Only then are the test commits labelled, and the frozen rule is scored on them once. The precision and recall published with the rule come from the test split.
+
+## The dev split
+
+- **Agreement**: the two labellers agreed on 94 of 100 commits (Cohen's kappa 0.88). In all six disagreements the Opus labeller said `fix` and the Sonnet labeller `not_fix`. The maintainer resolved all six as `fix`; for the pandas commit, the project's own release note lists the bug it fixes (issue 55499). `labels-dev.tsv` holds both labels, both reasons and each resolution.
+- **v0**, the experiment's rule: precision 0.84, recall 0.45, weighted (intervals 0.62-0.97 and 0.27-0.75 from the tuning script, which is not kept). Of its ten false matches, three were planned reverts, and the rest fixed style, type hints, an example or a script. It also missed "Fix panic when cloning with wrong ssh format", because "format" was excluded anywhere in the subject.
+- **The frozen rule** (`internal/gitx/fix.go`): defect words, plus "incorrect", "wrong", "leak", "deadlock", "nil pointer" and a few others; exclusions only as a subject prefix (`TST:`, `chore:`, `docs:` ...) or as the object of "fix" ("fix typo", "fix the lint"); reverts not counted. On dev: precision 0.970 (0.940-0.991), recall 0.385 (0.219-0.699).
+- `subjects.tsv` holds the 300 subjects, control characters replaced by spaces. `verdicts.tsv` holds the rule's verdict on each, written by `scripts/fixrule-eval.py verdicts`; `TestIsFixMatchesTheFrozenVerdicts` checks that Go's RE2 gives the same verdicts as Python's `re`.
+- One labeller noted that a few large diffs reached it truncated by its file-reading tool; for the test split, each bundle is read on its own.
