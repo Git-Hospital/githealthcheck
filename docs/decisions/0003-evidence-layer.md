@@ -1,6 +1,6 @@
 # 0003: An evidence layer for changes written by agents
 
-**Status:** accepted, 28 October 2026; v0.5.0 to v0.7.0. **Decided by:** the maintainer. **Builds on** [ADR 0002](0002-evidence.md): every new capability serves evidence that the engine has measured. **Amends** ADR 0002's E8 (JS/TS moves from v0.5.0 to v0.7.0) and ADR 0001's D25 (`impact`, `verify` and `mcp` join its commands; `verify` has its own rule for exit code 1, A6). `verify` compares a change with its base; it is not the scan's `--diff-base` (D27), which stays in v2.
+**Status:** accepted, 28 October 2026; v0.5.0 to v0.7.0. **Decided by:** the maintainer. **Builds on** [ADR 0002](0002-evidence.md): every new capability serves evidence that the engine has measured. **Amends** ADR 0002's E8 (JS/TS moves from v0.5.0 to v0.7.0), ADR 0001's D25 (`impact`, `verify` and `mcp` join its commands; `verify` has its own rule for exit code 1, A6), and the release table in `architecture.md` (D26's container image and badge, pre-commit, the PR comment and `--online` move from v0.6.0 to v0.8.0, A2). `verify` compares a change with its base; it is not the scan's `--diff-base` (D27), which stays in v2.
 
 Each decision gives the option chosen, then the options considered and rejected, as in ADR 0002.
 
@@ -26,8 +26,9 @@ Tools already serve agents. CodeScene documents a Code Health MCP server (in bet
 |---|---|
 | v0.4.0 | Evidence (ADR 0002), unchanged |
 | v0.5.0 | Impact from co-change (A4) |
-| v0.6.0 | The agent layer: `mcp` (A5) and `verify` (A6) |
+| v0.6.0 | The agent layer: `mcp` (A5), `verify` (A6) and the "stable" section (A7) |
 | v0.7.0 | JS/TS analysis and its corpus |
+| v0.8.0 | What was planned for v0.6.0 before this record: the container image, pre-commit, the badge, the PR comment and `--online` |
 
 Impact reads only git, so it works on JS/TS repositories before their code is parsed; risk evidence does too, for churn and authors.
 - Not chosen: JS/TS in v0.5.0, as E8 planned. The agent layer would come two releases later, and its strongest tool would be missing.
@@ -60,7 +61,7 @@ Impact reads only git, so it works on JS/TS repositories before their code is pa
 
 #### A6. `verify` checks a change without running it
 **`githealthcheck verify --base <revision>` compares the change with its base, statically.**
-- **The base** is resolved once with `rev-parse --verify --end-of-options` to a full object name, through `execx.Git`. A value that starts with `-` or does not resolve is a usage error (exit 2). The change is the commit at HEAD against its base. Both trees are read from git objects as in E5, so nothing is written to disk. A git subcommand that is not on the allowlist yet joins it only with a security review, as in E5.
+- **The base** is resolved once with `rev-parse --verify --end-of-options` to a full object name, through `execx.Git`. A value that starts with `-` or does not resolve is a usage error (exit 2). The change is HEAD's tree against the base's tree, so every commit since the base counts, not only the last one. Both trees are read from git objects as in E5, so nothing is written to disk. A git subcommand that is not on the allowlist yet joins it only with a security review, as in E5.
 - **What it reports** for the files the change touches is drawn from the measures, the evidence (ADR 0002) and impact (A4); the first set is an open question. Its report says what it measured and what it did not.
 - **Weakened tests.** It reports, as observations, test changes that make tests pass more easily. It does not call them cheating. Which changes count is set rule by rule, and each rule ships only after its precision is measured on a labelled set, as E3 does for fixes.
 - **Test results** come only from a report that already exists. Without one, the field is `null`, never a guess. The tests are never run.
@@ -69,7 +70,7 @@ Impact reads only git, so it works on JS/TS repositories before their code is pa
 - Not chosen: gating by default. A rule whose precision is below 1 would fail correct changes.
 
 #### A7. Files the evidence says to leave alone
-**The report has a "stable" section**: files the evidence says to leave alone, because changing them is a risk without a measured benefit. It is shown only where the repository's own history supports it; otherwise it is `null` with `history_too_short`. Which files qualify is an open question, settled with v0.4.0's measurements.
+**The report has a "stable" section**: files the evidence says to leave alone, because changing them is a risk without a measured benefit. It is shown only where the repository's own history supports it; otherwise it is `null` with `history_too_short`. Which files qualify is an open question, settled from v0.4.0's measurements; the section ships with the agent layer in v0.6.0.
 - Not chosen: listing only risky files. An agent told only what is bad tends to rewrite whatever looks bad.
 
 #### A8. No language model, and no code generation
@@ -93,5 +94,7 @@ Impact reads only git, so it works on JS/TS repositories before their code is pa
 - **Test-result formats.** D12's formats are coverage, which does not say whether tests passed. Whether `verify` reads a test-result report (for example JUnit XML), and its `null` reason when there is none.
 - **The labelled set for weakened tests**: where its changes come from (agents' pull requests in public repositories), and its size.
 - **The MCP tools.** A first set: the ranked list with its scorecard (E1), one file's measures, evidence, past fixes and impact, and `verify`. More are added from how agents use the first set.
+- **The base when the base branch moved.** HEAD's tree against the base's tree also counts, reversed, what landed on the base branch after the change branched off. Whether `verify` takes the merge base itself, or the caller passes it.
+- **How results mark the repository's text.** Besides escaping (A5), a fixed field name such as `untrusted_text`, or a wrapper object, so a client can tell the repository's text from the tool's own words. Tool results are the main path for an instruction hidden in a commit subject or a path.
 - **Two changes at once.** Whether `verify` compares two branches with each other, for agents working in parallel. Overlapping files and co-change links between them can be measured; their order of integration cannot.
 - **Impact's method**: how often two files must change together to be listed, how bulk commits (formatting, renames) are left out, and which baseline its backtest is compared with (for example, files of the same directory).

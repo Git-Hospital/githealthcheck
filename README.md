@@ -6,7 +6,13 @@
 
 A code health analyzer for Git repositories. It looks at tests and coverage, git history, complexity and duplication, and architecture and dependencies. Every number it prints is a measurement or `null` with a reason.
 
-**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in [docs/decisions/0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md) and, for v0.4.0, [0002-evidence.md](docs/decisions/0002-evidence.md) and, for v0.6.0, [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), the design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
+**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in three decision records:
+
+- [0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the rewrite in Go;
+- [0002-evidence.md](docs/decisions/0002-evidence.md), evidence, for v0.4.0;
+- [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.5.0 to v0.7.0.
+
+The design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
 
 ## Install
 
