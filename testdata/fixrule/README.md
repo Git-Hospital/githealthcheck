@@ -17,7 +17,7 @@ Ten repositories that are in neither ADR 0002's experiment nor the calibration c
 
 ## The labels
 
-`GUIDELINE.md` defines the label: a fix corrects wrong behaviour in shipped code. Two reviewers label each commit independently: one Claude Opus agent and one Claude Sonnet agent, each without the other's label or the rule's verdict. The maintainer resolves each disagreement, and the reason is recorded.
+`GUIDELINE.md` defines the label: a fix corrects wrong behaviour in shipped code. Two reviewers label each commit independently: one Claude Opus agent and one Claude Sonnet agent, each without the other's label or the rule's verdict. The maintainer resolves each disagreement, and the resolution is recorded.
 
 1. The dev commits are labelled first. The rule may be revised while looking at them.
 2. The rule is frozen in a commit.
@@ -33,12 +33,12 @@ Ten repositories that are in neither ADR 0002's experiment nor the calibration c
 
 ## The test split
 
-Labelled after the rule was frozen, and scored once with `python3 -I scripts/fixrule-eval.py score test`.
+Labelled after the rule was frozen, and scored once with `python3 -I scripts/fixrule-eval.py score test`, which prints every figure below.
 
 - **Order**: the test commits' commitment was pushed as `9f272aa` (2026-10-27 23:29 UTC) and the frozen rule as `b4cf449` (2026-10-28 00:17 UTC), both before the first test label was written. The branch was later rebased, so on it they are `ff43f5d` and `e737f12`; GitHub still serves the original commits by hash.
-- **Agreement**: 192 of 200 (96%, Cohen's kappa 0.92). Of the eight disagreements, the Opus labeller said `fix` in five and the Sonnet labeller in three. The maintainer took the Opus label for all eight; `labels-test.tsv` records this as the resolution.
+- **Agreement**: 192 of 200 (96%, Cohen's kappa 0.92). Of the eight disagreements, the Opus labeller said `fix` in five and the Sonnet labeller in three. The maintainer took the Opus label for all eight, as for the six in dev, without a further reason; `labels-test.tsv` records this as the resolution. The labels may therefore lean the way the Opus labeller does, so the score is also given with every disagreement resolved the other way.
 - **The rule**: precision 0.979 (90% 0.968-0.989), recall 0.284 (90% 0.218-0.395), weighted to the population. This passes ADR 0002's bar: the lower end of the 90% interval is above 0.8. With the eight disagreements resolved the other way, precision is 0.975 (0.963-0.986) and recall 0.289, so the result does not hang on them.
-- **Per repository**: the weighted figure pools all ten repositories, and home-assistant/core alone holds 5,328 of the matched commits, where the rule made no false match. A tool runs on one repository at a time, so the average of the per-repository precisions is the fairer figure for a user: 0.881 (90% 0.830-0.929, bootstrap over each repository's matches), also above 0.8. It ranges from 1.0 (gitea, ollama, pandas, home-assistant, poetry-core) to 0.6 in kubernetes/minikube, whose maintainers also write "fix" for chores ("fix boilerplate whitespace", "Fix usage string for minikube node commands"); containerd (0.67) and ansible (0.78) follow. Each of these rests on 7 to 11 matches.
+- **Per repository**: the weighted figure pools all ten repositories, and home-assistant/core alone holds 5,328 of the matched commits, where the rule made no false match. A tool runs on one repository at a time, so the average of the per-repository precisions is the fairer figure for a user: 0.881 (90% 0.828-0.930, bootstrap over each repository's matches), also above 0.8. It ranges from 1.0 (gitea, ollama, pandas, home-assistant, poetry-core) to 0.6 in kubernetes/minikube, whose maintainers also write "fix" for chores ("fix boilerplate whitespace", "Fix usage string for minikube node commands"); containerd (0.67) and ansible (0.78) follow. Each of these rests on 7 to 11 matches.
 
 | repository | matched | fixes among them | fixes missed |
 |---|---|---|---|
@@ -56,3 +56,10 @@ Labelled after the rule was frozen, and scored once with `python3 -I scripts/fix
 - **False matches** (11): "fix" for a build, a godoc, a usage string, whitespace, a linter finding (`go fix "inline"`, staticcheck QF1004), error-message wording, and one labelled `not_fix` by the maintainer's resolution ("Fix ClusterLoadAssignment timeouts dropping endpoints").
 - **Recall is low (0.28)**, lower than on dev. Most fixes name no defect in their subject; home-assistant/core's subjects rarely do. ADR 0002's amendment explains why precision is the bar. Recall differs between repositories, so the rule's fix counts compare files within one repository, not repositories with each other.
 - The test split is now spent: a later change to the rule needs a new labelled set.
+
+## Known limits, for the next labelled set
+
+Found in review after the test split was scored. None was changed, since a change would no longer be the rule that was measured.
+- A "fix" of tests or CI vetoes a defect word elsewhere in the subject: "Fix CI crash" and "fix tests and crash in parser" are not fixes.
+- A conventional-commit scope is not read: `fix(ci): broken pipeline` is a fix.
+- Some inflections are missing: "bugs", "leaked", "deadlocked", "broke".

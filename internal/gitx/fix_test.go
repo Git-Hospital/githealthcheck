@@ -20,6 +20,8 @@ func TestIsFix(t *testing.T) {
 		"TST: regression test for #123":                          false,
 		`Revert "Add booleanization strategy option"`:            false,
 		"prefix fixture loading":                                 false,
+		"\u017ftyle: fix crash":                                  true,
+		"docs\v: fix crash":                                      false,
 	} {
 		if got := IsFix(subject); got != want {
 			t.Errorf("IsFix(%q) = %v, want %v", subject, got, want)

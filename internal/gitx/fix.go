@@ -1,10 +1,13 @@
 package gitx
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // The fix rule (ADR 0002, E3): a commit is a fix when its subject names a defect, unless the subject
 // says the commit is about something other than shipped code. It was tuned on the dev split of
-// testdata/fixrule and frozen before the test split was labelled; scripts/fixrule-eval.py holds the
+// testdata/fixrule and frozen before the test split was labelled; scripts/fixrule-eval.py reads the
 // same expressions and scores them. Reverts are not counted (ADR 0002, E3 amendment): in the dev split
 // three of seven were planned. The expressions are RE2, so their cost is linear in the subject.
 const (
@@ -30,8 +33,22 @@ var (
 // IsFix reports whether a commit subject names a fix to shipped code. The subject is the repository
 // author's text: it is only matched, never printed from here.
 func IsFix(subject string) bool {
+	subject = asciiOnly(subject)
 	if notCodePrefix.MatchString(subject) || notCodeObject.MatchString(subject) {
 		return false
 	}
 	return fixWords.MatchString(subject)
+}
+
+// asciiOnly turns every control and non-ASCII character into a space. The rule was measured with
+// Python's re in ASCII mode on subjects whose control characters were spaces; RE2's (?i) would also
+// fold U+017F to s, and its \s leaves out \v. Without them, both engines see the
+// same text and give the same verdict.
+func asciiOnly(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r >= 0x7f {
+			return ' '
+		}
+		return r
+	}, s)
 }

@@ -4,7 +4,8 @@
 Usage: python3 -I scripts/fixrule-sample.py CLONES_DIR testdata/fixrule
 
 CLONES_DIR holds one bare clone per repository listed in testdata/fixrule/repos.txt,
-named owner_name.git, cloned with --filter=blob:none --shallow-since=<window start>.
+named owner_name.git, cloned with --filter=blob:none --shallow-since=2023-10-28, a month before WINDOW_START,
+so that commits at the shallow boundary fall outside the window.
 Each line of repos.txt is "owner/name <HEAD sha> <language>".
 
 Per repository it draws 15 commits the v0 rule matches and 15 it does not, from the
