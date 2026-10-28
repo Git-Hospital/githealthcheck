@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -114,4 +115,80 @@ func (r *Runner) Run(ctx context.Context, name string, args ...string) ([]byte, 
 		return nil, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(stderr.buf.String()))
 	}
 	return stdout.buf.Bytes(), nil
+}
+
+// Pipe executes name with args, feeding it stdin, and hands its stdout to read as it streams, so the
+// output is never held whole. read sees at most limit bytes; past them its reader fails with
+// ErrOutputTooLarge. Output left unread when read returns is an error too, and the command is stopped
+// then, as when read fails, so it cannot stay blocked on a full pipe. On failure the error carries the
+// trimmed stderr.
+func (r *Runner) Pipe(ctx context.Context, stdin io.Reader, limit int64, read func(io.Reader) error, name string, args ...string) error {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, ErrNotFound)
+	}
+	run, stop := context.WithCancel(ctx)
+	defer stop()
+	cmd := exec.CommandContext(run, path, args...)
+	cmd.Env = r.Env
+	cmd.Dir = r.Dir
+	cmd.WaitDelay = waitDelay
+	cmd.Stdin = stdin
+	stderr := &capped{max: 64 << 10, truncate: true}
+	cmd.Stderr = stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	out := &limited{r: pipe, n: limit}
+	rerr := read(out)
+	if rerr == nil {
+		if n, _ := pipe.Read(make([]byte, 1)); n > 0 {
+			rerr = errUnreadOutput
+		}
+	}
+	if rerr != nil {
+		stop()
+	}
+	werr := cmd.Wait()
+	switch {
+	case ctx.Err() != nil:
+		return fmt.Errorf("%s: %w", name, ctx.Err())
+	case out.over:
+		return fmt.Errorf("%s: %w", name, ErrOutputTooLarge)
+	case rerr != nil:
+		return fmt.Errorf("%s: %w: %s", name, rerr, strings.TrimSpace(stderr.buf.String()))
+	case werr != nil:
+		return fmt.Errorf("%s: %w: %s", name, werr, strings.TrimSpace(stderr.buf.String()))
+	}
+	return nil
+}
+
+var errUnreadOutput = errors.New("output left unread")
+
+// limited reads at most n bytes from r. A byte past them fails the read with ErrOutputTooLarge.
+type limited struct {
+	r    io.Reader
+	n    int64
+	over bool
+}
+
+func (l *limited) Read(p []byte) (int, error) {
+	if l.n <= 0 {
+		k, err := l.r.Read(make([]byte, 1))
+		if k > 0 {
+			l.over = true
+			return 0, ErrOutputTooLarge
+		}
+		return 0, err
+	}
+	if int64(len(p)) > l.n {
+		p = p[:l.n]
+	}
+	k, err := l.r.Read(p)
+	l.n -= int64(k)
+	return k, err
 }
