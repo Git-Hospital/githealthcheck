@@ -96,7 +96,7 @@ var gitAllowed = map[string]argRule{
 	"ls-tree": {exact: []string{"-r", "-z", "--full-tree"}},
 	// Object names come on stdin, never as arguments. --textconv and --filters, which run the
 	// repository's programs, are not allowed.
-	"cat-file": {exact: []string{"--batch", "--batch-check", "--buffer"}},
+	"cat-file": {exact: []string{"--batch", "--batch-check", "--buffer"}, flagsOnly: true},
 	// Renames are exact only (--find-renames=100% compares object names): scoring a similar rename
 	// inflates both blobs in full, whatever core.bigFileThreshold says.
 	"log": {
@@ -336,7 +336,7 @@ func gitArgs(root, subcommand string, args []string) []string {
 	allowed := gitAllowed[subcommand]
 	formats := 0
 	for _, a := range args {
-		if a == "--" {
+		if a == "--" && !allowed.flagsOnly {
 			break // the rest are pathspecs
 		}
 		if strings.HasPrefix(a, "--format=") {
@@ -359,11 +359,15 @@ func gitArgs(root, subcommand string, args []string) []string {
 }
 
 // argRule lists the arguments a subcommand takes: exact ones and prefixes of ones with a value.
-type argRule struct{ exact, prefix []string }
+type argRule struct {
+	exact, prefix []string
+	// flagsOnly refuses revisions and "--": the subcommand reads its object names from stdin.
+	flagsOnly bool
+}
 
 // allows reports an argument the rule lists, or a revision.
 func (r argRule) allows(a string) bool {
-	return slices.Contains(r.exact, a) || revisionRE.MatchString(a) ||
+	return slices.Contains(r.exact, a) || !r.flagsOnly && revisionRE.MatchString(a) ||
 		slices.ContainsFunc(r.prefix, func(p string) bool { return strings.HasPrefix(a, p) })
 }
 

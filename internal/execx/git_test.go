@@ -611,9 +611,10 @@ func mustPanic(t *testing.T, what string, f func()) {
 
 func TestGitArgsPolicy(t *testing.T) {
 	for _, arg := range []string{"--textconv", "--filters", "-p", "-t", "-s", "-e", "--batch-command",
-		"--batch-all-objects", "--follow-symlinks", "--path=a.txt", "--batch=%(rest)", "--allow-unknown-type", "blob", "HEAD:a.txt"} {
+		"--batch-all-objects", "--follow-symlinks", "--path=a.txt", "--batch=%(rest)", "--allow-unknown-type", "blob", "HEAD:a.txt", "HEAD", strings.Repeat("a", 40), "--"} {
 		mustPanic(t, "cat-file "+arg, func() { gitArgs("/r", "cat-file", []string{arg}) })
 	}
+	mustPanic(t, "cat-file after --", func() { gitArgs("/r", "cat-file", []string{"--batch", "--", "HEAD"}) })
 	for _, sub := range []string{"status", "diff", "fetch", "checkout", "config", "version", "show", "hash-object"} {
 		mustPanic(t, "subcommand "+sub, func() { gitArgs("/r", sub, nil) })
 	}

@@ -17,7 +17,9 @@ import (
 // WalkObjects reads the commit's files in entries from the repository's object store instead of the
 // work tree (ADR 0002, E5), so a past commit can be measured without a checkout: nothing is written to
 // disk, and what the work tree holds does not matter. It reads the same entries as Walk, with the same
-// size bound, and gives the same Tree for a commit that is checked out unchanged.
+// size bound, and gives the same Tree for a commit that is checked out unchanged, as long as checkout
+// does not convert content: it reads blobs as stored, before an eol attribute or a filter such as Git
+// LFS's smudge would change them. A backtest that reads every window this way compares like with like.
 //
 // git cat-file runs twice. --batch-check gives each object's type and size; then --batch streams only
 // the blobs within MaxSourceBytes, one at a time, so memory holds one file. The object names come from
@@ -100,9 +102,12 @@ func (o objects) each(ctx context.Context, entries []Entry, fn func(Entry, conte
 	}
 	err = o.git.Pipe(ctx, names(fetch), limit, func(r io.Reader) error {
 		br := bufio.NewReader(r)
-		return visit(func(oid string, size int64) ([]byte, error) { return readObject(br, oid, size) })
+		if err := visit(func(oid string, size int64) ([]byte, error) { return readObject(br, oid, size) }); err != nil {
+			return err
+		}
+		return drained(br)
 	}, "cat-file", "--batch", "--buffer")
-	if ctx.Err() != nil {
+	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
 	return err
@@ -124,7 +129,11 @@ func (o objects) content(e Entry, info []object, i *int, next func(string, int64
 		return content{reason: report.SkipTooLarge}, nil
 	}
 	src, err := next(e.OID, obj.size)
-	if err != nil {
+	switch {
+	case errors.Is(err, errObjectMissing):
+		// Pruned between the two passes: this file is skipped, and the stream is still in step.
+		return content{reason: report.SkipUnreadable, err: err}, nil
+	case err != nil:
 		return content{}, err
 	}
 	return content{src: src, size: obj.size}, nil
@@ -160,12 +169,21 @@ func (o objects) check(ctx context.Context, asked []string) ([]object, error) {
 			}
 			info = append(info, obj)
 		}
-		return nil
+		return drained(br)
 	}, "cat-file", "--batch-check", "--buffer")
 	if err != nil {
 		return nil, err
 	}
 	return info, nil
+}
+
+// drained checks that cat-file printed nothing past the answers read, including what br has
+// buffered already.
+func drained(br *bufio.Reader) error {
+	if _, err := br.ReadByte(); err != io.EOF {
+		return errProtocol
+	}
+	return nil
 }
 
 // names is cat-file's stdin: one object name per line.
@@ -204,10 +222,13 @@ func readCheck(br *bufio.Reader, oid string) (object, error) {
 }
 
 // readObject reads one --batch answer: the header for oid with the size --batch-check gave, the
-// content, and a newline.
+// content, and a newline; or "<oid> missing" for a blob pruned since --batch-check.
 func readObject(br *bufio.Reader, oid string, size int64) ([]byte, error) {
 	line, err := br.ReadString('\n')
-	if err != nil || line != header(oid, size) {
+	switch {
+	case err == nil && line == oid+" missing\n":
+		return nil, errObjectMissing
+	case err != nil || line != header(oid, size):
 		return nil, errProtocol
 	}
 	src := make([]byte, size+1)

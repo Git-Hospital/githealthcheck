@@ -52,7 +52,7 @@ func TestPipe(t *testing.T) {
 	if err := r.Pipe(ctx, strings.NewReader("abcd"), 3, readAll(&got), "cat"); !errors.Is(err, ErrOutputTooLarge) {
 		t.Errorf("cat past the limit: %v", err)
 	}
-	if err := r.Pipe(ctx, strings.NewReader("abc"), 3, func(io.Reader) error { return nil }, "cat"); !errors.Is(err, errUnreadOutput) {
+	if err := r.Pipe(ctx, strings.NewReader("abc"), 3, func(io.Reader) error { return nil }, "cat"); !errors.Is(err, ErrUnreadOutput) {
 		t.Errorf("output left unread: %v", err)
 	}
 	if err := r.Pipe(ctx, nil, 3, readAll(&got), "false"); err == nil {

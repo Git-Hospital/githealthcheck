@@ -216,11 +216,25 @@ func TestReadObject(t *testing.T) {
 		{strings.Repeat("b", 40) + " blob 3\nabc\n", false}, // another object
 		{oid + " blob 3\nabcd", false},                      // no newline after the content
 		{oid + " blob 3\nab", false},                        // cut short
-		{oid + " tree 3\nabc\n", false},                     // not a blob
+		{oid + " tree 3\nabc\n", false},
+		{oid + " missing\n", false}, // not a blob
 	} {
 		src, err := readObject(bufio.NewReader(strings.NewReader(tc.in)), oid, 3)
 		if (err == nil) != tc.ok || (tc.ok && string(src) != "abc") {
 			t.Errorf("readObject(%q) = %q, %v", tc.in, src, err)
 		}
+	}
+}
+
+func TestReadObjectMissing(t *testing.T) {
+	oid := strings.Repeat("a", 40)
+	if _, err := readObject(bufio.NewReader(strings.NewReader(oid+" missing\n")), oid, 3); !errors.Is(err, errObjectMissing) {
+		t.Errorf("err = %v, want errObjectMissing", err)
+	}
+	if err := drained(bufio.NewReader(strings.NewReader(""))); err != nil {
+		t.Errorf("drained at EOF: %v", err)
+	}
+	if err := drained(bufio.NewReader(strings.NewReader("x"))); !errors.Is(err, errProtocol) {
+		t.Errorf("drained with a byte left: %v", err)
 	}
 }

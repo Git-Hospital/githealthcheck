@@ -93,18 +93,12 @@ func (c *capped) Write(p []byte) (int, error) {
 
 // Run executes name with args and returns stdout. On failure the error carries the trimmed stderr.
 func (r *Runner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	path, err := exec.LookPath(name)
+	cmd, stderr, err := r.command(ctx, name, args)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, ErrNotFound)
+		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = r.Env
-	cmd.Dir = r.Dir
-	cmd.WaitDelay = waitDelay
 	stdout := &capped{max: MaxOutput}
-	stderr := &capped{max: 64 << 10, truncate: true}
 	cmd.Stdout = stdout
-	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		switch {
 		case ctx.Err() != nil:
@@ -117,25 +111,35 @@ func (r *Runner) Run(ctx context.Context, name string, args ...string) ([]byte, 
 	return stdout.buf.Bytes(), nil
 }
 
-// Pipe executes name with args, feeding it stdin, and hands its stdout to read as it streams, so the
-// output is never held whole. read sees at most limit bytes; past them its reader fails with
-// ErrOutputTooLarge. Output left unread when read returns is an error too, and the command is stopped
-// then, as when read fails, so it cannot stay blocked on a full pipe. On failure the error carries the
-// trimmed stderr.
-func (r *Runner) Pipe(ctx context.Context, stdin io.Reader, limit int64, read func(io.Reader) error, name string, args ...string) error {
+// command is the setup Run and Pipe share: the reduced environment, the directory, the wait bound
+// and a truncated stderr.
+func (r *Runner) command(ctx context.Context, name string, args []string) (*exec.Cmd, *capped, error) {
 	path, err := exec.LookPath(name)
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, ErrNotFound)
+		return nil, nil, fmt.Errorf("%s: %w", name, ErrNotFound)
 	}
-	run, stop := context.WithCancel(ctx)
-	defer stop()
-	cmd := exec.CommandContext(run, path, args...)
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = r.Env
 	cmd.Dir = r.Dir
 	cmd.WaitDelay = waitDelay
-	cmd.Stdin = stdin
 	stderr := &capped{max: 64 << 10, truncate: true}
 	cmd.Stderr = stderr
+	return cmd, stderr, nil
+}
+
+// Pipe executes name with args, feeding it stdin, and hands its stdout to read as it streams, so the
+// output is never held whole. read sees at most limit bytes; past them its reader fails with
+// ErrOutputTooLarge. read must consume the whole output: a byte left unread is an error. When read
+// fails the command is stopped, so it cannot stay blocked on a full pipe. On failure the error carries
+// the trimmed stderr.
+func (r *Runner) Pipe(ctx context.Context, stdin io.Reader, limit int64, read func(io.Reader) error, name string, args ...string) error {
+	run, stop := context.WithCancel(ctx)
+	defer stop()
+	cmd, stderr, err := r.command(run, name, args)
+	if err != nil {
+		return err
+	}
+	cmd.Stdin = stdin
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)
@@ -147,13 +151,17 @@ func (r *Runner) Pipe(ctx context.Context, stdin io.Reader, limit int64, read fu
 	rerr := read(out)
 	if rerr == nil {
 		if n, _ := pipe.Read(make([]byte, 1)); n > 0 {
-			rerr = errUnreadOutput
+			rerr = ErrUnreadOutput
 		}
 	}
 	if rerr != nil {
 		stop()
 	}
 	werr := cmd.Wait()
+	if rerr == nil && werr == nil {
+		// Everything was read, even if ctx ended just after.
+		return nil
+	}
 	switch {
 	case ctx.Err() != nil:
 		return fmt.Errorf("%s: %w", name, ctx.Err())
@@ -161,13 +169,12 @@ func (r *Runner) Pipe(ctx context.Context, stdin io.Reader, limit int64, read fu
 		return fmt.Errorf("%s: %w", name, ErrOutputTooLarge)
 	case rerr != nil:
 		return fmt.Errorf("%s: %w: %s", name, rerr, strings.TrimSpace(stderr.buf.String()))
-	case werr != nil:
-		return fmt.Errorf("%s: %w: %s", name, werr, strings.TrimSpace(stderr.buf.String()))
 	}
-	return nil
+	return fmt.Errorf("%s: %w: %s", name, werr, strings.TrimSpace(stderr.buf.String()))
 }
 
-var errUnreadOutput = errors.New("output left unread")
+// ErrUnreadOutput is output that Pipe's reader left unread.
+var ErrUnreadOutput = errors.New("output left unread")
 
 // limited reads at most n bytes from r. A byte past them fails the read with ErrOutputTooLarge.
 type limited struct {
