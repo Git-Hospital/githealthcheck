@@ -58,7 +58,7 @@ func ParseTree(out []byte) ([]Entry, error) {
 		}
 		meta, p, ok := bytes.Cut(rec, []byte{'\t'})
 		fields := strings.Fields(string(meta))
-		if !ok || len(fields) != 3 {
+		if !ok || len(fields) != 3 || len(p) == 0 {
 			return nil, fmt.Errorf("unexpected ls-tree record %q", rec)
 		}
 		entries = append(entries, Entry{Mode: fields[0], OID: fields[2], Path: string(p)})
