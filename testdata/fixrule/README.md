@@ -33,8 +33,9 @@ Ten repositories that are in neither ADR 0002's experiment nor the calibration c
 
 ## The test split
 
-Labelled after the rule was frozen (`b4cf449`), and scored once with `python3 -I scripts/fixrule-eval.py score test`.
+Labelled after the rule was frozen, and scored once with `python3 -I scripts/fixrule-eval.py score test`.
 
+- **Order**: the test commits' commitment was pushed as `9f272aa` (2026-10-27 23:29 UTC) and the frozen rule as `b4cf449` (2026-10-28 00:17 UTC), both before the first test label was written. The branch was later rebased, so on it they are `ff43f5d` and `e737f12`; GitHub still serves the original commits by hash.
 - **Agreement**: 192 of 200 (96%, Cohen's kappa 0.92). Of the eight disagreements, the Opus labeller said `fix` in five and the Sonnet labeller in three. The maintainer took the Opus label for all eight; `labels-test.tsv` records this as the resolution.
 - **The rule**: precision 0.979 (90% 0.968-0.989), recall 0.284 (90% 0.218-0.395), weighted to the population. This passes ADR 0002's bar: the lower end of the 90% interval is above 0.8. With the eight disagreements resolved the other way, precision is 0.975 (0.963-0.986) and recall 0.289, so the result does not hang on them.
 - **Per repository**: the weighted figure pools all ten repositories, and home-assistant/core alone holds 5,328 of the matched commits, where the rule made no false match. A tool runs on one repository at a time, so the average of the per-repository precisions is the fairer figure for a user: 0.881 (90% 0.830-0.929, bootstrap over each repository's matches), also above 0.8. It ranges from 1.0 (gitea, ollama, pandas, home-assistant, poetry-core) to 0.6 in kubernetes/minikube, whose maintainers also write "fix" for chores ("fix boilerplate whitespace", "Fix usage string for minikube node commands"); containerd (0.67) and ansible (0.78) follow. Each of these rests on 7 to 11 matches.
