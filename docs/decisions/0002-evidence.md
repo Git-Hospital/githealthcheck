@@ -72,6 +72,7 @@ Considered and rejected:
 *Amended 28 October 2026, before the test split was labelled* ([testdata/fixrule](../../testdata/fixrule/README.md)):
 - **Reverts are not counted.** In the dev split, three of seven reverts were planned (a feature taken out, a check put back), and with reverts the rule's 90% interval for precision reached down to 0.65 (from the tuning script, which is not kept). Without them, precision on dev is 0.97 (0.94-0.99) and recall 0.38 (0.22-0.70), both weighted to the population. The rule is `gitx.IsFix`.
 - **"At least 0.8" applies to the lower end of the 90% interval** on the test split, not to the point estimate.
+- **Result on the test split**: precision 0.979 (90% 0.968-0.989) weighted, 0.881 (0.830-0.929) averaged over repositories, lowest 0.6 in one; recall 0.28. The rule ships ([testdata/fixrule](../../testdata/fixrule/README.md#the-test-split)). Fix counts compare files within a repository, never repositories with each other.
 - **Recall stays low** because many fixes name no defect in their subject ("Recognize AirGradient 0-1PS as an outdoor model"); no rule on the subject alone finds them. Missed fixes thin the outcome evenly across files, where false ones add noise, so precision is the bar.
 
 #### E4. Without enough history, the corpus's evidence, labelled as such
