@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Fixed
 
 - Markdown job summaries identify the coverage report, its tracked status, format and commit-file counts, and the tool versions code was read with. Input text is escaped as literal Markdown.
+- `--version` and `-version` print the version like `version`, and `scan -h` and `calibrate -h` exit 0 instead of 2 (#52).
 
 ## [0.3.0] - 2026-10-25
 

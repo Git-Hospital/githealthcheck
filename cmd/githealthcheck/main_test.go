@@ -197,6 +197,31 @@ func TestScanExtraFileFailureIsError(t *testing.T) {
 	}
 }
 
+func TestVersionAndHelpExitCodes(t *testing.T) {
+	cases := []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--version"}, report.ExitClean},
+		{[]string{"-version"}, report.ExitClean},
+		{[]string{"scan", "-h"}, report.ExitClean},
+		{[]string{"calibrate", "-h"}, report.ExitClean},
+		{[]string{"scan", "--nope", "."}, report.ExitError},
+		{[]string{"calibrate", "--nope"}, report.ExitError},
+	}
+	for _, c := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(c.args, &stdout, &stderr); code != c.want {
+			t.Errorf("run(%q) = %d, want %d", c.args, code, c.want)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"--version"}, &stdout, &stderr)
+	if got, want := stdout.String(), "githealthcheck "+version+"\n"; got != want {
+		t.Errorf("--version printed %q, want %q", got, want)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	dir := gitRepo(t)
 	cases := [][]string{
