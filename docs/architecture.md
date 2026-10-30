@@ -176,7 +176,7 @@ Exit codes (D25):
 
 `--fail-under` takes a number from 0 to 10; `NaN`, `Inf` and trailing text are usage errors.
 
-Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to be absent: `no_coverage_report`, `offline`, `tool_not_found`, `tool_too_old`, `exec_not_allowed`, `unsupported_language`, `history_too_short`, `not_calibrated` and `insufficient_input`. These do not cause exit 3 on their own. Neither do `stale_coverage_report` and `invalid_coverage_report`: the run finished, and the input was not usable; the report says so.
+Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to be absent: `no_coverage_report`, `offline`, `tool_not_found`, `exec_not_allowed`, `unsupported_language`, `history_too_short`, `not_calibrated` and `insufficient_input`. These do not cause exit 3 on their own. Neither do `stale_coverage_report` and `invalid_coverage_report`: the run finished, and the input was not usable; the report says so. `tool_too_old` also does not cause exit 3 on its own: it means the installed Python is below 3.10, so Python could not be parsed.
 
 ## 7. Testing
 
