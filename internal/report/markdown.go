@@ -22,7 +22,11 @@ func Markdown(r *Report) string {
 		head = head[:12]
 	}
 	fmt.Fprintf(&b, "## githealthcheck: %s\n\n", scoreMD(r.Overall.Score))
-	fmt.Fprintf(&b, "%s at `%s`, %d of %d families measured", mdEscape(r.Repository.Path), mdEscape(head), r.Overall.Measured, r.Overall.Of)
+	if head == "" {
+		fmt.Fprintf(&b, "%s, no commits yet, %d of %d families measured", mdEscape(r.Repository.Path), r.Overall.Measured, r.Overall.Of)
+	} else {
+		fmt.Fprintf(&b, "%s at `%s`, %d of %d families measured", mdEscape(r.Repository.Path), mdEscape(head), r.Overall.Measured, r.Overall.Of)
+	}
 	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
 		fmt.Fprintf(&b, ", scored as %s against %d corpus repositories (%.0f%% of the code analysed)", mdEscape(c.Language), c.Repositories, 100*c.AnalysedShare)
 	}

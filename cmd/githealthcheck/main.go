@@ -560,7 +560,11 @@ func text(r *report.Report) string {
 	if len(head) > 12 {
 		head = head[:12]
 	}
-	fmt.Fprintf(&b, "%s at %s", printable(r.Repository.Path), head)
+	if head == "" {
+		fmt.Fprintf(&b, "%s (no commits yet)", printable(r.Repository.Path))
+	} else {
+		fmt.Fprintf(&b, "%s at %s", printable(r.Repository.Path), head)
+	}
 	if r.Repository.Shallow {
 		b.WriteString(" (shallow clone)")
 	}
