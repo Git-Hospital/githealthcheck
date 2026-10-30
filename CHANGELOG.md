@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Fixed
 
 - GHC-CPLX-004 takes an `if err != nil { return nil }` block with a comment in it as meant, as it already did for an empty block and as its page advised: `return nil //nolint:nilerr // best effort` is no longer a finding. At the current tips of cli/cli and caddy this removes all 12 of the rule's findings, each of them commented so.
+- Markdown job summaries identify the coverage report, its tracked status, format and commit-file counts, and the tool versions code was read with. Input text is escaped as literal Markdown.
 
 ## [0.3.0] - 2026-10-25
 

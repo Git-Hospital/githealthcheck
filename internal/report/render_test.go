@@ -2,6 +2,7 @@ package report
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -128,6 +129,7 @@ func TestMarkdown(t *testing.T) {
 	md := Markdown(renderReport())
 	for _, want := range []string{
 		"## githealthcheck: **4.2/10**",
+		"repo at `0123456789ab`, 3 of 4 families measured",
 		"scored as go against 15 corpus repositories",
 		"| tests | **4.2/10** | untested_package_share 50.0% (4.2) |",
 		"### Findings (5)",
@@ -137,6 +139,94 @@ func TestMarkdown(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("missing %q in\n%s", want, md)
 		}
+	}
+}
+
+func TestMarkdownInputs(t *testing.T) {
+	files, modules, atHead := 20, 7, 6
+	xmlFiles, xmlAtHead := 5, 4
+	for _, tc := range []struct {
+		name     string
+		coverage *CoverageInput
+		tools    []Tool
+		want     string
+	}{
+		{
+			name: "Go report",
+			coverage: &CoverageInput{Path: "coverage.out", Format: "go-coverprofile", Files: &files,
+				ModuleFiles: &modules, FilesAtHead: &atHead},
+			want: "Coverage report coverage\\.out (untracked, go\\-coverprofile): 6 of the 7 files it lists under the repository's modules are in the commit (20 files listed).",
+		},
+		{
+			name: "Cobertura report",
+			coverage: &CoverageInput{Path: "coverage.xml", Tracked: true, Format: "cobertura",
+				Files: &xmlFiles, FilesAtHead: &xmlAtHead},
+			want: "Coverage report coverage\\.xml (tracked, cobertura): 4 of the 5 files it lists are in the commit.",
+		},
+		{
+			name:     "unparsed report",
+			coverage: &CoverageInput{Path: "bad.out", Tracked: true},
+			want:     "Coverage report bad\\.out (tracked).",
+		},
+		{
+			name:  "interpreter without coverage",
+			tools: []Tool{{Name: "python3", Version: "3.12.4"}},
+			want:  "Code read with python3 3\\.12\\.4.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := renderReport()
+			r.Inputs.Coverage, r.Inputs.Tools = tc.coverage, tc.tools
+			md := Markdown(r)
+			if !strings.Contains(md, "\n\n"+tc.want+"\n\n### Findings") {
+				t.Errorf("input provenance not between the family table and findings: want %q in\n%s", tc.want, md)
+			}
+			if tc.coverage == nil && strings.Contains(md, "Coverage report") {
+				t.Error("invented a coverage report")
+			}
+		})
+	}
+}
+
+func TestMarkdownWithoutInputs(t *testing.T) {
+	want, err := os.ReadFile("testdata/markdown-no-inputs.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Markdown(renderReport()); got != string(want) {
+		t.Errorf("report without coverage or tools changed:\n%s", got)
+	}
+}
+
+func TestMarkdownInputEscapes(t *testing.T) {
+	r := renderReport()
+	r.Inputs.Coverage = &CoverageInput{Path: "a](http://x)", Format: "go|<img>"}
+	r.Inputs.Tools = []Tool{{Name: "py[thon]", Version: "3.12\n## injected"}}
+	md := Markdown(r)
+	for _, want := range []string{
+		`Coverage report a\]\(http\:\/\/x\) (untracked, go\|\<img\>).`,
+		`Code read with py\[thon\] 3\.12\\n\#\# injected.`,
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("missing literal input %q in\n%s", want, md)
+		}
+	}
+	for _, bad := range []string{"a](http://x)", "go|<img>", "py[thon]", "\n## injected"} {
+		if strings.Contains(md, bad) {
+			t.Errorf("unescaped input %q survives in\n%s", bad, md)
+		}
+	}
+}
+
+func TestMarkdownUnbornHead(t *testing.T) {
+	r := renderReport()
+	r.Repository.Head = ""
+	md := Markdown(r)
+	if !strings.Contains(md, "repo, no commits yet, 3 of 4 families measured") {
+		t.Errorf("unborn repository header is not clear:\n%s", md)
+	}
+	if strings.Contains(md, "repo at ``") {
+		t.Errorf("unborn repository header has empty commit backticks:\n%s", md)
 	}
 }
 
