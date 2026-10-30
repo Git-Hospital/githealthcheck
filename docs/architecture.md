@@ -162,7 +162,7 @@ Guards against the "measured or null" principle being bypassed:
 Every `null` carries a `reason`. JSON is the source of truth. Markdown and the terminal table are renderings of it; SARIF also needs the commit's file list, since a result must be on a file (D36). `--json`, `--sarif` and `--markdown` write more renderings of the same scan to files.
 
 - **SARIF 2.1.0**: one result per finding on a file, with paths relative to the root (`%SRCROOT%`), the rule's page as `helpUri`, level `warning` for complexity and tests and `note` for history, and suppressed findings as `suppressions`. Findings on a directory or the whole repository are counted in a notification, and so are those past the first 5,000 results (code scanning shows 5,000 and rejects more than 25,000).
-- **Markdown**: the score, a table of families and metrics, and up to 200 findings linked to their rules. Every path and message is escaped as literal text.
+- **Markdown**: the score, a table of families and metrics, the coverage report and reader tool versions when present, and up to 200 findings linked to their rules. Coverage provenance names its path, tracked status, format and commit-file counts. Every input string is escaped as literal text.
 
 Exit codes (D25):
 - **0:** no unsuppressed findings, and the score is not below `--fail-under`.

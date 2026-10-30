@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+
+- Markdown job summaries identify the coverage report, its tracked status, format and commit-file counts, and the tool versions code was read with. Input text is escaped as literal Markdown.
+
 ## [0.3.0] - 2026-10-25
 
 Python is analysed next to Go, and the scores are no longer `null`: each metric scores its percentile among 15 well-known repositories of the language. The report comes as SARIF and Markdown too, and a GitHub Action runs the scan in CI. githealthcheck's own functions now stay under its complexity limits (GHC-CPLX-001 to 003); on its own repository it scores 5.2/10. JS/TS is still counted and not analysed, and architecture stays `null` (`not_implemented`).
