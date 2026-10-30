@@ -386,6 +386,14 @@ func TestScanUnbornHead(t *testing.T) {
 	if strings.Contains(stdout.String(), `"head"`) {
 		t.Errorf("unborn branch reported a head:\n%s", stdout.String())
 	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"scan", dir}, &stdout, &stderr); code != report.ExitIncomplete {
+		t.Fatalf("text: exit %d, want %d; stderr %s", code, report.ExitIncomplete, stderr.String())
+	}
+	if want := filepath.Base(dir) + " (no commits yet)\n"; !strings.HasPrefix(stdout.String(), want) {
+		t.Errorf("text report starts with %q, want %q", stdout.String(), want)
+	}
 }
 
 type failingWriter struct{}

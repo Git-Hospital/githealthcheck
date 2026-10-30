@@ -128,6 +128,7 @@ func TestMarkdown(t *testing.T) {
 	md := Markdown(renderReport())
 	for _, want := range []string{
 		"## githealthcheck: **4.2/10**",
+		"repo at `0123456789ab`, 3 of 4 families measured",
 		"scored as go against 15 corpus repositories",
 		"| tests | **4.2/10** | untested_package_share 50.0% (4.2) |",
 		"### Findings (5)",
@@ -137,6 +138,18 @@ func TestMarkdown(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("missing %q in\n%s", want, md)
 		}
+	}
+}
+
+func TestMarkdownUnbornHead(t *testing.T) {
+	r := renderReport()
+	r.Repository.Head = ""
+	md := Markdown(r)
+	if !strings.Contains(md, "repo, no commits yet, 3 of 4 families measured") {
+		t.Errorf("unborn repository header is not clear:\n%s", md)
+	}
+	if strings.Contains(md, "repo at ``") {
+		t.Errorf("unborn repository header has empty commit backticks:\n%s", md)
 	}
 }
 
