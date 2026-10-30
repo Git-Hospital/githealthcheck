@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+
+- GHC-CPLX-004 takes an `if err != nil { return nil }` block with a comment in it as meant, as it already did for an empty block and as its page advised: `return nil //nolint:nilerr // best effort` is no longer a finding. At the current tips of cli/cli and caddy this removes all 12 of the rule's findings, each of them commented so.
+
 ## [0.3.0] - 2026-10-25
 
 Python is analysed next to Go, and the scores are no longer `null`: each metric scores its percentile among 15 well-known repositories of the language. The report comes as SARIF and Markdown too, and a GitHub Action runs the scan in CI. githealthcheck's own functions now stay under its complexity limits (GHC-CPLX-001 to 003); on its own repository it scores 5.2/10. JS/TS is still counted and not analysed, and architecture stays `null` (`not_implemented`).

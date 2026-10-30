@@ -7,7 +7,8 @@ The code checks an error and then acts as if there was none:
 - `if err != nil {}`: the error is checked and nothing is done. An empty block with a comment in it is
   taken as meant, as SonarSource's S108 takes it.
 - `if err != nil { return nil }` in a function whose last result is `error`: the error is replaced by
-  success. Only a block that is that single return counts; one that logs first is not judged.
+  success. Only a block that is that single return counts; one that logs first is not judged, and one
+  with a comment in it, such as `return nil //nolint:nilerr // best effort`, is taken as meant.
 
 ## Threshold and source
 
