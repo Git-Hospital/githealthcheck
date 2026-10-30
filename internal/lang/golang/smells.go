@@ -113,7 +113,7 @@ func (sf *smellFinder) check(body *ast.BlockStmt, results *ast.FieldList, name s
 		switch {
 		case len(is.Body.List) == 0 && !commented(sf.file, is.Body):
 			sf.add(facts.EmptyErrorCheck, is, name)
-		case returnsError && returnsNilError(is.Body):
+		case returnsError && returnsNilError(is.Body) && !commented(sf.file, is.Body):
 			sf.add(facts.ErrorDropped, is, name)
 		}
 		return true
@@ -178,8 +178,9 @@ func errNotNil(cond ast.Expr) bool {
 	return ok && b.Op == token.NEQ && ErrCheck(cond)
 }
 
-// commented reports whether an empty block holds a comment, which says the emptiness is meant (as
-// SonarSource's S108 treats it).
+// commented reports whether a block holds a comment, which says that ignoring the error is meant: an
+// empty block (as SonarSource's S108 treats it), or one that only returns nil, such as
+// `return nil //nolint:nilerr // best effort`.
 func commented(file *ast.File, b *ast.BlockStmt) bool {
 	// The comment groups are in source order: the first after the brace decides.
 	i, _ := slices.BinarySearchFunc(file.Comments, b.Lbrace, func(cg *ast.CommentGroup, p token.Pos) int {
