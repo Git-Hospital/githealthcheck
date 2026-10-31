@@ -2,6 +2,7 @@ package execx
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -609,7 +610,12 @@ func mustPanic(t *testing.T, what string, f func()) {
 }
 
 func TestGitArgsPolicy(t *testing.T) {
-	for _, sub := range []string{"status", "diff", "fetch", "checkout", "config", "version", "show", "cat-file"} {
+	for _, arg := range []string{"--textconv", "--filters", "-p", "-t", "-s", "-e", "--batch-command",
+		"--batch-all-objects", "--follow-symlinks", "--path=a.txt", "--batch=%(rest)", "--allow-unknown-type", "blob", "HEAD:a.txt", "HEAD", strings.Repeat("a", 40), "--"} {
+		mustPanic(t, "cat-file "+arg, func() { gitArgs("/r", "cat-file", []string{arg}) })
+	}
+	mustPanic(t, "cat-file after --", func() { gitArgs("/r", "cat-file", []string{"--batch", "--", "HEAD"}) })
+	for _, sub := range []string{"status", "diff", "fetch", "checkout", "config", "version", "show", "hash-object"} {
 		mustPanic(t, "subcommand "+sub, func() { gitArgs("/r", sub, nil) })
 	}
 	for _, args := range [][]string{
@@ -715,5 +721,61 @@ func TestGitEnv(t *testing.T) {
 	}
 	if len(env) != len(want) {
 		t.Errorf("env = %q, want exactly %q", env, want)
+	}
+}
+
+// batch feeds names to the hardened cat-file and returns its output.
+func batch(t *testing.T, g *Git, mode string, names ...string) (string, error) {
+	t.Helper()
+	var out []byte
+	err := g.Pipe(context.Background(), strings.NewReader(strings.Join(names, "\n")+"\n"), 1<<20, func(r io.Reader) error {
+		var err error
+		out, err = io.ReadAll(r)
+		return err
+	}, "cat-file", mode, "--buffer")
+	return string(out), err
+}
+
+func TestCatFileRunsNoFilterOrTextconv(t *testing.T) {
+	dir := newRepo(t)
+	script, marker := markerScript(t, `cat`)
+	mustGit(t, dir, "config", "diff.evil.textconv", script)
+	mustGit(t, dir, "config", "filter.evil.smudge", script)
+	if err := os.WriteFile(filepath.Join(dir, ".git", "info", "attributes"), []byte("*.txt diff=evil filter=evil\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = plainGit(t, dir, "cat-file", "--textconv", "HEAD:a.txt")
+	control(t, marker, "plain git cat-file --textconv")
+	_, _ = plainGit(t, dir, "cat-file", "--filters", "HEAD:a.txt")
+	control(t, marker, "plain git cat-file --filters")
+
+	g := newGit(t, dir)
+	blob := mustGit(t, dir, "rev-parse", "HEAD:a.txt")
+	out, err := batch(t, g, "--batch", blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := blob + " blob 4\ntwo\n\n"; out != want {
+		t.Errorf("cat-file --batch = %q, want %q", out, want)
+	}
+	treatment(t, marker, "hardened git cat-file --batch")
+}
+
+func TestCatFileDoesNotFetchLazily(t *testing.T) {
+	dir, marker := partialClone(t)
+	blob := mustGit(t, dir, "rev-parse", "HEAD:a.txt")
+	_, _ = plainGit(t, dir, "cat-file", "-p", blob)
+	control(t, marker, "plain git cat-file -p in a partial clone")
+
+	g := newGit(t, dir)
+	for _, mode := range []string{"--batch-check", "--batch"} {
+		out, err := batch(t, g, mode, blob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != blob+" missing\n" {
+			t.Errorf("cat-file %s = %q, want the blob missing", mode, out)
+		}
+		treatment(t, marker, "hardened git cat-file "+mode)
 	}
 }
