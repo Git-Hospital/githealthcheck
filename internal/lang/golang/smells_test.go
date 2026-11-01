@@ -174,6 +174,18 @@ func TestSmellsEdges(t *testing.T) {
 		"labelled prose": {"package a\n\n// New makes a client.\n//\n// Example: c := New(cfg)\n// Usage: client.Do(req)\nfunc New(cfg int) int { return cfg }\n", nil},
 		"a //line directive does not move lines": {"package a\n\n//line other.go:5000\nfunc f(g func() error) {\n\tif err := g(); err != nil {\n\t}\n}\n",
 			[]string{"empty_error_check f 5"}},
+		// A comment that marks unfinished work says the error is not handled yet, not that dropping
+		// it is meant.
+		"a TODO after return nil": {"package a\n\nfunc f(g func() error) error {\n\tif err := g(); err != nil {\n\t\treturn nil // TODO: handle the error\n\t}\n\treturn nil\n}\n",
+			[]string{"error_dropped f 4"}},
+		"a FIXME before return nil": {"package a\n\nfunc f(g func() error) error {\n\tif err := g(); err != nil {\n\t\t// FIXME\n\t\treturn nil\n\t}\n\treturn nil\n}\n",
+			[]string{"error_dropped f 4"}},
+		"a TODO after a nolint": {"package a\n\nfunc f(g func() error) error {\n\tif err := g(); err != nil {\n\t\treturn nil //nolint:nilerr // todo(kadir): retry\n\t}\n\treturn nil\n}\n",
+			[]string{"error_dropped f 4"}},
+		"an empty block with an XXX": {"package a\n\nfunc f(g func() error) {\n\tif err := g(); err != nil {\n\t\t/* XXX */\n\t}\n}\n",
+			[]string{"empty_error_check f 4"}},
+		"a reason that mentions a todo list is meant": {"package a\n\nfunc f(g func() error) error {\n\tif err := g(); err != nil {\n\t\treturn nil // the todo list is optional\n\t}\n\treturn nil\n}\n", nil},
+		"a bare nolint is meant":                      {"package a\n\nfunc f(g func() error) error {\n\tif err := g(); err != nil {\n\t\treturn nil //nolint:nilerr\n\t}\n\treturn nil\n}\n", nil},
 	} {
 		f := filled(t, c.src)
 		if got := kinds(f); !reflect.DeepEqual(got, c.want) {
