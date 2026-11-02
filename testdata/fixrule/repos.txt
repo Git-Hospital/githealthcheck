@@ -1,0 +1,11 @@
+# owner/name HEAD language (HEADs pinned 2026-10-28)
+kubernetes/minikube 0d90ebb947f2af37459b477702b8ae31d86da7ab go
+hashicorp/consul da3684fffeddb81dfaa0e648b51193c866f51ce8 go
+containerd/containerd 43aa4ea134f3e50791b8537c48a18303f0fcc775 go
+go-gitea/gitea 178d33ed4dce734384caa61a04290b30ab955b21 go
+ollama/ollama f067033f9126993b6172bdfffa71a74ad693fda4 go
+numpy/numpy b833c1b9bf6712cc8a03bb301b77c48984a2373d python
+pandas-dev/pandas 34825d86244d961be3091f4425a74b565eb7989d python
+home-assistant/core 137e56f12acab721cf1fa1ab2b876c05b1f4b6bc python
+ansible/ansible 5186cff137018276877e2e6c24e669ec46098d2a python
+python-poetry/poetry-core 625c5cbe20bbffc58861baa855ce7c8b7546a535 python

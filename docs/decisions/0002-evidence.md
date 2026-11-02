@@ -61,13 +61,22 @@ Considered and rejected:
 - Not chosen: a model with learned weights. It is harder to explain than "files like this got 2.4x more fixes", and harder to check by hand.
 
 #### E3. Fixes are recognised from git alone, and the rule is measured first
-**A fix is recognised from git alone**: the commit subject, and reverts. Nothing is fetched over the network, so the scan stays offline (D16) and the scanned repository's code is never run (D22).
+**A fix is recognised from git alone**: the commit subject (reverts were dropped by the amendment below). Nothing is fetched over the network, so the scan stays offline (D16) and the scanned repository's code is never run (D22).
 - **The rule is measured before the engine ships.**
   - The labelled set: about 300 commits from ten repositories that were not in the experiment, so the rule is not tuned on the data it is judged by. Each commit is labelled from its diff by two independent reviewers (with one maintainer, D30, these are AI reviewers, each without the other's label). The maintainer resolves disagreements, which are recorded, and the set is kept in `testdata`.
   - The rule ships only if its precision on that set is at least 0.8.
   - Its precision and recall are published.
 - **Subjects and dates are untrusted**: the repository's author can write any of them. Windows are assigned by committer date, and a subject printed in a report is escaped as D36's Markdown escapes paths, without control characters.
 - Not chosen: GitHub issues labelled as bugs (`--online`). This needs the network and a token, and works only on one forge.
+
+*Amended 28 October 2026, before the test split was labelled* ([testdata/fixrule](../../testdata/fixrule/README.md)):
+- **Reverts are not counted.** In the dev split, three of seven reverts were planned (a feature taken out, a check put back), and with reverts the rule's 90% interval for precision reached down to 0.65 (from the tuning script, which is not kept). Without them, precision on dev is 0.97 (0.94-0.99) and recall 0.38 (0.22-0.70), both weighted to the population. The rule is `gitx.IsFix`.
+- **"At least 0.8" applies to the lower end of the 90% interval** on the test split, not to the point estimate.
+- **Recall stays low** because many fixes name no defect in their subject ("Recognize AirGradient 0-1PS as an outdoor model"); no rule on the subject alone finds them. Missed fixes thin the outcome evenly across files, where false ones add noise, so precision is the bar.
+
+*Measured 28 October 2026, after the test split was labelled* ([testdata/fixrule](../../testdata/fixrule/README.md#the-test-split)):
+- **The rule passes**: on the test split, precision 0.979 (90% 0.968-0.989) weighted, 0.881 (0.828-0.930) as the mean over repositories, lowest 0.6 in one; recall 0.28. The backtest (E8, step 3) is the first code that will call `gitx.IsFix`.
+- Fix counts compare files within one repository, never repositories with each other: recall differs between them.
 
 #### E4. Without enough history, the corpus's evidence, labelled as such
 **A repository with too little history gets no evidence of its own.** "Too little" means fewer than 30 fix touches on its source files across the windows. Its own evidence is `null` with the existing reason `history_too_short`. As with D35's minimums, 30 is a judgement, revisited with the corpus.
