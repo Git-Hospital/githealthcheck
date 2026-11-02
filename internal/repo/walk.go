@@ -109,16 +109,51 @@ func validPath(p string) bool {
 //
 // Everything is opened through an os.Root, which refuses any path that leaves root, even through a
 // directory swapped for a symlink.
-// maxTokens is facts.MaxTokens, lowered by tests.
-var maxTokens = facts.MaxTokens
-
 func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte) string) (*Tree, error) {
 	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	w := &walker{t: &Tree{Root: root}, root: r, ls: lang.Open(ctx), blobID: blobID}
+	return walk(ctx, root, disk{r}, entries, blobID)
+}
+
+// maxTokens is facts.MaxTokens, lowered by tests.
+var maxTokens = facts.MaxTokens
+
+// source gives walk the content of each entry it reads. each calls fn for every entry in order, with
+// the content only for the entries wanted accepts, and stops with ctx's error once ctx ends.
+type source interface {
+	each(ctx context.Context, entries []Entry, fn func(Entry, content)) error
+}
+
+// content is one file as a source read it, or why it was skipped.
+type content struct {
+	src    []byte
+	size   int64
+	reason report.SkipReason
+	err    error
+}
+
+// disk reads the work tree.
+type disk struct{ root *os.Root }
+
+func (d disk) each(ctx context.Context, entries []Entry, fn func(Entry, content)) error {
+	for _, e := range entries {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var c content
+		if wanted(e) {
+			c.src, c.size, c.reason, c.err = readEntry(d.root, e.Path, MaxSourceBytes)
+		}
+		fn(e, c)
+	}
+	return nil
+}
+
+func walk(ctx context.Context, root string, src source, entries []Entry, blobID func([]byte) string) (*Tree, error) {
+	w := &walker{t: &Tree{Root: root}, ls: lang.Open(ctx), blobID: blobID}
 	defer w.ls.Close()
 	// Files a helper has not returned by the deadline are left with what the walk knows.
 	defer func() {
@@ -126,31 +161,52 @@ func Walk(ctx context.Context, root string, entries []Entry, blobID func([]byte)
 		w.t.Languages = map[string]lang.Status{"go": w.ls.Status("go"), "python": w.ls.Status("python")}
 		w.t.Tools = w.ls.Tools()
 	}()
-	for _, e := range entries {
-		if ctx.Err() != nil {
-			// The files read so far are still returned, so a timed-out run can report what it did
-			// measure.
-			return w.t, ctx.Err()
-		}
-		w.entry(e)
+	err := src.each(ctx, entries, func(e Entry, c content) {
+		w.entry(e, c)
 		w.collect(w.ls.Done())
+	})
+	if err != nil {
+		// The files read so far are still returned, so a timed-out run can report what it did measure.
+		return w.t, err
 	}
 	w.collect(w.ls.Wait())
 	return w.t, nil
 }
 
-// walker is the state of Walk.
+// walker is the state of walk.
 type walker struct {
 	t       *Tree
-	root    *os.Root
 	ls      *lang.Set
 	blobID  func([]byte) string
 	tokens  int  // the tokens of the streams kept so far
 	dropped bool // once the streams are over maxTokens, none is kept
 }
 
-// entry reads one file of the commit, or records why it was skipped.
-func (w *walker) entry(e Entry) {
+// classify decides what walk does with an entry before any source reads it: skip it for a reason, pass
+// over it as not source code (no name, no reason), or read it as the language name. Both sources ask
+// it through wanted, so they read exactly the same entries.
+func classify(e Entry) (name string, skip report.SkipReason) {
+	switch {
+	case !validPath(e.Path):
+		return "", report.SkipInvalidPath
+	case e.Mode == "160000":
+		return "", report.SkipNestedRepo
+	}
+	name = language(e.Path)
+	if name != "" && e.Mode == "120000" {
+		return "", report.SkipSymlink
+	}
+	return name, ""
+}
+
+// wanted reports whether walk reads e's content.
+func wanted(e Entry) bool {
+	name, skip := classify(e)
+	return name != "" && skip == ""
+}
+
+// entry records one file of the commit from its content, or why it was skipped.
+func (w *walker) entry(e Entry, c content) {
 	skip := func(reason report.SkipReason, err error) {
 		s := report.Skip{Path: e.Path, Reason: reason}
 		if err != nil {
@@ -158,37 +214,30 @@ func (w *walker) entry(e Entry) {
 		}
 		w.t.Skipped = append(w.t.Skipped, s)
 	}
+	name, reason := classify(e)
 	switch {
-	case !validPath(e.Path):
+	case reason == report.SkipInvalidPath:
 		// Not echoed back: the name itself is the attack.
 		w.t.Skipped = append(w.t.Skipped, report.Skip{Path: "", Reason: report.SkipInvalidPath})
 		return
-	case e.Mode == "160000":
-		skip(report.SkipNestedRepo, nil)
+	case reason != "":
+		skip(reason, nil)
 		return
-	}
-	name := language(e.Path)
-	if name == "" {
+	case name == "":
 		return
-	}
-	if e.Mode == "120000" {
-		skip(report.SkipSymlink, nil)
-		return
-	}
-	src, size, reason, err := readEntry(w.root, e.Path, MaxSourceBytes)
-	if reason != "" {
-		skip(reason, err)
+	case c.reason != "":
+		skip(c.reason, c.err)
 		return
 	}
 	f := facts.File{
 		Path:     e.Path,
 		Language: name,
-		Size:     size,
-		Lines:    countLines(src),
+		Size:     c.size,
+		Lines:    countLines(c.src),
 		Vendored: vendored(e.Path),
-		Modified: w.blobID(src) != e.OID,
+		Modified: w.blobID(c.src) != e.OID,
 	}
-	if w.ls.Fill(len(w.t.Files), &f, src) {
+	if w.ls.Fill(len(w.t.Files), &f, c.src) {
 		w.keep(&f)
 	}
 	w.t.Files = append(w.t.Files, f)

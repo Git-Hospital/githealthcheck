@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -80,6 +81,7 @@ var gitConfig = []string{
 var gitSubcommands = map[string][]string{
 	"rev-parse": nil,
 	"ls-tree":   nil,
+	"cat-file":  nil,
 	"log":       {"--no-ext-diff", "--no-textconv", "--no-show-signature", "--no-color", "--no-mailmap"},
 }
 
@@ -92,6 +94,9 @@ var gitAllowed = map[string]argRule{
 			"--is-shallow-repository", "--show-object-format"},
 	},
 	"ls-tree": {exact: []string{"-r", "-z", "--full-tree"}},
+	// Object names come on stdin, never as arguments. --textconv and --filters, which run the
+	// repository's programs, are not allowed.
+	"cat-file": {exact: []string{"--batch", "--batch-check", "--buffer"}, flagsOnly: true},
 	// Renames are exact only (--find-renames=100% compares object names): scoring a similar rename
 	// inflates both blobs in full, whatever core.bigFileThreshold says.
 	"log": {
@@ -303,6 +308,12 @@ func (g *Git) Run(ctx context.Context, subcommand string, args ...string) ([]byt
 	return out, nil
 }
 
+// Pipe executes an allowed git subcommand like Run, but feeds it stdin and streams its stdout to read,
+// at most limit bytes (Runner.Pipe). It is bounded by the caller's context only.
+func (g *Git) Pipe(ctx context.Context, stdin io.Reader, limit int64, read func(io.Reader) error, subcommand string, args ...string) error {
+	return g.runner.Pipe(ctx, stdin, limit, read, "git", gitArgs(g.root, subcommand, args)...)
+}
+
 // gitPrefix is everything before the subcommand: the global options that apply to every call.
 func gitPrefix(root string) []string {
 	// safe.directory is honoured from the command scope. It names only this root, so a container or
@@ -325,7 +336,7 @@ func gitArgs(root, subcommand string, args []string) []string {
 	allowed := gitAllowed[subcommand]
 	formats := 0
 	for _, a := range args {
-		if a == "--" {
+		if a == "--" && !allowed.flagsOnly {
 			break // the rest are pathspecs
 		}
 		if strings.HasPrefix(a, "--format=") {
@@ -348,11 +359,15 @@ func gitArgs(root, subcommand string, args []string) []string {
 }
 
 // argRule lists the arguments a subcommand takes: exact ones and prefixes of ones with a value.
-type argRule struct{ exact, prefix []string }
+type argRule struct {
+	exact, prefix []string
+	// flagsOnly refuses revisions and "--": the subcommand reads its object names from stdin.
+	flagsOnly bool
+}
 
 // allows reports an argument the rule lists, or a revision.
 func (r argRule) allows(a string) bool {
-	return slices.Contains(r.exact, a) || revisionRE.MatchString(a) ||
+	return slices.Contains(r.exact, a) || !r.flagsOnly && revisionRE.MatchString(a) ||
 		slices.ContainsFunc(r.prefix, func(p string) bool { return strings.HasPrefix(a, p) })
 }
 
