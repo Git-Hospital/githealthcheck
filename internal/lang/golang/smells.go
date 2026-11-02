@@ -113,7 +113,7 @@ func (sf *smellFinder) check(body *ast.BlockStmt, results *ast.FieldList, name s
 		switch {
 		case len(is.Body.List) == 0 && !commented(sf.file, is.Body):
 			sf.add(facts.EmptyErrorCheck, is, name)
-		case returnsError && returnsNilError(is.Body):
+		case returnsError && returnsNilError(is.Body) && !commented(sf.file, is.Body):
 			sf.add(facts.ErrorDropped, is, name)
 		}
 		return true
@@ -178,14 +178,34 @@ func errNotNil(cond ast.Expr) bool {
 	return ok && b.Op == token.NEQ && ErrCheck(cond)
 }
 
-// commented reports whether an empty block holds a comment, which says the emptiness is meant (as
-// SonarSource's S108 treats it).
+// commented reports whether a block holds a comment, which says that ignoring the error is meant: an
+// empty block (as SonarSource's S108 treats it), or one that only returns nil, such as
+// `return nil //nolint:nilerr // best effort`. A comment that marks unfinished work, such as
+// `// TODO: handle the error`, says the opposite.
 func commented(file *ast.File, b *ast.BlockStmt) bool {
 	// The comment groups are in source order: the first after the brace decides.
 	i, _ := slices.BinarySearchFunc(file.Comments, b.Lbrace, func(cg *ast.CommentGroup, p token.Pos) int {
 		return cmp.Compare(cg.Pos(), p+1)
 	})
-	return i < len(file.Comments) && file.Comments[i].End() < b.Rbrace
+	return i < len(file.Comments) && file.Comments[i].End() < b.Rbrace &&
+		!unfinished.MatchString(commentText(file.Comments[i].List[0].Text))
+}
+
+// unfinished matches a comment that marks work left to do: "TODO: handle the error", "FIXME",
+// "todo(name): retry", not one that only mentions a to-do ("the todo list is optional").
+var unfinished = regexp.MustCompile(`(?i)^\s*(todo|fixme|xxx|hack)\b`)
+
+// commentText is a comment without its markers and without a leading nolint directive, whose
+// reason follows a second `//`.
+func commentText(c string) string {
+	if strings.HasPrefix(c, "/*") {
+		return strings.TrimSuffix(c[2:], "*/")
+	}
+	c = strings.TrimPrefix(c, "//")
+	if strings.HasPrefix(c, "nolint") {
+		_, c, _ = strings.Cut(c, "//")
+	}
+	return c
 }
 
 // notImplemented matches the messages of a placeholder: one that says so, or one that is a TODO
