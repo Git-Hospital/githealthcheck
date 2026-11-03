@@ -70,7 +70,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return report.ExitError
 	}
 	switch args[0] {
-	case "version":
+	case "version", "--version", "-version":
 		fmt.Fprintln(stdout, "githealthcheck", version)
 		return report.ExitClean
 	case "scan":
@@ -100,6 +100,9 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	failUnderText := fs.String("fail-under", "", "exit 1 when the overall score is below this value (0-10)")
 	coverageFile := fs.String("coverage", "", "read this coverage report instead of looking for one at the repository root")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return report.ExitClean
+		}
 		return report.ExitError
 	}
 	if fs.NArg() != 1 {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -75,6 +76,9 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 	check := fs.Bool("check", false, "compare with the lock instead of writing it; exit 1 when they differ")
 	timeout := fs.Duration("timeout", 15*time.Minute, "give up on one repository after this long")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+		if errors.Is(err, flag.ErrHelp) {
+			return report.ExitClean
+		}
 		return report.ExitError
 	}
 	data, err := os.ReadFile(*corpusFile)
