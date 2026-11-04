@@ -206,12 +206,28 @@ class File:
             "e": fn.end_lineno,
             "c": lines,
             "s": len(body),
-            "cog": cognitive(fn, self.blines),
+            "cog": cognitive(fn, self.blines, self.opened()),
             "cyc": cyclomatic(fn),
             "nest": nesting(fn.body, 0, self.blines),
             "m": method,
             "x": not short.startswith("_") or (short.startswith("__") and short.endswith("__")),
         }
+
+    def opened(self):
+        """The positions, as ast counts them, of the tokens that come first after an opening
+        parenthesis, past any line breaks and comments; None without tokens."""
+        if getattr(self, "_opened", False) is not False:
+            return self._opened
+        self._opened = None
+        if self.toks and not self.partial:
+            self._opened, cols, after = set(), ByteColumns(self.blines), False
+            for t in self.toks:
+                if t.type in SKIPPED:
+                    continue
+                if after:
+                    self._opened.add(cols.start(t.start))
+                after = t.exact_type == token.LPAR
+        return self._opened
 
     # Imports and references
 
@@ -681,20 +697,21 @@ def call_tight(call, text):
 # Metrics
 
 
-def cognitive(fn, src_lines):
+def cognitive(fn, src_lines, opened=None):
     """Cognitive complexity as SonarSource's Python analyzer computes it (sonar-python
     CognitiveComplexityVisitor, from G. Ann Campbell's paper): +1 for if, elif, else, for, while,
     except and each run of like boolean operators, plus the nesting level for if, for, while, except
     and conditional expressions. Nested functions count toward the function they are in; recursion is
     not counted."""
-    c = Cognitive(src_lines)
+    c = Cognitive(src_lines, opened)
     c.function(fn, 0)
     return c.total
 
 
 class Cognitive:
-    def __init__(self, src_lines):
+    def __init__(self, src_lines, opened=None):
         self.lines = src_lines
+        self.opened = opened
         self.total = 0
         self.frames = []  # the functions and classes the visit is in, innermost last
 
@@ -863,6 +880,10 @@ class Cognitive:
                 self.expr(v, level)
 
     def parenthesised(self, node):
+        """Whether an opening parenthesis comes right before the node, on its line or, through line
+        breaks and comments, on one before it."""
+        if self.opened is not None:
+            return (node.lineno, node.col_offset) in self.opened
         line = self.lines[node.lineno - 1] if node.lineno <= len(self.lines) else b""
         i = node.col_offset - 1
         while i >= 0 and line[i:i + 1] in (b" ", b"\t"):
