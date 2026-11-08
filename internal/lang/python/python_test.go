@@ -466,3 +466,34 @@ func TestLinearInCraftedFiles(t *testing.T) {
 		t.Errorf("long line on %s: analysed %v partial %v, %d tokens", p.Version(), long.Analysed, long.Partial, len(long.Tokens.Kind))
 	}
 }
+
+// A parenthesised and/or chain is its own run of operators whether its opening parenthesis is on
+// the operand's line or ends the line before, as a formatter leaves it.
+func TestCognitiveParenthesisAcrossLines(t *testing.T) {
+	needPython(t)
+	src := `def one(a, b, c, d):
+    return a and (b or c) and d
+
+
+def wrapped(a, b, c, d):
+    return a and (
+        b or c
+    ) and d
+
+
+def commented(a, b, c, d):
+    return a and (  # either
+        b or c
+    ) and d
+`
+	f := run(t, map[string]string{"pkg/m.py": src}, "pkg/m.py")[0]
+	if len(f.Funcs) != 3 {
+		t.Fatalf("functions: %+v", f.Funcs)
+	}
+	for _, g := range f.Funcs {
+		// Sonar: the run of "and" 1, the parenthesised "or" 1.
+		if g.Cognitive != 2 {
+			t.Errorf("%s: cognitive complexity %d, want 2", g.Name, g.Cognitive)
+		}
+	}
+}

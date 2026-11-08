@@ -22,7 +22,11 @@ func Markdown(r *Report) string {
 		head = head[:12]
 	}
 	fmt.Fprintf(&b, "## githealthcheck: %s\n\n", scoreMD(r.Overall.Score))
-	fmt.Fprintf(&b, "%s at `%s`, %d of %d families measured", mdEscape(r.Repository.Path), mdEscape(head), r.Overall.Measured, r.Overall.Of)
+	if head == "" {
+		fmt.Fprintf(&b, "%s, no commits yet, %d of %d families measured", mdEscape(r.Repository.Path), r.Overall.Measured, r.Overall.Of)
+	} else {
+		fmt.Fprintf(&b, "%s at `%s`, %d of %d families measured", mdEscape(r.Repository.Path), mdEscape(head), r.Overall.Measured, r.Overall.Of)
+	}
 	if c := r.Overall.Calibration; c != nil && c.Repositories > 0 {
 		fmt.Fprintf(&b, ", scored as %s against %d corpus repositories (%.0f%% of the code analysed)", mdEscape(c.Language), c.Repositories, 100*c.AnalysedShare)
 	}
@@ -37,11 +41,39 @@ func Markdown(r *Report) string {
 	for _, f := range r.Families {
 		fmt.Fprintf(&b, "| %s | %s | %s |\n", f.Family, scoreMD(f.Score), metricsMD(f))
 	}
+	if c := r.Inputs.Coverage; c != nil {
+		coverageMD(&b, c)
+	}
+	for _, tool := range r.Inputs.Tools {
+		fmt.Fprintf(&b, "\nCode read with %s %s.\n", mdEscape(tool.Name), mdEscape(tool.Version))
+	}
 	mdFindings(&b, r)
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(&b, "\n%d paths were not read; the JSON report lists them.\n", len(r.Skipped))
 	}
 	return b.String()
+}
+
+// coverageMD names the report and the commit files its coverage can describe.
+func coverageMD(b *strings.Builder, c *CoverageInput) {
+	tracked := "untracked"
+	if c.Tracked {
+		tracked = "tracked"
+	}
+	fmt.Fprintf(b, "\nCoverage report %s (%s", mdEscape(c.Path), tracked)
+	if c.Format != "" {
+		fmt.Fprintf(b, ", %s", mdEscape(c.Format))
+	}
+	b.WriteString(")")
+	if c.Files != nil && c.FilesAtHead != nil {
+		if c.Format == "cobertura" {
+			fmt.Fprintf(b, ": %d of the %d files it lists are in the commit", *c.FilesAtHead, *c.Files)
+		} else if c.ModuleFiles != nil {
+			fmt.Fprintf(b, ": %d of the %d files it lists under the repository's modules are in the commit (%d files listed)",
+				*c.FilesAtHead, *c.ModuleFiles, *c.Files)
+		}
+	}
+	b.WriteString(".\n")
 }
 
 // metricsMD is a family's metrics, one per line of its table cell.
