@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -99,6 +100,7 @@ func TestApply(t *testing.T) {
 		{Rule: "GHC-TEST-001", Path: "cmd/tool", Reason: "wiring only"},
 		{Rule: "GHC-HIST-001", Reason: "two people"},
 		{Rule: "GHC-CPLX-001", Path: "nothing/here", Reason: "unused"},
+		{Rule: "GHC-TEST-001", Path: "cmd/tool/sub", Reason: "covered by the first too"},
 	}}
 	fams := []report.FamilyResult{{Findings: []report.Finding{
 		{RuleID: "GHC-TEST-001", Path: "cmd/tool"},
@@ -147,7 +149,8 @@ func FuzzParse(f *testing.F) {
 		}
 		for _, s := range c.Suppress {
 			if !ruleID.MatchString(s.Rule) || strings.TrimSpace(s.Reason) == "" || s.Line < 1 ||
-				strings.HasPrefix(s.Path, "/") || strings.HasPrefix(s.Path, "..") {
+				strings.HasPrefix(s.Path, "/") || strings.HasPrefix(s.Path, "..") ||
+				s.Path == "." || s.Path != "" && s.Path != path.Clean(s.Path) {
 				t.Fatalf("accepted a bad suppression %+v from %q", s, src)
 			}
 		}

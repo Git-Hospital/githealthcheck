@@ -289,18 +289,10 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 		readFacts(ctx, git, entries, r, rf)
 	}
 	runFamilies(ctx, r, rf, timedOut)
-	// Marks findings only: no metric or score depends on a finding's suppression (D21). A suppression
-	// that matches nothing is most often a typo in its path, which would otherwise go unseen; after a
-	// timeout the families did not run, so nothing could match.
+	// Marks findings only: no metric or score depends on a finding's suppression (D21).
 	unused := conf.Apply(r.Families)
-	if !timedOut {
-		for _, s := range unused {
-			where := "any path"
-			if s.Path != "" {
-				where = strconv.Quote(s.Path)
-			}
-			fmt.Fprintf(warn, "githealthcheck: warning: %s line %d: the suppression of %s under %s matches no finding\n", config.FileName, s.Line, s.Rule, where)
-		}
+	if ctx.Err() == nil {
+		warnUnused(warn, unused, r.Families)
 	}
 	if corpus != nil && !timedOut {
 		corpus.Apply(r)
@@ -310,6 +302,32 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
 	}
 	return r, rf.Paths, nil
+}
+
+// warnUnused names the suppressions that cover no finding: most often a typo in the path, which
+// would otherwise go unseen. A family that timed out or crashed reported nothing, so its rules'
+// suppressions are left alone: a user told that a valid entry is unused may delete it.
+func warnUnused(w io.Writer, unused []config.Suppression, families []report.FamilyResult) {
+	ruleFamily := map[string]report.Family{}
+	for _, a := range analyzers {
+		for _, rl := range a.Rules() {
+			ruleFamily[rl.ID] = a.Family()
+		}
+	}
+	incomplete := map[report.Family]bool{}
+	for _, f := range families {
+		incomplete[f.Family] = f.Reason == report.Timeout || f.Reason == report.ToolCrashed
+	}
+	for _, s := range unused {
+		if incomplete[ruleFamily[s.Rule]] {
+			continue
+		}
+		where := "any path"
+		if s.Path != "" {
+			where = strconv.Quote(s.Path)
+		}
+		fmt.Fprintf(w, "githealthcheck: warning: %s line %d: the suppression of %s under %s matches no finding\n", config.FileName, s.Line, s.Rule, where)
+	}
 }
 
 // readConfig reads .githealthcheck.yml at the root of the work tree, with the walk's guards, since it

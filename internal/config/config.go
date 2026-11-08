@@ -304,7 +304,8 @@ func short(s string) string {
 }
 
 // Apply marks each finding that a suppression covers, with the first matching suppression's reason.
-// It changes nothing else in the families. It returns the suppressions that matched no finding.
+// It changes nothing else in the families. It returns the suppressions that cover no finding; one
+// that covers only findings an earlier entry covers too is not among them.
 func (c *Config) Apply(families []report.FamilyResult) (unused []Suppression) {
 	if c == nil {
 		return nil
@@ -319,9 +320,10 @@ func (c *Config) Apply(families []report.FamilyResult) (unused []Suppression) {
 			fd := &families[fi].Findings[di]
 			for _, i := range byRule[fd.RuleID] {
 				if covers(c.Suppress[i].Path, fd.Path) {
-					fd.Suppressed, fd.SuppressReason = true, c.Suppress[i].Reason
+					if !fd.Suppressed {
+						fd.Suppressed, fd.SuppressReason = true, c.Suppress[i].Reason
+					}
 					used[i] = true
-					break
 				}
 			}
 		}

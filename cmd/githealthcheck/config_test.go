@@ -2,12 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Git-Hospital/githealthcheck/internal/analyze"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
+	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
+	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/report"
 )
 
@@ -148,5 +154,31 @@ func TestInvalidConfigIsAnError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"scan", dir}, &stdout, &stderr); code != report.ExitError || !strings.Contains(stderr.String(), "symlink") {
 		t.Errorf("a symlinked config: exit %d, stderr %q", code, stderr.String())
+	}
+}
+
+// timedOut is a family that ran out of time after the walk: it reports no findings.
+type timedOut struct{ analyze.Analyzer }
+
+func (timedOut) Run(context.Context, *facts.Repo) analyze.Result {
+	return analyze.Result{Reason: report.Timeout}
+}
+
+// A family that timed out found nothing, so its rules' suppressions are not reported as unused; the
+// other families' still are.
+func TestNoUnusedWarningForATimedOutFamily(t *testing.T) {
+	saved := analyzers
+	t.Cleanup(func() { analyzers = saved })
+	analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}, timedOut{complexity.Analyzer{}}}
+	dir := gitRepo(t)
+	conf := "version: 1\nsuppress:\n  - rule: GHC-CPLX-001\n    reason: generated\n" +
+		"  - rule: GHC-HIST-002\n    path: no/such/dir\n    reason: typo\n"
+	if err := os.WriteFile(filepath.Join(dir, ".githealthcheck.yml"), []byte(conf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	if strings.Contains(stderr.String(), "GHC-CPLX-001") || !strings.Contains(stderr.String(), `line 5: the suppression of GHC-HIST-002 under "no/such/dir" matches no finding`) {
+		t.Errorf("stderr %q", stderr.String())
 	}
 }
