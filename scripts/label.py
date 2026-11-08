@@ -4,13 +4,16 @@
 Usage:
   python3 -I scripts/label.py fixrule test label NAME     label the test commits as NAME
   python3 -I scripts/label.py fixrule test merge A B      write labels-test-human.tsv from A's and B's labels
-  python3 -I scripts/label.py fixrule test resolve        settle the disagreements in labels-test-human.tsv
+  python3 -I scripts/label.py fixrule test resolve NAME   settle the disagreements in labels-test-human.tsv as NAME
 
 `label` shows one commit at a time: its repository, hash, subject, message and diff (vendored and
 generated files left out, cut at 400 lines), as GUIDELINE.md says. It never reads the models' labels,
 the rule's verdicts or the other person's file. The order is shuffled per labeller. Each answer is
 written at once to testdata/fixrule/human/NAME.tsv, so a session can stop and resume with the commits
 still unlabelled.
+
+`resolve` is for a third person: it refuses the two whose labels it settles, and writes the
+resolver's name beside each label it settles.
 
 Diffs come from the GitHub API through `gh`, which must be logged in. The commit text is written by
 the repository's authors: control and format characters (escape sequences, bidi overrides, zero-width
@@ -53,7 +56,10 @@ def split_rows(split):
 
 
 def gh(*args):
-    return subprocess.run(["gh", "api", *args], check=True, capture_output=True).stdout.decode("utf-8", "replace")
+    try:
+        return subprocess.run(["gh", "api", *args], check=True, capture_output=True).stdout.decode("utf-8", "replace")
+    except FileNotFoundError:
+        sys.exit("the diffs come through the GitHub CLI: install gh (https://cli.github.com) and run gh auth login")
 
 
 def show(repo, commit):
@@ -152,25 +158,32 @@ def merge(split, a, b):
     missing = [r["commit"][:12] for r in rows if (r["repo"], r["commit"]) not in la or (r["repo"], r["commit"]) not in lb]
     if missing:
         sys.exit(f"{len(missing)} commits are not labelled by both yet, for example {missing[0]}")
-    out = [f"repo\tcommit\tstratum\t{a}\t{a}_reason\t{b}\t{b}_reason\tlabel\tresolution\n"]
+    out = [f"repo\tcommit\tstratum\t{a}\t{a}_reason\t{b}\t{b}_reason\tlabel\tresolution\tresolved_by\n"]
     agree = 0
     for r in rows:
         x, y = la[(r["repo"], r["commit"])], lb[(r["repo"], r["commit"])]
         same = x["label"] == y["label"]
         agree += same
         out.append(f"{r['repo']}\t{r['commit']}\t{r['stratum']}\t{x['label']}\t{x['reason']}\t{y['label']}\t{y['reason']}\t"
-                   f"{x['label'] if same else ''}\t\n")
+                   f"{x['label'] if same else ''}\t\t\n")
     write_atomic(out_path, "".join(out))
-    print(f"agreed on {agree} of {len(rows)}; run resolve for the other {len(rows) - agree}")
+    print(f"agreed on {agree} of {len(rows)}; a third person runs resolve for the other {len(rows) - agree}")
 
 
-def resolve(split):
+def resolve(split, name):
+    check_name(name)
     path = DIR / f"labels-{split}-human.tsv"
     rows = list(csv.DictReader(open(path), delimiter="\t", quoting=csv.QUOTE_NONE))
     if not rows:
         sys.exit(f"{path.name} is empty; run merge first")
     fields = list(rows[0].keys())
     a, b = fields[3], fields[5]
+    if name in (a, b):
+        sys.exit(f"{name} labelled these commits; a third person settles the disagreements between {a} and {b}")
+    if "resolved_by" not in fields:
+        fields.append("resolved_by")
+        for r in rows:
+            r["resolved_by"] = ""
     for r in rows:
         if r["label"]:
             continue
@@ -186,7 +199,7 @@ def resolve(split):
         reason = ""
         while not reason:
             reason = one_line(input("why: "))
-        r["label"], r["resolution"] = ("fix" if x == "f" else "not_fix"), reason
+        r["label"], r["resolution"], r["resolved_by"] = ("fix" if x == "f" else "not_fix"), reason, name
         write_atomic(path, "\t".join(fields) + "\n" + "".join("\t".join(row[k] for k in fields) + "\n" for row in rows))
     left = sum(not r["label"] for r in rows)
     print(f"{left} disagreements left" if left else "all resolved")
@@ -199,8 +212,8 @@ if __name__ == "__main__":
             label(args[1], args[3])
         elif args[2] == "merge" and len(args) == 5:
             merge(args[1], args[3], args[4])
-        elif args[2] == "resolve" and len(args) == 3:
-            resolve(args[1])
+        elif args[2] == "resolve" and len(args) == 4:
+            resolve(args[1], args[3])
         else:
             sys.exit(__doc__)
     else:

@@ -83,6 +83,11 @@ def score(split, source=""):
         sys.exit(f"{name} has unresolved disagreements; run scripts/label.py fixrule {split} resolve")
     cols = list(labels[0].keys())
     a, b = [c for c in cols if c + "_reason" in cols][:2]
+    if any(r.get("resolution") and not r.get("resolved_by") for r in labels):
+        sys.exit(f"{name}: a disagreement is settled without the resolver's name; settle it with scripts/label.py fixrule {split} resolve NAME")
+    resolvers = sorted({r["resolved_by"] for r in labels if r.get("resolution")})
+    if a in resolvers or b in resolvers:
+        sys.exit(f"{name}: a disagreement between {a} and {b} was settled by one of them; a third person settles them")
     rows = [(r["repo"], r["stratum"], r["label"] == "fix", is_fix(subj[(r["repo"], r["commit"])])) for r in labels]
     # The same rows with each disagreement resolved for the other labeller.
     flipped = [(r["repo"], r["stratum"], (r[a] if r["label"] != r[a] else r[b]) == "fix", hit)
@@ -115,7 +120,8 @@ def score(split, source=""):
     hits = sum(h for *_, h in rows)
     agree, k = kappa(labels, a, b)
     print(f"{split} ({name}): {len(rows)} commits, rule matched {hits}, labelled fix {sum(f for _, _, f, _ in rows)}")
-    print(f"labellers {a} and {b} agreed on {agree:.0%} (Cohen's kappa {k:.2f})")
+    print(f"labellers {a} and {b} agreed on {agree:.0%} (Cohen's kappa {k:.2f})"
+          + (f"; disagreements settled by {', '.join(resolvers)}" if resolvers else ""))
     print(f"precision {p:.3f} (90% {ps[lo]:.3f}-{ps[hi]:.3f}), recall {r:.3f} (90% {rs[lo]:.3f}-{rs[hi]:.3f}), weighted")
     p, r = pr(flipped)
     print(f"with each disagreement resolved the other way: precision {p:.3f}, recall {r:.3f}, weighted")

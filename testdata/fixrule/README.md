@@ -59,11 +59,11 @@ Labelled after the rule was frozen, and scored once with `python3 -I scripts/fix
 
 ## People's labels for the test split
 
-The labels above are the models'. The figures githealthcheck publishes come from labels written by people: two maintainers label the same 200 test commits, each on their own, and a third settles what they disagree on. The commitment and the frozen rule do not change, so this measures the same rule against a second, human ground truth; the rule is not tuned on it. Until both people have labelled every commit, the precision above is the models' and is reported as such.
+The labels above are the models'. The figures githealthcheck publishes come from labels written by people: two maintainers label the same 200 test commits, each on their own, and a third settles what they disagree on. The commitment and the frozen rule do not change, so this measures the same rule against a second, human ground truth; the rule is not tuned on it. Blind is limited in one way: all three maintainers, the author and both reviewers of the pull request that added this set (#21), have seen `labels-test.tsv`, the models' labels and reasons for these same commits. Nobody remembers 200 labels, but the labeller should not open that file again until merge, and the figures in this file name who labelled and who settled. Until both people have labelled every commit, the precision above is the models' and is reported as such.
 
 1. Each person runs `python3 -I scripts/label.py fixrule test label <name>` and labels the commits by `GUIDELINE.md`. The script shows one commit at a time, in an order shuffled per person, and never shows the models' labels, the rule's verdicts or the other person's file. Answers go to `human/<name>.tsv` at once, so a session can stop and resume. It needs `gh` logged in, to fetch each diff.
 2. `python3 -I scripts/label.py fixrule test merge <a> <b>` writes `labels-test-human.tsv` and counts the agreements.
-3. A third person runs `python3 -I scripts/label.py fixrule test resolve`, which shows both labels and reasons for each disagreement and records the label and why.
+3. A third person runs `python3 -I scripts/label.py fixrule test resolve <name>`, which shows both labels and reasons for each disagreement and records the label, why, and who settled it. It refuses the two labellers, and `score` refuses a file in which one of them settled a disagreement.
 4. `python3 -I scripts/fixrule-eval.py score test human` prints the figures, the agreement and Cohen's kappa. They replace the models' figures in this file and in ADR 0002, and the models' labels stay as a second view.
 
 ## Known limits, for the next labelled set
