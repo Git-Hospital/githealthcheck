@@ -69,6 +69,7 @@ func TestScanJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 		t.Fatalf("output is not JSON: %v\n%s", err, stdout.String())
 	}
+	validateReport(t, stdout.Bytes())
 	if r.SchemaVersion != report.SchemaVersion || len(r.Repository.Head) != 40 {
 		t.Errorf("schemaVersion %d head %q", r.SchemaVersion, r.Repository.Head)
 	}
@@ -310,6 +311,7 @@ func TestScanWalkTimeoutStillReports(t *testing.T) {
 		if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 			t.Fatalf("no JSON report on a walk timeout: %v\n%s", err, stdout.String())
 		}
+		validateReport(t, stdout.Bytes())
 		if r.Inputs.WalkComplete {
 			t.Error("walkComplete is true after a walk timeout")
 		}
@@ -411,6 +413,7 @@ func TestScanUnbornHead(t *testing.T) {
 	if strings.Contains(stdout.String(), `"head"`) {
 		t.Errorf("unborn branch reported a head:\n%s", stdout.String())
 	}
+	validateReport(t, stdout.Bytes())
 	stdout.Reset()
 	stderr.Reset()
 	if code := run([]string{"scan", dir}, &stdout, &stderr); code != report.ExitIncomplete {

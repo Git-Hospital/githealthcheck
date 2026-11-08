@@ -74,6 +74,8 @@ Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 
 `--json`, `--sarif` and `--markdown <file>` also write those renderings of the same scan. SARIF 2.1.0 is for code scanning: findings that are not on one file (a repository's truck factor, a Go package without tests) are counted there but listed only in the JSON and Markdown reports.
 
+The JSON report is the source of truth, and [`schema/report.v1.json`](schema/report.v1.json) describes it (JSON Schema 2020-12). Check `schemaVersion` first: it changes whenever a field changes meaning or disappears. Every score and metric is a number or `null` with a `reason`, never both.
+
 ## GitHub Action
 
 ```yaml
