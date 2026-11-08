@@ -38,6 +38,9 @@ func scanJSON(t *testing.T, args ...string) (report.Report, int, string) {
 		if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 			t.Fatalf("%v\n%s\n%s", err, stdout.String(), stderr.String())
 		}
+		// Every report a test reads through here, the rule pairs among them, is checked against
+		// the published schema (architecture section 7).
+		validateReport(t, stdout.Bytes())
 	}
 	return r, code, stdout.String() + stderr.String()
 }
