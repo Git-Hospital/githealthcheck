@@ -29,6 +29,7 @@ import (
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/tests"
+	"github.com/Git-Hospital/githealthcheck/internal/config"
 	"github.com/Git-Hospital/githealthcheck/internal/execx"
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 	"github.com/Git-Hospital/githealthcheck/internal/gitx"
@@ -244,6 +245,10 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 	if err != nil {
 		return nil, nil, err
 	}
+	conf, err := readConfig(git.Root())
+	if err != nil {
+		return nil, nil, err
+	}
 	// Read before the walk: a report the user named that cannot be read is a usage error, and is
 	// reported before any time is spent.
 	var cov *facts.Coverage
@@ -284,6 +289,8 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		readFacts(ctx, git, entries, r, rf)
 	}
 	runFamilies(ctx, r, rf, timedOut)
+	// Marks findings only: no metric or score depends on a finding's suppression (D21).
+	conf.Apply(r.Families)
 	if corpus != nil && !timedOut {
 		corpus.Apply(r)
 	}
@@ -292,6 +299,35 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		r.Inputs.Coverage = &report.CoverageInput{Path: cov.Name, Tracked: cov.Tracked}
 	}
 	return r, rf.Paths, nil
+}
+
+// readConfig reads .githealthcheck.yml at the root of the work tree, with the walk's guards, since it
+// is untrusted input from the scanned repository. A file that is absent is no configuration; one that
+// cannot be read or does not parse is an error (exit 2), so a suppression is never silently dropped.
+func readConfig(root string) (*config.Config, error) {
+	src, skip := repo.ReadFile(root, config.FileName, config.MaxBytes)
+	switch {
+	case skip != nil && skip.Reason == report.SkipMissing:
+		return nil, nil
+	case skip != nil && skip.Reason == report.SkipTooLarge:
+		return nil, fmt.Errorf("invalid_config: %s: over %d KiB", config.FileName, config.MaxBytes>>10)
+	case skip != nil:
+		return nil, fmt.Errorf("invalid_config: %s: %s", config.FileName, skip.Reason)
+	}
+	c, err := config.Parse(src)
+	if err != nil {
+		return nil, fmt.Errorf("invalid_config: %w", err)
+	}
+	known := map[string]bool{}
+	for _, rl := range rules() {
+		known[rl.ID] = true
+	}
+	for _, s := range c.Suppress {
+		if !known[s.Rule] {
+			return nil, fmt.Errorf("invalid_config: %w", &config.Error{Line: s.Line, Msg: "no rule " + s.Rule + " in this build"})
+		}
+	}
+	return c, nil
 }
 
 // readHead returns the commit HEAD names, empty on an unborn branch, and whether the clone is shallow.
@@ -641,26 +677,39 @@ func textCoverage(b *strings.Builder, c *report.CoverageInput) {
 	b.WriteString("\n")
 }
 
+// textFindings lists the findings that count, then the suppressed ones with their reasons, which
+// stay visible but are not in the total.
 func textFindings(b *strings.Builder, r *report.Report) {
-	findings := 0
-	for _, f := range r.Families {
-		findings += len(f.Findings)
-	}
-	if findings == 0 {
-		return
-	}
-	fmt.Fprintf(b, "\nFindings (%d)\n", findings)
-	for _, f := range r.Families {
-		for _, fd := range f.Findings {
-			switch {
-			case fd.Path == "":
-				fmt.Fprintf(b, "  %s  %s\n", fd.RuleID, printable(fd.Message))
-			case fd.Line > 0:
-				fmt.Fprintf(b, "  %s  %s:%d: %s\n", fd.RuleID, printable(fd.Path), fd.Line, printable(fd.Message))
-			default:
-				fmt.Fprintf(b, "  %s  %s: %s\n", fd.RuleID, printable(fd.Path), printable(fd.Message))
+	for _, suppressed := range []bool{false, true} {
+		var lines []string
+		for _, f := range r.Families {
+			for _, fd := range f.Findings {
+				if fd.Suppressed != suppressed {
+					continue
+				}
+				var line string
+				switch {
+				case fd.Path == "":
+					line = fmt.Sprintf("  %s  %s", fd.RuleID, printable(fd.Message))
+				case fd.Line > 0:
+					line = fmt.Sprintf("  %s  %s:%d: %s", fd.RuleID, printable(fd.Path), fd.Line, printable(fd.Message))
+				default:
+					line = fmt.Sprintf("  %s  %s: %s", fd.RuleID, printable(fd.Path), printable(fd.Message))
+				}
+				if suppressed {
+					line += "  (" + printable(fd.SuppressReason) + ")"
+				}
+				lines = append(lines, line)
 			}
 		}
+		if len(lines) == 0 {
+			continue
+		}
+		title := "Findings"
+		if suppressed {
+			title = "Suppressed in " + config.FileName
+		}
+		fmt.Fprintf(b, "\n%s (%d)\n%s\n", title, len(lines), strings.Join(lines, "\n"))
 	}
 }
 
