@@ -36,11 +36,12 @@ Overall  6.2/10  (2 of 4 families measured)
 
 That is this repository scanning itself at commit `3029e9b`, shortened. History is `null` because the repository has 43 commits and the family needs 50, and 12 of the 13 findings are the defect fixtures under `testdata/`, which are there on purpose.
 
-**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in three decision records:
+**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in four decision records:
 
 - [0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the rewrite in Go;
 - [0002-evidence.md](docs/decisions/0002-evidence.md), evidence, for v0.4.0;
-- [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.5.0 to v0.7.0.
+- [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.6.0 and v0.7.0 (the order as amended by 0005);
+- [0005-checker-beside-agents.md](docs/decisions/0005-checker-beside-agents.md), measured precision for every default rule and `verify` with a pull-request comment, for v0.4.0 and v0.5.0.
 
 The design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
 
