@@ -57,6 +57,15 @@ Labelled after the rule was frozen, and scored once with `python3 -I scripts/fix
 - **Recall is low (0.28)**, lower than on dev. Most fixes name no defect in their subject; home-assistant/core's subjects rarely do. ADR 0002's amendment explains why precision is the bar. Recall differs between repositories, so the rule's fix counts compare files within one repository, not repositories with each other.
 - The test split is now spent: a later change to the rule needs a new labelled set.
 
+## People's labels for the test split
+
+The labels above are the models'. The figures githealthcheck publishes come from labels written by people: two maintainers label the same 200 test commits, each on their own, and a third settles what they disagree on. The commitment and the frozen rule do not change, so this measures the same rule against a second, human ground truth; the rule is not tuned on it. Until both people have labelled every commit, the precision above is the models' and is reported as such.
+
+1. Each person runs `python3 -I scripts/label.py fixrule test label <name>` and labels the commits by `GUIDELINE.md`. The script shows one commit at a time, in an order shuffled per person, and never shows the models' labels, the rule's verdicts or the other person's file. Answers go to `human/<name>.tsv` at once, so a session can stop and resume. It needs `gh` logged in, to fetch each diff.
+2. `python3 -I scripts/label.py fixrule test merge <a> <b>` writes `labels-test-human.tsv` and counts the agreements.
+3. A third person runs `python3 -I scripts/label.py fixrule test resolve`, which shows both labels and reasons for each disagreement and records the label and why.
+4. `python3 -I scripts/fixrule-eval.py score test human` prints the figures, the agreement and Cohen's kappa. They replace the models' figures in this file and in ADR 0002, and the models' labels stay as a second view.
+
 ## Known limits, for the next labelled set
 
 Found in review after the test split was scored. None was changed, since a change would no longer be the rule that was measured.

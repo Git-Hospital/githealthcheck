@@ -4,7 +4,11 @@
 Usage:
   python3 -I scripts/fixrule-eval.py subjects CLONES_DIR   write subjects.tsv from the bare clones
   python3 -I scripts/fixrule-eval.py verdicts                write verdicts.tsv (the Go test reads it)
-  python3 -I scripts/fixrule-eval.py score dev|test          weighted precision and recall, 90% intervals
+  python3 -I scripts/fixrule-eval.py score dev|test [human] weighted precision and recall, 90% intervals
+
+`score test human` reads labels-test-human.tsv, the people's labels (scripts/label.py), instead of
+labels-test.tsv, the models' labels. Either file names its two labellers in its header: each is a
+column followed by one named like it with _reason.
 
 The rule's expressions are read from internal/gitx/fix.go. Go turns control and non-ASCII characters
 into spaces before matching, as subjects.tsv does with control characters, and re.ASCII then gives the
@@ -62,13 +66,26 @@ def verdicts():
     (DIR / "verdicts.tsv").write_text("".join(out))
 
 
-def score(split):
+def kappa(labels, a, b):
+    n = len(labels)
+    agree = sum(r[a] == r[b] for r in labels) / n
+    pa, pb = (sum(r[k] == "fix" for r in labels) / n for k in (a, b))
+    chance = pa * pb + (1 - pa) * (1 - pb)
+    return agree, (agree - chance) / (1 - chance) if chance < 1 else float("nan")
+
+
+def score(split, source=""):
     is_fix, subj = rule(), load_subjects()
     strata = {(r["repo"], r["stratum"]): int(r["commits"]) for r in csv.DictReader(open(DIR / "strata.tsv"), delimiter="\t")}
-    labels = list(csv.DictReader(open(DIR / f"labels-{split}.tsv"), delimiter="\t", quoting=csv.QUOTE_NONE))
+    name = f"labels-{split}-human.tsv" if source == "human" else f"labels-{split}.tsv"
+    labels = list(csv.DictReader(open(DIR / name), delimiter="\t", quoting=csv.QUOTE_NONE))
+    if any(not r["label"] for r in labels):
+        sys.exit(f"{name} has unresolved disagreements; run scripts/label.py fixrule {split} resolve")
+    cols = list(labels[0].keys())
+    a, b = [c for c in cols if c + "_reason" in cols][:2]
     rows = [(r["repo"], r["stratum"], r["label"] == "fix", is_fix(subj[(r["repo"], r["commit"])])) for r in labels]
     # The same rows with each disagreement resolved for the other labeller.
-    flipped = [(r["repo"], r["stratum"], (r["opus"] if r["label"] != r["opus"] else r["sonnet"]) == "fix", hit)
+    flipped = [(r["repo"], r["stratum"], (r[a] if r["label"] != r[a] else r[b]) == "fix", hit)
                for r, (_, _, _, hit) in zip(labels, rows)]
     drawn = {}
     for repo, st, _, _ in rows:
@@ -96,7 +113,9 @@ def score(split):
     lo, hi = int(0.05 * len(ps)), int(0.95 * len(ps))
     p, r = pr(rows)
     hits = sum(h for *_, h in rows)
-    print(f"{split}: {len(rows)} commits, rule matched {hits}, labelled fix {sum(f for _, _, f, _ in rows)}")
+    agree, k = kappa(labels, a, b)
+    print(f"{split} ({name}): {len(rows)} commits, rule matched {hits}, labelled fix {sum(f for _, _, f, _ in rows)}")
+    print(f"labellers {a} and {b} agreed on {agree:.0%} (Cohen's kappa {k:.2f})")
     print(f"precision {p:.3f} (90% {ps[lo]:.3f}-{ps[hi]:.3f}), recall {r:.3f} (90% {rs[lo]:.3f}-{rs[hi]:.3f}), weighted")
     p, r = pr(flipped)
     print(f"with each disagreement resolved the other way: precision {p:.3f}, recall {r:.3f}, weighted")
@@ -122,6 +141,6 @@ if __name__ == "__main__":
     elif cmd == "verdicts":
         verdicts()
     elif cmd == "score":
-        score(sys.argv[2])
+        score(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
     else:
         sys.exit(__doc__)
