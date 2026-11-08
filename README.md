@@ -41,7 +41,7 @@ That is this repository scanning itself at commit `3029e9b`, shortened. History 
 - [0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the rewrite in Go;
 - [0002-evidence.md](docs/decisions/0002-evidence.md), evidence, for v0.4.0;
 - [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.5.0 to v0.7.0;
-- [0004-trust-ledger.md](docs/decisions/0004-trust-ledger.md), sealed predictions and protected tests.
+- [0004-trust-ledger.md](docs/decisions/0004-trust-ledger.md), sealed predictions and protected tests, for v0.4.0 and v0.6.0.
 
 The design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
 
