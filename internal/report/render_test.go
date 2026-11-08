@@ -132,7 +132,7 @@ func TestMarkdown(t *testing.T) {
 		"repo at `0123456789ab`, 3 of 4 families measured",
 		"scored as go against 15 corpus repositories",
 		"| tests | **4.2/10** | untested_package_share 50.0% (4.2) |",
-		"### Findings (5)",
+		"### Findings (5, 1 of them suppressed)",
 		"- [GHC-CPLX-001](" + RulesURL + "GHC-CPLX-001.md) a\\:b\\/c\\.go:12: F has cognitive complexity 20",
 		"(suppressed: kept on purpose)",
 	} {

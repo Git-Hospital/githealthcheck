@@ -88,7 +88,7 @@ suppress:
     reason: main only wires the other packages together
 ```
 
-A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and does not count in the exit code. Suppression never changes a metric or a score. The file is read as untrusted input: a strict subset of YAML (the keys above, comments, plain or quoted values, an entry's keys two spaces in from its `-`), at most 64 KiB and 1,000 suppressions. A file that does not parse, an unknown key or rule, or a missing reason stops the scan with exit 2 and the line number.
+A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and does not count in the exit code. Suppression never changes a metric or a score. The file is read as untrusted input: a strict subset of YAML (the keys above, comments, plain or quoted values, an entry's keys two spaces in from its `-`), at most 64 KiB and 1,000 suppressions. A file that does not parse, an unknown key or rule, a missing reason or an empty `path` stops the scan with exit 2 and the line number. A suppression that matches no finding, most often a mistyped path, is named in a warning on stderr.
 
 ## GitHub Action
 

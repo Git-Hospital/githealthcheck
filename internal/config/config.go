@@ -259,7 +259,7 @@ func scalar(s string) (string, error) {
 	return s, nil
 }
 
-// stripComment removes a comment: a # at the start or after a space, outside quotes.
+// stripComment removes a comment: a # at the start or after a space or a tab, outside quotes.
 func stripComment(s string) (string, error) {
 	var quote byte
 	for i := 0; i < len(s); i++ {
@@ -271,15 +271,15 @@ func stripComment(s string) (string, error) {
 			quote = 0
 		case quote == 0 && (c == '"' || c == '\'') && (i == 0 || strings.ContainsRune(" :-", rune(s[i-1]))):
 			quote = c
-		case quote == 0 && c == '#' && (i == 0 || s[i-1] == ' '):
+		case quote == 0 && c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t'):
 			return s[:i], nil
 		}
 	}
 	return s, nil
 }
 
-// cleanPath turns a path into the slash-separated form findings use. It must stay inside the
-// repository.
+// cleanPath turns a path into the slash-separated form findings use. It must name something inside
+// the repository, not the repository itself.
 func cleanPath(p string) (string, error) {
 	if strings.ContainsRune(p, '\\') {
 		return "", fmt.Errorf("path %s: use / as the separator", short(p))
@@ -287,7 +287,9 @@ func cleanPath(p string) (string, error) {
 	c := path.Clean(p)
 	switch {
 	case p == "" || c == ".":
-		return "", nil
+		// An empty path would cover every path, so a typo or a forgotten value would widen the
+		// suppression to the whole repository. Leaving the key out says that on purpose.
+		return "", fmt.Errorf("path is empty; leave the key out to suppress the rule everywhere")
 	case path.IsAbs(c) || c == ".." || strings.HasPrefix(c, "../"):
 		return "", fmt.Errorf("path %s is outside the repository", short(p))
 	}

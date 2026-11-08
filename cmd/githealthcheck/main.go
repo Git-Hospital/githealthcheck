@@ -130,7 +130,7 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	start := time.Now()
 
-	r, files, err := buildReport(ctx, fs.Arg(0), *coverageFile)
+	r, files, err := buildReport(ctx, fs.Arg(0), *coverageFile, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "githealthcheck:", err)
 		// Incomplete only when the user's --timeout ran out. A per-command timeout inside (a config
@@ -239,8 +239,8 @@ var walk = repo.Walk
 var analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}, complexity.Analyzer{}}
 
 // buildReport scans the repository at path. It also returns the files of the commit, which SARIF
-// needs to tell a finding on a file from one on a directory.
-func buildReport(ctx context.Context, path, coverageFile string) (*report.Report, map[string]bool, error) {
+// needs to tell a finding on a file from one on a directory. Warnings go to warn.
+func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer) (*report.Report, map[string]bool, error) {
 	git, err := execx.NewGit(ctx, path)
 	if err != nil {
 		return nil, nil, err
@@ -289,8 +289,19 @@ func buildReport(ctx context.Context, path, coverageFile string) (*report.Report
 		readFacts(ctx, git, entries, r, rf)
 	}
 	runFamilies(ctx, r, rf, timedOut)
-	// Marks findings only: no metric or score depends on a finding's suppression (D21).
-	conf.Apply(r.Families)
+	// Marks findings only: no metric or score depends on a finding's suppression (D21). A suppression
+	// that matches nothing is most often a typo in its path, which would otherwise go unseen; after a
+	// timeout the families did not run, so nothing could match.
+	unused := conf.Apply(r.Families)
+	if !timedOut {
+		for _, s := range unused {
+			where := "any path"
+			if s.Path != "" {
+				where = strconv.Quote(s.Path)
+			}
+			fmt.Fprintf(warn, "githealthcheck: warning: %s line %d: the suppression of %s under %s matches no finding\n", config.FileName, s.Line, s.Rule, where)
+		}
+	}
 	if corpus != nil && !timedOut {
 		corpus.Apply(r)
 	}

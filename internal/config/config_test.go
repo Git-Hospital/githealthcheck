@@ -34,6 +34,11 @@ suppress:
 	if c.Version != 1 || !reflect.DeepEqual(c.Suppress, want) {
 		t.Fatalf("got %+v", c)
 	}
+	// YAML starts a comment at a # after any white space, a tab too.
+	c, err = Parse([]byte("version: 1\nsuppress:\n  - rule: GHC-TEST-001\n    path: cmd/tool\t# only this one\n    reason: x\n"))
+	if err != nil || len(c.Suppress) != 1 || c.Suppress[0].Path != "cmd/tool" {
+		t.Errorf("a comment after a tab: %+v %v", c, err)
+	}
 	for _, src := range []string{"\uFEFFversion: 1\n", "version: 1\n", "version: 1\nsuppress: []\n", "version: \"1\"\r\nsuppress:\r\n"} {
 		if c, err := Parse([]byte(src)); err != nil || len(c.Suppress) != 0 {
 			t.Errorf("%q: %+v %v", src, c, err)
@@ -48,27 +53,31 @@ func TestParseErrors(t *testing.T) {
 		line int
 		want string
 	}{
-		"no version":        {"suppress: []\n", 0, "version: 1 is required"},
-		"version 2":         {"version: 2\n", 1, "not supported"},
-		"unknown top key":   {"version: 1\nexclude:\n", 2, `unknown key "exclude"`},
-		"unknown entry key": {head + "  - rule: GHC-TEST-001\n    reasn: typo\n", 4, `unknown key "reasn"`},
-		"missing reason":    {head + "  - rule: GHC-TEST-001\n    path: a\n", 3, "needs a reason"},
-		"blank reason":      {head + "  - rule: GHC-TEST-001\n    reason: \"  \"\n", 3, "needs a reason"},
-		"missing rule":      {head + "  - reason: because\n", 3, "needs a rule"},
-		"bad rule":          {head + "  - rule: CPLX-1\n    reason: x\n", 3, "not a rule ID"},
-		"twice":             {head + "  - rule: GHC-TEST-001\n    rule: GHC-TEST-002\n", 4, "given twice"},
-		"misaligned":        {head + "  - rule: GHC-TEST-001\n      reason: x\n", 4, "line up"},
-		"tab":               {head + "\t- rule: GHC-TEST-001\n", 3, "tab"},
-		"flow":              {head + "  - {rule: GHC-TEST-001, reason: x}\n", 3, "expected key: value"},
-		"anchor":            {head + "  - rule: &r GHC-TEST-001\n", 3, "quote a value"},
-		"block scalar":      {head + "  - rule: GHC-TEST-001\n    reason: |\n", 4, "quote a value"},
-		"outside":           {head + "  - rule: GHC-TEST-001\n    path: ../x\n", 4, "outside the repository"},
-		"absolute":          {head + "  - rule: GHC-TEST-001\n    path: /etc\n", 4, "outside the repository"},
-		"backslash":         {head + "  - rule: GHC-TEST-001\n    path: a\\b\n", 4, "separator"},
-		"second document":   {"version: 1\n---\n", 2, "one document"},
-		"stray indent":      {"version: 1\n  rule: x\n", 2, "unexpected indented"},
-		"unterminated":      {head + "  - rule: \"GHC-TEST-001\n", 3, "unterminated"},
-		"too big":           {"version: 1\n# " + strings.Repeat("x", MaxBytes) + "\n", 0, "over 64 KiB"},
+		"no version":         {"suppress: []\n", 0, "version: 1 is required"},
+		"version 2":          {"version: 2\n", 1, "not supported"},
+		"unknown top key":    {"version: 1\nexclude:\n", 2, `unknown key "exclude"`},
+		"unknown entry key":  {head + "  - rule: GHC-TEST-001\n    reasn: typo\n", 4, `unknown key "reasn"`},
+		"missing reason":     {head + "  - rule: GHC-TEST-001\n    path: a\n", 3, "needs a reason"},
+		"blank reason":       {head + "  - rule: GHC-TEST-001\n    reason: \"  \"\n", 3, "needs a reason"},
+		"missing rule":       {head + "  - reason: because\n", 3, "needs a rule"},
+		"bad rule":           {head + "  - rule: CPLX-1\n    reason: x\n", 3, "not a rule ID"},
+		"twice":              {head + "  - rule: GHC-TEST-001\n    rule: GHC-TEST-002\n", 4, "given twice"},
+		"misaligned":         {head + "  - rule: GHC-TEST-001\n      reason: x\n", 4, "line up"},
+		"tab":                {head + "\t- rule: GHC-TEST-001\n", 3, "tab"},
+		"flow":               {head + "  - {rule: GHC-TEST-001, reason: x}\n", 3, "expected key: value"},
+		"anchor":             {head + "  - rule: &r GHC-TEST-001\n", 3, "quote a value"},
+		"block scalar":       {head + "  - rule: GHC-TEST-001\n    reason: |\n", 4, "quote a value"},
+		"outside":            {head + "  - rule: GHC-TEST-001\n    path: ../x\n", 4, "outside the repository"},
+		"absolute":           {head + "  - rule: GHC-TEST-001\n    path: /etc\n", 4, "outside the repository"},
+		"backslash":          {head + "  - rule: GHC-TEST-001\n    path: a\\b\n", 4, "separator"},
+		"empty path":         {head + "  - rule: GHC-TEST-001\n    path:\n", 4, "path is empty"},
+		"empty path comment": {head + "  - rule: GHC-TEST-001\n    path: # TODO\n", 4, "path is empty"},
+		"empty quoted path":  {head + "  - rule: GHC-TEST-001\n    path: \"\"\n", 4, "path is empty"},
+		"root path":          {head + "  - rule: GHC-TEST-001\n    path: ./\n", 4, "path is empty"},
+		"second document":    {"version: 1\n---\n", 2, "one document"},
+		"stray indent":       {"version: 1\n  rule: x\n", 2, "unexpected indented"},
+		"unterminated":       {head + "  - rule: \"GHC-TEST-001\n", 3, "unterminated"},
+		"too big":            {"version: 1\n# " + strings.Repeat("x", MaxBytes) + "\n", 0, "over 64 KiB"},
 	} {
 		_, err := Parse([]byte(tc.src))
 		var e *Error

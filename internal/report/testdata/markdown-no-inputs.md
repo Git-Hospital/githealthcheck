@@ -9,7 +9,7 @@ repo at `0123456789ab`, 3 of 4 families measured, scored as go against 15 corpus
 | complexity | null (not_calibrated) |  |
 | architecture | null (not_implemented) |  |
 
-### Findings (5)
+### Findings (5, 1 of them suppressed)
 
 - [GHC-TEST-001](https://github.com/Git-Hospital/githealthcheck/blob/main/docs/rules/GHC-TEST-001.md) pkg\/a: package declares 2 functions and has no \_test\.go file
 - [GHC-HIST-001](https://github.com/Git-Hospital/githealthcheck/blob/main/docs/rules/GHC-HIST-001.md) one developer authors so much

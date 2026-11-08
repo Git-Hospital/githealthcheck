@@ -55,11 +55,12 @@ func TestSuppressionMarksFindingsOnly(t *testing.T) {
 	}
 
 	for format, want := range map[string]string{
-		"text":     "Suppressed in .githealthcheck.yml (",
-		"markdown": `(suppressed: a fixture\: it only wires)`,
+		"text":      "Suppressed in .githealthcheck.yml (",
+		"markdown":  `(suppressed: a fixture\: it only wires)`,
+		"markdown ": " of them suppressed)\n",
 	} {
 		var stdout, stderr bytes.Buffer
-		run([]string{"scan", "--format", format, dir}, &stdout, &stderr)
+		run([]string{"scan", "--format", strings.TrimSpace(format), dir}, &stdout, &stderr)
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("%s output lacks %q:\n%s", format, want, stdout.String())
 		}
@@ -107,6 +108,12 @@ func TestSuppressionByPathInSARIF(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &sarif); err != nil || len(sarif.Runs) != 1 || len(sarif.Runs[0].Results) == 0 {
 		t.Fatalf("%v\n%s", err, stdout.String())
 	}
+	// The second entry names a file with no finding, as a mistyped path would: it is reported, the
+	// first is not.
+	unused := `githealthcheck: warning: .githealthcheck.yml line 6: the suppression of GHC-CPLX-001 under "` + file + `.bak" matches no finding`
+	if !strings.Contains(stderr.String(), unused) || strings.Contains(stderr.String(), "line 3:") {
+		t.Errorf("stderr %q, want only %q", stderr.String(), unused)
+	}
 	for _, res := range sarif.Runs[0].Results {
 		if len(res.Suppressions) != 1 || res.Suppressions[0].Justification != "generated" {
 			t.Errorf("result %s: suppressions %+v", res.RuleID, res.Suppressions)
@@ -120,6 +127,7 @@ func TestInvalidConfigIsAnError(t *testing.T) {
 		"missing reason": {"version: 1\nsuppress:\n  - rule: GHC-TEST-001\n", "invalid_config: .githealthcheck.yml line 3: a suppression needs a reason"},
 		"unknown key":    {"version: 1\nsuppress:\n  - rule: GHC-TEST-001\n    reasn: x\n", `line 4: unknown key "reasn"`},
 		"unknown rule":   {"version: 1\nsuppress:\n  - rule: GHC-TEST-999\n    reason: x\n", "line 3: no rule GHC-TEST-999 in this build"},
+		"empty path":     {"version: 1\nsuppress:\n  - rule: GHC-TEST-001\n    path: # TODO\n    reason: x\n", "line 4: path is empty"},
 	} {
 		dir := gitRepo(t)
 		if err := os.WriteFile(filepath.Join(dir, ".githealthcheck.yml"), []byte(tc.conf), 0o644); err != nil {
