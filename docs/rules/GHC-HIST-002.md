@@ -30,5 +30,5 @@ The same history, files and exclusions as [GHC-HIST-001](GHC-HIST-001.md#input).
 ## Fix
 
 Have a current developer take the file over: their commits to it make them an author (reviews do not
-count, only commits). Delete the file if it is dead code. Suppression with a reason (D21) is not
-implemented yet.
+count, only commits). Delete the file if it is dead code. The finding can also be suppressed with a reason in
+`.githealthcheck.yml` (D21, see the README).

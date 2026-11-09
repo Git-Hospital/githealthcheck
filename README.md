@@ -76,6 +76,20 @@ Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 
 The JSON report is the source of truth, and [`schema/report.v1.json`](schema/report.v1.json) describes it (JSON Schema 2020-12). Check `schemaVersion` first: it changes whenever a field changes meaning or disappears. Every score and metric is a number or `null` with a `reason`, never both.
 
+### Suppressing a finding
+
+A finding you have decided to keep is suppressed in `.githealthcheck.yml` at the root of the repository, with a reason (ADR 0001, D21):
+
+```yaml
+version: 1
+suppress:
+  - rule: GHC-TEST-001
+    path: cmd/tool          # a file or a directory; leave it out for every finding of the rule
+    reason: main only wires the other packages together
+```
+
+A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and does not count in the exit code. Suppression never changes a metric or a score. The file is read as untrusted input: a strict subset of YAML (the keys above, comments, plain or quoted values, an entry's keys two spaces in from its `-`), at most 64 KiB and 1,000 suppressions. A file that does not parse, an unknown key or rule, a missing reason or an empty `path` stops the scan with exit 2 and the line number. A suppression that matches no finding, most often a mistyped path, is named in a warning on stderr.
+
 ## GitHub Action
 
 ```yaml

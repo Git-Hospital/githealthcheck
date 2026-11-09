@@ -66,4 +66,5 @@ The finding names no developer: reports are shared, and the history already says
 ## Fix
 
 Spread knowledge of the code: commits by other developers raise their degree of authorship (reviews
-do not count, only commits). Suppression with a reason (D21) is not implemented yet.
+do not count, only commits). The finding is on the whole repository, so a suppression in
+`.githealthcheck.yml` (D21, see the README) names the rule and a reason and no path.

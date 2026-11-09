@@ -66,4 +66,5 @@ lookups to map its files to the commit (a real one needs a few per file).
 
 ## Fix
 
-Add tests for the package's untested paths. Suppression with a reason (D21) is not implemented yet.
+Add tests for the package's untested paths, or suppress the finding with a reason in
+`.githealthcheck.yml` (D21, see the README).

@@ -29,6 +29,13 @@ the reason `unsupported_language`.
 
 ## Fix
 
-Add a `_test.go` file that exercises the package. Suppressing a finding with a reason in
-`.githealthcheck.yml` (ADR 0001, D21), for example for a `main` package that only wires other packages
-together, is not implemented yet.
+Add a `_test.go` file that exercises the package. A `main` package that only wires other packages
+together can be suppressed with a reason in `.githealthcheck.yml` (ADR 0001, D21):
+
+```yaml
+version: 1
+suppress:
+  - rule: GHC-TEST-001
+    path: cmd/tool
+    reason: main only wires the other packages together
+```

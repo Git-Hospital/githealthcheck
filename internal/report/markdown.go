@@ -91,14 +91,23 @@ func metricsMD(f FamilyResult) string {
 
 // mdFindings lists up to MaxMarkdownFindings findings and counts the rest.
 func mdFindings(b *strings.Builder, r *Report) {
-	total := 0
+	total, suppressed := 0, 0
 	for _, f := range r.Families {
 		total += len(f.Findings)
+		for _, fd := range f.Findings {
+			if fd.Suppressed {
+				suppressed++
+			}
+		}
 	}
 	if total == 0 {
 		return
 	}
-	fmt.Fprintf(b, "\n### Findings (%d)\n\n", total)
+	if suppressed > 0 {
+		fmt.Fprintf(b, "\n### Findings (%d, %d of them suppressed)\n\n", total, suppressed)
+	} else {
+		fmt.Fprintf(b, "\n### Findings (%d)\n\n", total)
+	}
 	listed := 0
 	for _, f := range r.Families {
 		for _, fd := range f.Findings[:min(len(f.Findings), MaxMarkdownFindings-listed)] {
