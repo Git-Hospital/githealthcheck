@@ -1,0 +1,129 @@
+repo	rule	path	line	label	reason
+Aider-AI/aider	GHC-CPLX-004	aider/main.py	55	false	best-effort probe of config files for a legacy key; an unreadable file just means nothing found, and the function only returns a found flag.
+aio-libs/aiohttp	GHC-CPLX-004	tests/test_client_session.py	1355	false	test expects the mocked connect to raise and then asserts the trace callback, so swallowing is the point.
+anchore/syft	GHC-CPLX-004	internal/archive/extract.go	89	true	a Seek I/O failure is returned as (nil, nil), which the caller treats as 'not an archive', with no comment saying why.
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/profile.py	266	false	platform probe that falls through to the next method and finally returns None with a debug log.
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	455	false	optional timing metric arithmetic inside a best-effort HAR event handler; the outer handler logs failures.
+browser-use/browser-use	GHC-CPLX-004	browser_use/sandbox/sandbox.py	663	false	a failed construction falls through to 'return data', the parser's documented fallback.
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	316	false	error is returned to the model as a text error tool response, not dropped.
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/multiedit.go	208	false	write failure is reported via NewTextErrorResponse with the message.
+cloudwego/eino	GHC-CPLX-004	components/tool/utils/error_handler.go	162	false	the error is passed to the ErrorHandler s.h, whose output is returned as the stream; that is the purpose of the helper.
+docker/compose	GHC-CPLX-004	cmd/compose/hooks.go	180	false	hidden CLI hook invoked by Docker after commands must not fail the user's command; malformed hook input simply emits no hint.
+fyne-io/fyne	GHC-CPLX-004	cmd/fyne/internal/commands/release.go	525	true	os.Rename failure returns nil so the release reports success with no zipalign and no comment, unlike the later error path that returns err.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	786	false	error is returned as a tool error result via NewToolResultError(err.Error()).
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	908	false	error returned wrapped in a tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1247	false	error returned wrapped in a tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1403	false	error returned as a GitHub API error response, not dropped.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2026	false	error text is returned in a tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2161	false	error text is returned in a tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	223	false	error returned as tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	249	false	error returned as tool error result.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	509	false	error returned via NewToolResultErrorFromErr.
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	111	false	error returned as tool error result.
+go-delve/delve	GHC-CPLX-004	pkg/proc/macutil/rosetta_darwin.go	12	false	probe whose question is 'am I under Rosetta'; a missing sysctl means not translated, so nil is the contract.
+go-task/task	GHC-CPLX-004	task.go	67	true	FastCompiledTask error in --summary loop returns nil, so Run reports success and skips summaries silently with no comment.
+hashicorp/nomad	GHC-CPLX-004	nomad/state/state_store.go	945	true	upsertNodeTxn error returns nil before txn.Commit, so the caller is told the node was stored when it was not.
+helm/helm	GHC-CPLX-004	internal/plugin/signing_info.go	65	false	Stat failure is turned into a SigningInfo with status 'unsigned', so the result carries the outcome.
+jesseduffield/lazygit	GHC-CPLX-004	pkg/commands/git_commands/file.go	27	true	ReadFile error becomes empty content with nil error while callers (working_tree_diff_actions.go, merge_conflicts_helper.go) check err that can never be set; nothing says why.
+mark3labs/mcp-go	GHC-CPLX-004	server/input_validation.go	156	false	doc comment states uncompilable schemas make validation a no-op, and the bool reports that validation did not run.
+mitmproxy/mitmproxy	GHC-CPLX-004	test/mitmproxy/tools/web/test_app.py	582	false	test warm-up call whose failure is irrelevant; the test asserts on the HTTP responses afterwards.
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	389	false	invalid arguments are reported to the caller via refuse("the test is not valid").
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-vlm/backend.py	279	false	optional cache clearing during Free; it must not fail the free, and the surrounding code only releases memory.
+mudler/LocalAI	GHC-CPLX-004	core/services/cloudproxy/proxy.go	81	false	a failed write to the client mid-stream means the client went away; returning nil is the plain contract for an SSE relay and read errors are logged.
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_staging_client.go	580	false	error is carried in the returned pb.Result with Success false and the message.
+nats-io/nats-server	GHC-CPLX-004	server/monitor.go	290	true	lookupAccount error returns an empty Connz with nil error and no comment saying an unknown account should look like zero connections.
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	529	false	failure to parse the error body is ignored only to enrich the MountConfigError raised immediately after, with a default reason.
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	2369	false	comment directly above says best-effort terminate via sandbox_id.
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1686	false	function docstring says best-effort cleanup.
+openai/openai-agents-python	GHC-CPLX-004	tests/mcp/test_mcp_util.py	1251	false	fake wait helper in a test that deliberately swallows the inner exception to then raise a synthetic cancellation.
+ory/kratos	GHC-CPLX-004	x/normalize.go	79	false	the preceding comment block explains the fallback to the unstripped value; the function's contract is graceful normalization.
+rclone/rclone	GHC-CPLX-004	cmd/serve/s3/backend.go	880	false	existence probe: a Stat error answers the question with exists=false.
+sphinx-doc/sphinx	GHC-CPLX-004	tests/test_util/test_util_display.py	110	false	test raises on purpose and asserts the 'failed' output afterwards.
+sqlc-dev/sqlc	GHC-CPLX-004	internal/core/dialect.go	46	true	any DB lookup error returns empty value with nil error, and callers like seed/extension.go check err that is never set; nothing says why.
+tailscale/tailscale	GHC-CPLX-004	ipn/ipnlocal/profiles.go	964	true	migrateFromLegacyPrefs error is checked into an empty block with no comment, so a failed migration is silently ignored.
+wailsapp/wails	GHC-CPLX-004	v2/internal/system/packagemanager/nixpkgs.go	133	false	availability probe: nix-env failing answers 'not available' as false.
+wailsapp/wails	GHC-CPLX-004	v3/internal/webview2/pkg/webview2/ICoreWebView2HttpRequestHeaders.go	77	true	string conversion error returns false,nil while the later HRESULT failure returns an error, so a bad name looks like a clean 'not contained'.
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/model/sql/gen/update.go	87	true	template execute error returns empty output with nil error, while the later template steps in the same function return err.
+anchore/syft	GHC-CPLX-006	internal/capabilities/util_test.go	15	true	Grep in internal/capabilities finds only the definition (the caller is in the sub-package internal/capabilities/internal, which has its own copy); no linkname.
+anchore/syft	GHC-CPLX-006	internal/licenses/find_evidence_test.go	74	true	Grep in internal/licenses finds only the definition of mustOpen; no linkname.
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	63	false	go-ruleguard rule file (//go:build gorules, dsl.Matcher) loaded by name by the linter, and the function carries // nolint:unused.
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	77	false	go-ruleguard rule function in a gorules-tagged file with // nolint:unused, so it is kept on purpose.
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	26	false	File is //go:build ruleguard with a dsl.Matcher signature; ruleguard picks rules up by function name, so the code shows it is meant.
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	40	false	Same ruleguard rules file (//go:build ruleguard, dsl.Matcher); rules are loaded by the linter, not called.
+charmbracelet/crush	GHC-CPLX-006	internal/permission/grant_scope_test.go	12	true	Grep in internal/permission finds only the definition of grantFirst; no linkname.
+cloudwego/eino	GHC-CPLX-006	adk/cancel_test.go	171	true	Grep in adk finds only the definition of drainEventsAndAssertCancelError; no linkname.
+cloudwego/eino	GHC-CPLX-006	adk/cancel_test.go	1472	true	Grep in adk finds only the definition of newCancelTestAgentWithToolsFinalAnswer; no linkname.
+hashicorp/nomad	GHC-CPLX-006	client/allocrunner/taskrunner/task_runner_linux_test.go	1469	true	Grep in taskrunner finds only the definition of useMockEnvoyBootstrapHook; no linkname.
+hashicorp/nomad	GHC-CPLX-006	client/lib/cgroupslib/init.go	227	true	Grep in cgroupslib finds only the definition of readRootCG2; no linkname.
+hashicorp/nomad	GHC-CPLX-006	internal/testing/apitests/util_test.go	67	false	Unused, but the block comment says these test-only conversion helpers are added deliberately and marked //go:fix inline, so the code shows they are kept.
+hashicorp/nomad	GHC-CPLX-006	scheduler/util.go	391	true	Grep in scheduler finds only the definition of volumeMountUpdated; no linkname.
+mudler/LocalAI	GHC-CPLX-006	core/http/app_test.go	141	true	Grep in core/http finds only the definition of postRequestJSON; no linkname.
+mudler/LocalAI	GHC-CPLX-006	core/http/endpoints/studio/agents.go	43	true	Grep in the studio package finds only the definition of folderIn; no linkname.
+mudler/LocalAI	GHC-CPLX-006	core/http/routes/ui_api_backends_test.go	370	true	Grep in core/http/routes finds only the definition of readResponseBody; no linkname.
+mudler/LocalAI	GHC-CPLX-006	pkg/functions/parse.go	892	true	Grep in pkg/functions finds only the definition of genPartialJSON; no linkname.
+mudler/LocalAI	GHC-CPLX-006	tests/e2e/realtime_webrtc_test.go	449	true	Grep in tests/e2e finds only the definition of computeRMSInt16; the comment claims a user but none exists.
+rclone/rclone	GHC-CPLX-006	cmd/cmount/mountpoint_windows.go	51	true	Grep in cmd/cmount finds only the definition and its doc comment for isDriveOrRootPath; no linkname.
+rclone/rclone	GHC-CPLX-006	fs/rc/js/main.go	49	true	Grep in fs/rc/js finds only the definition of paramToValue, an empty stub returning js.Value{}; no linkname.
+sqlc-dev/sqlc	GHC-CPLX-006	internal/core/types.go	791	true	Grep in internal/core finds only the definition of nullableString; no linkname.
+sqlc-dev/sqlc	GHC-CPLX-006	internal/core/types.go	798	true	Grep in internal/core finds only the definition of boolToInt; no linkname.
+syncthing/syncthing	GHC-CPLX-006	test/usage_windows.go	19	true	Grep in test/ finds only the definition of ftToDuration; no linkname.
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/client_auth_test.go	43	true	Grep in the ssh dir finds only the definition and doc comment of tryAuthWithGSSAPIWithMICConfig; no linkname.
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/messages.go	712	true	Grep in the ssh dir finds only the definition of marshalUint64; no linkname.
+tmc/langchaingo	GHC-CPLX-006	examples/openai-function-call-streaming-example/openai_function_call_example.go	39	true	Only other whole-word hit is the string "getCurrentWeather" at line 59, not a call; the function is never called.
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step3_basic.go	13	true	Grep in the dir finds only the definition of basicChat; main.go does not call it and there is no build tag or linkname.
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step5_memory.go	17	true	Grep in the dir finds only the definition of chatWithMemory; main.go does not call it.
+tmc/langchaingo	GHC-CPLX-006	vectorstores/milvus/v2/example_migration.go	251	true	Grep in the dir finds only the definition and doc comment of exampleMixedUsage; no linkname.
+wailsapp/wails	GHC-CPLX-006	v2/pkg/commands/build/packager_linux.go	3	true	Grep in the build dir finds only this empty definition; packager.go uses packageApplicationForLinux instead.
+wailsapp/wails	GHC-CPLX-006	v3/examples/ios/build/ios/app_options_ios.go	8	true	Only the ios and !ios definitions of modifyOptionsForIOS exist; no call in the dir (main_ios.go) or elsewhere in v3, no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/pkg/edge/ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler.go	61	true	Grep in the edge dir finds only the definition of the constructor; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/pkg/webview2/com.go	81	true	Grep for ptr in the webview2 dir finds only the definition; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	222	true	Grep in pkg/application finds only the two definitions (menuitem_linux.go and gtk3), no call; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	362	true	newPrintMenuItem is a panic stub with only two definitions in the dir and no caller; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	402	true	newRevertMenuItem is a panic stub with only two definitions in the dir and no caller; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	210	true	Only the two definitions of newUnhideMenuItem exist in the dir; no caller, no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	234	true	Only the two definitions of newCutMenuItem exist in the dir; no caller, no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	369	true	Only the two definitions of newZoomOutMenuItem exist in the dir; no caller, no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	467	true	newFindPreviousMenuItem is a panic stub with only two definitions in the dir and no caller; no linkname.
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/screen_darwin_purego.go	160	true	Grep in pkg/application finds only the two definitions plus a comment in systemtray_darwin_purego.go, no call; no linkname.
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	31	false	Method of a test mock resolver whose unused methods panic so a test fails loudly.
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	35	false	Unused method of a test mock panics by design.
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	83	false	Test mock method returning a not-implemented error for an interface method the test does not use.
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_race_test.go	93	false	fastModel is a test fake; unused interface method returns not implemented.
+charmbracelet/crush	GHC-CPLX-008	internal/agent/prism_model_test.go	300	false	fakePrismLanguageModel is a test fake whose unused Generate errors loudly.
+cloudwego/eino	GHC-CPLX-008	callbacks/aspect_inject_test.go	324	false	Test callback double with unused method panicking.
+cloudwego/eino	GHC-CPLX-008	flow/retriever/multiquery/multi_query_test.go	66	false	mockModel in a test file; unused interface method panics.
+fyne-io/fyne	GHC-CPLX-008	app/cloud_test.go	136	false	mockCloudStorage test double returns not implemented for an unused method.
+fyne-io/fyne	GHC-CPLX-008	app_test.go	50	false	dummyApp is a test stub; unused method returns unimplemented.
+fyne-io/fyne	GHC-CPLX-008	internal/driver/util_test.go	514	false	Test scrollable fake with unused Hide panicking.
+go-delve/delve	GHC-CPLX-008	pkg/proc/core/core.go	280	false	Core-file backend cannot set uprobes; SupportsBPF returns false right above so callers do not reach it.
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/proc_freebsd.go	638	false	FreeBSD file with SupportsBPF false; BPF tracepoints are a platform limitation.
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	259	false	Test-util gRPC stub deliberately returns codes.Unimplemented for methods tests do not use.
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	264	false	Test-util gRPC stub deliberately returns codes.Unimplemented, a gRPC status callers handle.
+hashicorp/nomad	GHC-CPLX-008	drivers/docker/driver_test.go	3063	false	fakeDockerClient test double with unused methods panicking.
+hashicorp/nomad	GHC-CPLX-008	e2e/v3/cluster3/cluster3.go	223	true	Exported option panics with 'not yet implemented' and leaves the real body commented out; a placeholder to implement or delete.
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/integration/storagecleaner/extension_test.go	48	false	mockStorageExt test mock with unused lifecycle method panicking.
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/integration/storagecleaner/extension_test.go	52	false	mockStorageExt test mock with unused Shutdown panicking.
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	58	false	Base is the default embedded implementation; backends override the operations they support and the rest return unimplemented as the contract.
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	70	false	Base default for backends to override; unimplemented is the expected gRPC contract.
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	110	false	Base default for backends to override; unimplemented is the expected contract.
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	138	false	Base default for backends to override; unimplemented is the expected contract.
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	157	false	Base default for backends to override; unimplemented is the expected contract.
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	35	false	logRegistryOnly is a test double; unused method panics so a test would fail loudly.
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	47	false	Test double with unused Audit panicking.
+sigstore/cosign	GHC-CPLX-008	pkg/oci/internal/signature/layer_test.go	520	false	mockLayer test double with unused method panicking.
+sigstore/cosign	GHC-CPLX-008	pkg/oci/static/file_test.go	191	false	mockLayer test double with unused method panicking.
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	51	false	failingAttestation is a test double built to fail; unimplemented errors are intended.
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	66	false	failingAttestation is a test double built to fail; unimplemented errors are intended.
+syncthing/syncthing	GHC-CPLX-008	lib/fs/fakefs.go	632	false	fakeFS is an in-memory fake filesystem; Walk is deliberately unsupported there and sibling Watch also returns a not-supported error.
+tailscale/tailscale	GHC-CPLX-008	control/controlclient/sign_supported_test.go	57	false	testIdentity is a test double; unused Delete returns not implemented.
+tailscale/tailscale	GHC-CPLX-008	tsnet/tsnet_test.go	2687	false	chanTUN is an in-memory TUN test fake with no file; File panics by design.
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	691	false	fakeIPTablesRunner test fake with unused method erroring.
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	699	false	fakeIPTablesRunner test fake with unused method erroring.
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	703	false	fakeIPTablesRunner test fake with unused method erroring.
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	390	true	Linux constructor panics 'Implement me' with no platform reason or doc; a placeholder, and grep shows no caller in the package.
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	402	true	Linux constructor panics 'Implement me' with no stated reason; an uncalled placeholder.
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	467	true	gtk3 constructor panics 'Implement me' with no stated reason; an uncalled placeholder.
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	471	true	gtk3 constructor panics 'Implement me' with no stated reason; an uncalled placeholder.
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	47	false	mockedConn test double with unused method panicking.
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/serverinterceptors/tracinginterceptor_test.go	313	false	mockedServerStream test double with unused method panicking.
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/serverinterceptors/tracinginterceptor_test.go	317	false	mockedServerStream test double with unused method panicking.
