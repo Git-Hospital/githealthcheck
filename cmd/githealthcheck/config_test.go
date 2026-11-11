@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -172,13 +173,72 @@ func TestNoUnusedWarningForATimedOutFamily(t *testing.T) {
 	analyzers = []analyze.Analyzer{tests.Analyzer{}, history.Analyzer{}, timedOut{complexity.Analyzer{}}}
 	dir := gitRepo(t)
 	conf := "version: 1\nsuppress:\n  - rule: GHC-CPLX-001\n    reason: generated\n" +
-		"  - rule: GHC-HIST-002\n    path: no/such/dir\n    reason: typo\n"
+		"  - rule: GHC-TEST-001\n    path: no/such/dir\n    reason: typo\n"
 	if err := os.WriteFile(filepath.Join(dir, ".githealthcheck.yml"), []byte(conf), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
 	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
-	if strings.Contains(stderr.String(), "GHC-CPLX-001") || !strings.Contains(stderr.String(), `line 5: the suppression of GHC-HIST-002 under "no/such/dir" matches no finding`) {
+	if strings.Contains(stderr.String(), "GHC-CPLX-001") || !strings.Contains(stderr.String(), `line 5: the suppression of GHC-TEST-001 under "no/such/dir" matches no finding`) {
 		t.Errorf("stderr %q", stderr.String())
+	}
+}
+
+// A shallow clone, or a history under 50 commits, ends history with history_too_short: its rules did
+// not run, so a valid suppression of them is not called unused, and a user is not told to delete it
+// (#83).
+func TestNoUnusedWarningWhenHistoryDidNotRun(t *testing.T) {
+	dir := gitRepo(t) // one commit
+	conf := "version: 1\nsuppress:\n  - rule: GHC-HIST-001\n    reason: one maintainer\n"
+	if err := os.WriteFile(filepath.Join(dir, ".githealthcheck.yml"), []byte(conf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	if strings.Contains(stderr.String(), "GHC-HIST-001") {
+		t.Errorf("a suppression of a rule that did not run is called unused: %q", stderr.String())
+	}
+}
+
+// Without python3 the Python files are not analysed. A suppression on a Python file, or one without
+// a path that could be about Python, is not called unused; one on a Go file still is (#83).
+func TestNoUnusedWarningForALanguageThatWasNotAnalysed(t *testing.T) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("no git")
+	}
+	bin := t.TempDir()
+	if err := os.Symlink(gitPath, filepath.Join(bin, "git")); err != nil {
+		t.Fatal(err)
+	}
+	dir := gitRepoWith(t, map[string]string{
+		"main.go": "package main\n\nfunc main() {}\n",
+		"app.py":  "def f():\n    try:\n        pass\n    except Exception:\n        pass\n",
+	})
+	conf := "version: 1\nsuppress:\n" +
+		"  - rule: GHC-CPLX-004\n    path: app.py\n    reason: best effort\n" +
+		"  - rule: GHC-CPLX-001\n    reason: generated\n" +
+		"  - rule: GHC-CPLX-001\n    path: main.go\n    reason: typo, nothing to match\n"
+	if err := os.WriteFile(filepath.Join(dir, ".githealthcheck.yml"), []byte(conf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin) // git, and no python3
+	var stdout, stderr bytes.Buffer
+	run([]string{"scan", "--format", "json", dir}, &stdout, &stderr)
+	got := stderr.String()
+	if strings.Contains(got, "GHC-CPLX-004") || strings.Contains(got, "line 6:") {
+		t.Errorf("a suppression that may be about Python is called unused: %q", got)
+	}
+	if !strings.Contains(got, `line 8: the suppression of GHC-CPLX-001 under "main.go" matches no finding`) {
+		t.Errorf("the unused suppression on a Go file is not named: %q", got)
+	}
+	var r report.Report
+	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range r.Languages {
+		if l.Name == "python" && l.Analysed {
+			t.Fatal("python was analysed, so the test proves nothing; it needs python3 off PATH")
+		}
 	}
 }
