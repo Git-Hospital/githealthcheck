@@ -20,7 +20,7 @@ ADR 0005 planned `verify`, a comment on pull requests, and later an agent interf
   - agent wrappers such as aislop.
 - **Limits of the sample.** 153 of the 434 objections come from a repository owner reviewing their own agent. 48 are in three repositories whose owners paste AI-written reviews from human accounts. Only 55 of the pull requests are in repositories with 50 or more stars. Few of the pull requests are closed (12 of 119). The "needs the repository" class was judged by a model and is optimistic: many such items ("use the existing helper") need judgement, not a syntactic rule. The column naming an existing tool is weak. We read the tools' documentation and did not run them.
 - **Three directions failed a check.** (1) A few measured rules plus a diff mode: the two points above. (2) Change hygiene and "existing constant ignored": 0 real findings on the organization's repositories, and pre-commit-hooks and goconst overlap. (3) A per-hunk check that the tests depend on the change: it is available already as changed-line mutation testing, and about 4 of the 434 objections are left to it.
-- **Who uses it.** One person writes nearly all the code, and there are no outside users yet (7 stars, all from members of the organization).
+- **Who uses it.** One person has written nearly all the code (a second member opened four pull requests on 11 November 2026, three of them hardening and fixes), and there are no outside users yet (7 stars, all from members of the organization).
 
 ## Decisions
 
