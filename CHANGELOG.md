@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- `githealthcheck explain <rule-id>` prints the rule's page, which is now built into the binary, and `githealthcheck explain` lists every rule ID with its title (ADR 0001, D25). The ID's case does not matter; an unknown ID exits 2 and lists the known ones (#55).
+
 ### Fixed
 
 - GHC-CPLX-004 takes an `if err != nil { return nil }` block with a comment in it as meant, as it already did for an empty block and as its page advised: `return nil //nolint:nilerr // best effort` is no longer a finding. At the current tips of cli/cli and caddy this removes all 12 of the rule's findings, each of them commented so. A comment that marks unfinished work (`// TODO: handle the error`, `// FIXME`) is not taken as meant, in either block.

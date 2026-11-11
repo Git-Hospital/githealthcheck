@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Git-Hospital/githealthcheck/calibration"
+	rulepages "github.com/Git-Hospital/githealthcheck/docs/rules"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
@@ -55,6 +56,7 @@ func init() {
 
 const usage = `usage:
   githealthcheck scan [flags] <path>   measure the repository whose root is <path>
+  githealthcheck explain [rule-id]     print a rule's page, or list the rules
   githealthcheck calibrate [flags]     measure the calibration corpus and write its lock
   githealthcheck version               print the version
 
@@ -76,6 +78,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return report.ExitClean
 	case "scan":
 		return scan(args[1:], stdout, stderr)
+	case "explain":
+		return explain(args[1:], stdout, stderr)
 	case "calibrate":
 		return calibrate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
@@ -85,6 +89,31 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n%s", args[0], usage)
 		return report.ExitError
 	}
+}
+
+// explain prints the page of one rule, or with no argument the ID and title of every rule. A finding
+// names its rule, such as GHC-CPLX-001; this is how its reader gets the page without the repository.
+func explain(args []string, stdout, stderr io.Writer) int {
+	switch {
+	case len(args) == 0:
+		for _, id := range rulepages.IDs() {
+			fmt.Fprintf(stdout, "%s  %s\n", id, rulepages.Title(id))
+		}
+		return report.ExitClean
+	case len(args) == 1 && (args[0] == "-h" || args[0] == "--help"):
+		fmt.Fprint(stdout, usage)
+		return report.ExitClean
+	case len(args) > 1:
+		fmt.Fprintf(stderr, "explain takes one rule ID, got %d arguments\n%s", len(args), usage)
+		return report.ExitError
+	}
+	_, page, ok := rulepages.Page(args[0])
+	if !ok {
+		fmt.Fprintf(stderr, "unknown rule %q; the rules are %s\n", args[0], strings.Join(rulepages.IDs(), ", "))
+		return report.ExitError
+	}
+	fmt.Fprint(stdout, string(page))
+	return report.ExitClean
 }
 
 func scan(args []string, stdout, stderr io.Writer) int {
