@@ -112,7 +112,7 @@ jobs:
           fail-under: "5"
 ```
 
-The Action downloads the release it is pinned to, checks it against the release's checksums and build provenance, scans the checkout, uploads the findings to code scanning and writes the Markdown report to the job summary. Pinned to a commit SHA, it needs `version: v0.3.0` as well. It fails on errors and incomplete runs; `fail-on: findings` also fails on findings or a score under `fail-under`, and `fail-on: never` leaves the decision to the `exit-code`, `verdict` and `score` outputs. A pull request from a fork gets no `security-events: write`; set `upload-sarif: "false"` there. The inputs are in [action.yml](action.yml). Linux and macOS runners.
+The Action downloads the release it is pinned to, checks it against the release's checksums and build provenance, scans the checkout, uploads the findings to code scanning and writes the Markdown report to the job summary. Pinned to a commit SHA, it needs `version: v0.3.0` as well. It fails on errors and incomplete runs; `fail-on: findings` also fails on findings or a score under `fail-under`, and `fail-on: never` leaves the decision to the `exit-code`, `verdict` and `score` outputs. A pull request from a fork gets no `security-events: write`; set `upload-sarif: "false"` there. On a pull request, `.githealthcheck.yml` is read from the pull request's own tree, so a change can suppress its own findings: they stay in the reports with their reasons, but no longer count in the exit code, so `fail-on: findings` does not fail on them. The inputs are in [action.yml](action.yml). Linux and macOS runners.
 
 ## License
 
