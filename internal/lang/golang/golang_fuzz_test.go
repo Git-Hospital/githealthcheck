@@ -1,13 +1,17 @@
 package golang
 
 import (
+	"go/version"
 	"slices"
-	"strings"
 	"testing"
 )
 
 // A scanned repository's go.mod is untrusted input, and ModulePath, ModuleRequires and ModuleGo read
-// it by hand. The target runs all three on the same bytes.
+// it by hand. The target runs all three on the same bytes and checks what they return: a path is never
+// empty, a token of the syntax or a string with white space in it, and a go version is valid. Plain
+// go test runs the seeds; CI runs no -fuzz, so a longer run is by hand:
+//
+//	go test ./internal/lang/golang -run '^$' -fuzz FuzzModuleReaders -fuzztime 60s
 func FuzzModuleReaders(f *testing.F) {
 	for _, seed := range []string{
 		"",
@@ -38,14 +42,28 @@ func FuzzModuleReaders(f *testing.F) {
 		"go 99999999999999999999.1\n",
 		"toolchain go1.23.4\ngo 1.23\n",
 		"module \xff\xfe\nrequire \"\\xzz\" v1\n",
+		// Junk the readers returned before the review of #84.
+		"require \"\" v1\n",
+		"require (\n(\n)\n",
+		"replace => x\n",
+		"module \"a\\nb\"\n",
+		"require \"a\\tb\" v1\n",
 	} {
 		f.Add([]byte(seed))
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		path, requires, goVersion := ModulePath(data), ModuleRequires(data), ModuleGo(data)
 
-		if goVersion != "" && !strings.HasPrefix(goVersion, "go") {
-			t.Fatalf("ModuleGo = %q, want \"\" or a string that starts with go", goVersion)
+		if goVersion != "" && !version.IsValid(goVersion) {
+			t.Fatalf("ModuleGo = %q, want \"\" or a valid Go version", goVersion)
+		}
+		if path != "" && !isPath(path) {
+			t.Fatalf("ModulePath = %q, not a module path", path)
+		}
+		for _, p := range requires {
+			if !isPath(p) {
+				t.Fatalf("ModuleRequires = %q holds %q, not a module path", requires, p)
+			}
 		}
 		// The same bytes read twice give the same answer: nothing depends on map order or on state
 		// kept between calls.
