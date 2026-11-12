@@ -36,12 +36,11 @@ Overall  6.2/10  (2 of 4 families measured)
 
 That is this repository scanning itself at commit `3029e9b`, shortened. History is `null` because the repository has 43 commits and the family needs 50, and 12 of the 13 findings are the defect fixtures under `testdata/`, which are there on purpose.
 
-**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in four decision records:
+**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The plan and its reasons are in three decision records:
 
 - [0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the rewrite in Go;
 - [0002-evidence.md](docs/decisions/0002-evidence.md), evidence, for v0.4.0;
-- [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.5.0 to v0.7.0;
-- [0004-trust-ledger.md](docs/decisions/0004-trust-ledger.md), sealed predictions and protected tests, for v0.4.0 and v0.6.0.
+- [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, for v0.5.0 to v0.7.0.
 
 The design is in [docs/architecture.md](docs/architecture.md), and the changes are in [CHANGELOG.md](CHANGELOG.md). Progress is tracked in [#1](https://github.com/Git-Hospital/githealthcheck/issues/1).
 
@@ -74,6 +73,22 @@ Their rules are documented in [docs/rules](docs/rules). Architecture is `null` w
 Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 
 `--json`, `--sarif` and `--markdown <file>` also write those renderings of the same scan. SARIF 2.1.0 is for code scanning: findings that are not on one file (a repository's truck factor, a Go package without tests) are counted there but listed only in the JSON and Markdown reports.
+
+The JSON report is the source of truth, and [`schema/report.v1.json`](schema/report.v1.json) describes it (JSON Schema 2020-12). Check `schemaVersion` first: it changes whenever a field changes meaning or disappears. Every score and metric is a number or `null` with a `reason`, never both.
+
+### Suppressing a finding
+
+A finding you have decided to keep is suppressed in `.githealthcheck.yml` at the root of the repository, with a reason (ADR 0001, D21):
+
+```yaml
+version: 1
+suppress:
+  - rule: GHC-TEST-001
+    path: cmd/tool          # a file or a directory; leave it out for every finding of the rule
+    reason: main only wires the other packages together
+```
+
+A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and does not count in the exit code. Suppression never changes a metric or a score. The file is read as untrusted input: a strict subset of YAML (the keys above, comments, plain or quoted values, an entry's keys two spaces in from its `-`), at most 64 KiB and 1,000 suppressions. A file that does not parse, an unknown key or rule, a missing reason or an empty `path` stops the scan with exit 2 and the line number. A suppression that matches no finding, most often a mistyped path, is named in a warning on stderr.
 
 ## GitHub Action
 

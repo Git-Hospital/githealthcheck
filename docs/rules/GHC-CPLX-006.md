@@ -20,8 +20,8 @@ another platform counts as used.
 
 Methods, which an interface can call without naming them; `init`, `main` and `_`; exported functions;
 and every function of a package with a Go file that does not parse in full or was not read (too large,
-a symlink, unreadable), whose references are incomplete. At most 50 findings are listed per file. A function called only from assembly is reported, and suppressing that finding with a reason
-(D21) is not implemented yet.
+a symlink, unreadable), whose references are incomplete. At most 50 findings are listed per file. A function called only from assembly is reported; such a finding can be
+suppressed with a reason in `.githealthcheck.yml` (D21, see the README).
 
 ## Fix
 

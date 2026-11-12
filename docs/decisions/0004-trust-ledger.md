@@ -1,6 +1,6 @@
 # 0004: Sealed predictions, and tests an agent may not silently weaken
 
-**Status:** accepted, 28 October 2026; v0.4.0 (after its atlas) and v0.6.0. **Decided by:** the maintainer. **Builds on** [ADR 0002](0002-evidence.md) and [ADR 0003](0003-evidence-layer.md). **Amends** ADR 0003's A6 (protected tests; its open question on the labelled set for weakened tests is settled with commits, not pull requests) and A9 (the atlas seals its predictions).
+**Status:** accepted, 28 October 2026; not pursued for now, see [ADR 0006](0006-code-rules-in-maintenance.md); it was planned for v0.4.0 (after its atlas) and v0.6.0. **Decided by:** the maintainer. **Builds on** [ADR 0002](0002-evidence.md) and [ADR 0003](0003-evidence-layer.md). **Amends** ADR 0003's A6 (protected tests; its open question on the labelled set for weakened tests is settled with commits, not pull requests) and A9 (the atlas seals its predictions). **Amended by** [ADR 0005](0005-checker-beside-agents.md): P2 (a sealed test split is labelled by two people and a third resolves; the dev split stays with two models and the maintainer) and the release references.
 
 Each decision gives the option chosen, then the options considered and rejected, as in ADR 0002.
 
