@@ -19,7 +19,7 @@ file is its own stratum, so its listed findings stand for all of its findings. W
 instead of the round, for a re-scan with a revised rule.
 
 `sample` draws about PER_RULE findings per rule, stratified by repository, each repository's share in
-proportion to the square root of its findings: one large repository does not dominate, and the weights stay
+proportion to the square root of its findings: a large repository gets a smaller share than its findings, and the weights stay
 even enough for the sample to carry its size. TEST_SHARE of each stratum's draw goes to the test split,
 which rules are never revised against, and the rest to dev; a stratum with one draw goes to test, the split
 the published figure comes from. A drawn finding stands for its stratum's findings divided by those drawn in
