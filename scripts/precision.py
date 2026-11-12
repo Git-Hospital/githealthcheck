@@ -81,6 +81,25 @@ def read_tsv(path):
     return list(csv.DictReader(open(path), delimiter="\t", quoting=csv.QUOTE_NONE))
 
 
+def merged_header(a, b):
+    return ["repo", "rule", "path", "line", a, f"{a}_reason", b, f"{b}_reason", "label", "resolution", "resolved_by"]
+
+
+def read_merged(path):
+    """labels-SPLIT.tsv as merge writes it, or exit with one line if its header is not that."""
+    header = open(path).readline().rstrip("\n").split("\t")
+    if len(header) != 11 or header != merged_header(header[4], header[6]):
+        sys.exit(f"{path.name}: the header is not the one merge writes for two labellers")
+    return read_tsv(path)
+
+
+def read_human(path):
+    """A labeller's file, or exit with one line if its header is not the one label writes."""
+    if open(path).readline().rstrip("\n").split("\t") != ["repo", "rule", "path", "line", "label", "reason"]:
+        sys.exit(f"{path}: the header is not the one label writes")
+    return read_tsv(path)
+
+
 def write_tsv(path, fields, rows):
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w") as f:
@@ -282,9 +301,12 @@ def merge(name, split, a, b):
         sys.exit("merge needs two different labellers")
     d, _, rows = shown(name, split)
     out_path = d / f"labels-{split}.tsv"
-    if any(r["resolution"] for r in read_tsv(out_path)):
+    if out_path.exists() and any(r["resolution"] for r in read_merged(out_path)):
         sys.exit(f"{out_path.name} already holds resolutions; move it away first if they should be redone")
-    la, lb = ({key(r): r for r in read_tsv(d / "human" / f"{w}-{split}.tsv")} for w in (a, b))
+    for w in (a, b):
+        if not (d / "human" / f"{w}-{split}.tsv").exists():
+            sys.exit(f"human/{w}-{split}.tsv: no such file; {w} has not labelled the {split} split")
+    la, lb = ({key(r): r for r in read_human(d / "human" / f"{w}-{split}.tsv")} for w in (a, b))
     missing = [r for r in rows if key(r) not in la or key(r) not in lb]
     if missing:
         sys.exit(f"{len(missing)} findings are not labelled by both yet, for example {key(missing[0])}")
@@ -308,7 +330,9 @@ def resolve(name, split, who, clones):
     check_name(who)
     d, heads, _ = shown(name, split)
     path = d / f"labels-{split}.tsv"
-    rows = read_tsv(path)
+    if not path.exists():
+        sys.exit(f"{path.name}: run merge first")
+    rows = read_merged(path)
     if not rows:
         sys.exit(f"{path.name} is empty; run merge first")
     fields = list(rows[0].keys())
@@ -343,15 +367,22 @@ def wilson(p, n, z=Z90):
 
 def checked_labels(d, split):
     """labels-SPLIT.tsv, refused unless it labels exactly the sampled findings, each by the process."""
-    if (d / "test.sha256").read_text() != seal(d):
+    if not (d / "test.sha256").exists():
+        sys.exit(f"{d.name}/test.sha256: no such file; the round is not sealed, run sample first")
+    try:
+        sealed = (d / "test.sha256").read_text() == seal(d)
+    except FileNotFoundError as e:
+        sys.exit(f"{e.filename}: no such file; the round's files do not match test.sha256")
+    if not sealed:
         sys.exit("the round's files do not match test.sha256: the sealed sample was changed")
-    labels = read_tsv(d / f"labels-{split}.tsv")
+    if not (d / f"labels-{split}.tsv").exists():
+        sys.exit(f"labels-{split}.tsv: run merge first")
+    labels = read_merged(d / f"labels-{split}.tsv")
     if not labels:
         sys.exit(f"labels-{split}.tsv: run merge first")
     header = open(d / f"labels-{split}.tsv").readline().rstrip("\n").split("\t")
     a, b = header[4], header[6]
-    if (header != ["repo", "rule", "path", "line", a, f"{a}_reason", b, f"{b}_reason", "label", "resolution", "resolved_by"]
-            or a == b or not NAME.match(a) or not NAME.match(b) or {a, b} & RESERVED):
+    if (a == b or not NAME.match(a) or not NAME.match(b) or {a, b} & RESERVED):
         sys.exit(f"labels-{split}.tsv: the header is not the one merge writes for two labellers")
     sampled = sorted(key(r) for r in read_tsv(d / "sample.tsv") if r["split"] == split)
     if sorted(key(r) for r in labels) != sampled:
