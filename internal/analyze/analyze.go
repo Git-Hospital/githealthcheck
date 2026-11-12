@@ -15,6 +15,11 @@ import (
 type Rule struct {
 	ID    string
 	Title string
+	// Metric is the metric whose input the rule's findings come from, when it has its own: without a
+	// coverage report statement_coverage is null and GHC-TEST-002 and 003 do not run, while the
+	// tests family is still measured. A null Metric is read as "the rule did not run", even where it
+	// did, as duplication on code too small for its share: the suppression is then not checked.
+	Metric string
 }
 
 // MinCodeLines is the number of code lines below which a density or a ratio of lines says nothing:

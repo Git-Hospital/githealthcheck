@@ -319,7 +319,7 @@ func (c *Config) Apply(families []report.FamilyResult) (unused []Suppression) {
 		for di := range families[fi].Findings {
 			fd := &families[fi].Findings[di]
 			for _, i := range byRule[fd.RuleID] {
-				if covers(c.Suppress[i].Path, fd.Path) {
+				if Covers(c.Suppress[i].Path, fd.Path) {
 					if !fd.Suppressed {
 						fd.Suppressed, fd.SuppressReason = true, c.Suppress[i].Reason
 					}
@@ -336,8 +336,8 @@ func (c *Config) Apply(families []report.FamilyResult) (unused []Suppression) {
 	return unused
 }
 
-// covers reports whether a suppression path covers a finding's path: the same file or directory, or
+// Covers reports whether a suppression path covers a finding's path: the same file or directory, or
 // a path under the directory. An empty suppression path covers everything.
-func covers(suppress, finding string) bool {
+func Covers(suppress, finding string) bool {
 	return suppress == "" || finding == suppress || strings.HasPrefix(finding, suppress+"/")
 }

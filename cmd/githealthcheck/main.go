@@ -292,7 +292,7 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 	// Marks findings only: no metric or score depends on a finding's suppression (D21).
 	unused := conf.Apply(r.Families)
 	if ctx.Err() == nil {
-		warnUnused(warn, unused, r.Families, r.Languages)
+		warnUnused(warn, unused, r, rf.Files)
 	}
 	if corpus != nil && !timedOut {
 		corpus.Apply(r)
@@ -309,41 +309,56 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 // valid entry is unused may delete it, and the finding comes back on the next full run (#83).
 //   - A family that did not run its rules is skipped whole: it timed out or crashed, or history
 //     stopped at history_too_short (a shallow clone) or too_large.
-//   - A suppression with a path is skipped when that path's language was not analysed, such as
-//     Python with no python3 on PATH.
-//   - A suppression without a path is skipped when any language of the repository that this build
-//     can analyse was not analysed, since its rule may read that language.
-func warnUnused(w io.Writer, unused []config.Suppression, families []report.FamilyResult, languages []report.Language) {
-	ruleFamily := map[string]report.Family{}
+//   - A rule whose own metric is null did not run either, though its family did: GHC-TEST-002 and
+//     003 without a usable coverage report, GHC-CPLX-009 and 010 when the token streams were dropped.
+//   - A suppression with a path is skipped when a file it covers was not read in full: its language
+//     was not analysed (Python with no python3 on PATH), the parser gave up on it, or the walk
+//     skipped it.
+//   - A suppression without a path is skipped when any such file exists, since its rule may read it.
+func warnUnused(w io.Writer, unused []config.Suppression, r *report.Report, files []facts.File) {
+	ruleFamily, ruleMetric := map[string]report.Family{}, map[string]string{}
 	for _, a := range analyzers {
 		for _, rl := range a.Rules() {
-			ruleFamily[rl.ID] = a.Family()
+			ruleFamily[rl.ID], ruleMetric[rl.ID] = a.Family(), rl.Metric
 		}
 	}
 	notRun := map[report.Family]bool{}
-	for _, f := range families {
+	metricNull := map[string]bool{}
+	for _, f := range r.Families {
 		switch f.Reason {
 		case report.Timeout, report.ToolCrashed, report.HistoryTooShort, report.TooLarge:
 			notRun[f.Family] = true
 		}
+		for name, m := range f.Metrics {
+			metricNull[string(f.Family)+"/"+name] = m.IsNull()
+		}
 	}
-	notAnalysed, anyNotAnalysed := map[string]bool{}, false
-	for _, l := range languages {
-		if !l.Analysed && l.Reason != "" && l.Reason != report.UnsupportedLanguage {
-			notAnalysed[l.Name] = true
-			anyNotAnalysed = true
+	// supported are the languages of the repository this build can analyse; a file in another one has
+	// no rules to hide.
+	supported := map[string]bool{}
+	for _, l := range r.Languages {
+		supported[l.Name] = l.Analysed || l.Reason != "" && l.Reason != report.UnsupportedLanguage
+	}
+	// unread holds the source files whose findings may be missing.
+	var unread []string
+	for _, f := range files {
+		if supported[f.Language] && (!f.Analysed || f.Partial) {
+			unread = append(unread, f.Path)
+		}
+	}
+	for _, sk := range r.Skipped {
+		if supported[repo.Language(sk.Path)] {
+			unread = append(unread, sk.Path)
 		}
 	}
 	for _, s := range unused {
 		family := ruleFamily[s.Rule]
-		if notRun[family] {
+		if notRun[family] || ruleMetric[s.Rule] != "" && metricNull[string(family)+"/"+ruleMetric[s.Rule]] {
 			continue
 		}
-		// History reads every recognised language from git alone, so no language can hide its rules.
-		if family != report.History {
-			if s.Path == "" && anyNotAnalysed || s.Path != "" && pathNotAnalysed(s.Path, notAnalysed) {
-				continue
-			}
+		// History reads every recognised language from git alone, so no file can hide its rules.
+		if family != report.History && slices.ContainsFunc(unread, func(p string) bool { return config.Covers(s.Path, p) }) {
+			continue
 		}
 		where := "any path"
 		if s.Path != "" {
@@ -351,19 +366,6 @@ func warnUnused(w io.Writer, unused []config.Suppression, families []report.Fami
 		}
 		fmt.Fprintf(w, "githealthcheck: warning: %s line %d: the suppression of %s under %s matches no finding\n", config.FileName, s.Line, s.Rule, where)
 	}
-}
-
-// pathNotAnalysed reports whether a suppression's path is a file, or a directory holding a file, in a
-// language that was not analysed. A directory is judged by the languages of the files under it.
-func pathNotAnalysed(p string, notAnalysed map[string]bool) bool {
-	if len(notAnalysed) == 0 {
-		return false
-	}
-	if l := repo.Language(p); l != "" {
-		return notAnalysed[l]
-	}
-	// A directory: any language not analysed may hold the finding.
-	return true
 }
 
 // readConfig reads .githealthcheck.yml at the root of the work tree, with the walk's guards, since it
