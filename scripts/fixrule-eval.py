@@ -83,9 +83,11 @@ def score(split, source=""):
         sys.exit(f"{name} has unresolved disagreements; run scripts/label.py fixrule {split} resolve")
     cols = list(labels[0].keys())
     a, b = [c for c in cols if c + "_reason" in cols][:2]
-    if any(r.get("resolution") and not r.get("resolved_by") for r in labels):
+    # Only the human flow records who settled a disagreement; the models' files predate that column.
+    human = source == "human"
+    if human and any(r.get("resolution") and not r.get("resolved_by") for r in labels):
         sys.exit(f"{name}: a disagreement is settled without the resolver's name; settle it with scripts/label.py fixrule {split} resolve NAME")
-    resolvers = sorted({r["resolved_by"] for r in labels if r.get("resolution")})
+    resolvers = sorted({r["resolved_by"] for r in labels if r.get("resolution")}) if human else []
     if a in resolvers or b in resolvers:
         sys.exit(f"{name}: a disagreement between {a} and {b} was settled by one of them; a third person settles them")
     rows = [(r["repo"], r["stratum"], r["label"] == "fix", is_fix(subj[(r["repo"], r["commit"])])) for r in labels]
