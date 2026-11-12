@@ -74,3 +74,44 @@ func TestExplainWithoutAnIDListsEveryRule(t *testing.T) {
 		}
 	}
 }
+
+// A page with no registered rule would be listed by explain and shipped in the binary, and the
+// title explain lists comes from the page, so it must be the title the analyzer reports (review of
+// #86).
+func TestEveryPageHasARuleWithItsTitle(t *testing.T) {
+	registered := map[string]string{}
+	for _, rl := range rules() {
+		registered[rl.ID] = rl.Title
+	}
+	for _, id := range rulepages.IDs() {
+		title, ok := registered[id]
+		if !ok {
+			t.Errorf("docs/rules/%s.md has no rule in any analyzer", id)
+			continue
+		}
+		// The page heading starts in lower case after the ID ("# GHC-CPLX-001: function with …");
+		// the analyzer's title is capitalised. The words must be the same.
+		if page := rulepages.Title(id); !strings.EqualFold(page, title) {
+			t.Errorf("%s: the page says %q, the analyzer %q", id, page, title)
+		}
+	}
+}
+
+func TestExplainHelpAndUnknownFlag(t *testing.T) {
+	for _, arg := range []string{"-h", "--help"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"explain", arg}, &stdout, &stderr); code != report.ExitClean {
+			t.Errorf("explain %s = %d, want %d", arg, code, report.ExitClean)
+		}
+		if !strings.Contains(stdout.String(), "explain") || stderr.Len() != 0 {
+			t.Errorf("explain %s did not print the usage to stdout: %q, stderr %q", arg, stdout.String(), stderr.String())
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"explain", "-x"}, &stdout, &stderr); code != report.ExitError {
+		t.Errorf("explain -x = %d, want %d", code, report.ExitError)
+	}
+	if stdout.Len() != 0 || stderr.Len() == 0 {
+		t.Errorf("explain -x printed %q to stdout and %q to stderr; want only an error", stdout.String(), stderr.String())
+	}
+}
