@@ -1,6 +1,6 @@
 # 0006: The code rules go into maintenance mode
 
-**Status:** proposed, 12 November 2026. **Decided by:** not yet; the maintainer decides when this record is accepted. **Builds on** [ADR 0005](0005-checker-beside-agents.md) and its precision method (C3, PR #81). **Would amend** ADR 0005: its `verify`, the agent interface (`mcp`) and the releases planned after v0.3 (C7) would not be pursued for now. ADR 0005 is not edited in this draft; its status line changes to "not pursued except C3, see 0006" only when this record is accepted.
+**Status:** accepted, 12 November 2026. **Decided by:** the maintainer. **Builds on** [ADR 0005](0005-checker-beside-agents.md) and its precision method (C3, PR #81). **Amends** [ADR 0005](0005-checker-beside-agents.md): its `verify`, the agent interface (`mcp`) and the releases planned after v0.3 (C7) are not pursued for now. ADR 0005's status line says so, and the release table in `docs/architecture.md` follows.
 
 Each decision gives the option chosen, then the options considered and rejected, as in ADR 0002.
 
@@ -37,7 +37,7 @@ What stops:
 - `verify` and the pull-request comment (ADR 0005, C4 to C6), `mcp`, and `impact`;
 - v0.4 to v0.9 as planned in ADR 0005, C7. Evidence (ADR 0002) and impact (ADR 0003, A4) are not scheduled either.
 
-What happens to ADR 0005: its status line changes to "not pursued except C3, see 0006" when this record is accepted, in the same change. The release table in `docs/architecture.md` changes in that change too. Its text stays as the record of what was planned.
+What happens to ADR 0005: its status line now reads "not pursued except C3, see ADR 0006", and the release table in `docs/architecture.md` was changed in the same change. ADR 0005's text stays as the record of what was planned.
 
 What happens to PR #81: the method and the dev-split results are kept as the evidence for this record. The sealed test split stays sealed and unlabelled, so a future round can still use it. The rule pages of GHC-CPLX-004 and 008 gain a note of their dev-split precision, in a separate change.
 
