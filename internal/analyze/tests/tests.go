@@ -52,8 +52,8 @@ func (Analyzer) Family() report.Family { return report.Tests }
 func (Analyzer) Rules() []analyze.Rule {
 	return []analyze.Rule{
 		{ID: UntestedPackage, Title: "Package without test files"},
-		{ID: LowCoverage, Title: "Package statement coverage below 60%"},
-		{ID: UncoveredFile, Title: "File with no statement covered"},
+		{ID: LowCoverage, Title: "Package statement coverage below 60%", Metric: StatementCoverage},
+		{ID: UncoveredFile, Title: "File with no statement covered", Metric: StatementCoverage},
 	}
 }
 

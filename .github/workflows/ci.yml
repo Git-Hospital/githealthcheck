@@ -1,5 +1,6 @@
 # GitHealthCheck's CI: format, vet, tests (including the git hardening tests, which run real git
-# against hostile repository config), govulncheck, and the GitHub Action on Linux and macOS. Same security model as Helmbulance's CI: runs on
+# against hostile repository config), govulncheck, the SARIF schema, and the GitHub Action on Linux
+# and macOS. Same security model as Helmbulance's CI: runs on
 # pull_request, never pull_request_target; read-only token; no secrets, no caches; actions pinned by
 # commit SHA.
 name: CI
@@ -50,6 +51,49 @@ jobs:
       # root.
       - name: safe.directory test as root
         run: sudo -E env "PATH=$PATH" go test -count=1 -run TestSafeDirectoryForOtherOwner -v ./internal/execx/
+
+  # SARIF goes to GitHub code scanning, which rejects what does not match the schema. The official
+  # OASIS schema is pinned by its sha256 and the validator by its module version; `go run` does not
+  # add it to go.mod, so githealthcheck keeps no dependencies outside the standard library (#36).
+  sarif-schema:
+    name: SARIF 2.1.0 schema
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      SCHEMA_URL: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
+      SCHEMA_SHA256: c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e
+      JV: github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: fetch the pinned schema
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/sarif-schema.json" "$SCHEMA_URL"
+          echo "$SCHEMA_SHA256  $RUNNER_TEMP/sarif-schema.json" | sha256sum -c -
+      - name: our SARIF matches the schema
+        run: |
+          # Built, not `go run`: go run turns every non-zero exit into 1. Exit 1 only means findings.
+          go build -o "$RUNNER_TEMP/githealthcheck" ./cmd/githealthcheck
+          "$RUNNER_TEMP/githealthcheck" scan --format sarif -o "$RUNNER_TEMP/ours.sarif" . || [ $? -eq 1 ]
+          go run "$JV" "$RUNNER_TEMP/sarif-schema.json" "$RUNNER_TEMP/ours.sarif"
+      # The check must be able to fail: each broken copy of our file has to be rejected.
+      - name: broken SARIF is rejected
+        run: |
+          for edit in '.version = "2.2.0"' 'del(.runs[0].tool.driver.name)' '.runs[0].results = "none"'; do
+            jq "$edit" "$RUNNER_TEMP/ours.sarif" > "$RUNNER_TEMP/broken.sarif"
+            if go run "$JV" "$RUNNER_TEMP/sarif-schema.json" "$RUNNER_TEMP/broken.sarif"; then
+              echo "::error::the schema check accepted SARIF with: $edit"
+              exit 1
+            fi
+          done
 
   release-config:
     name: goreleaser check and snapshot

@@ -62,7 +62,7 @@ The earlier Python version is at tag [`v0.1.0`](https://github.com/Git-Hospital/
 - **history**: the truck factor of Avelino et al. (ICPC 2016), checked against the authors' own tool, the share of files with a single author, and the share of files whose authors have all stopped committing. It works on every recognised language and needs the full history (not a shallow clone) and at least 50 commits.
 - **complexity**: per function, cognitive complexity (SonarSource's count, checked against gocognit for Go and SonarSource's own test file for Python), cyclomatic complexity, length and nesting depth; and the patterns generated code leaves behind: errors checked and then dropped, imports of packages the module does not provide, functions nothing references, commented-out code and placeholder bodies; and duplication: blocks of 100 tokens or more repeated with renamed locals, and functions with the body of another.
 
-Their rules are documented in [docs/rules](docs/rules). Architecture is `null` with the reason `not_implemented`.
+Their rules are documented in [docs/rules](docs/rules), and `githealthcheck explain GHC-CPLX-001` prints a rule's page from the binary; `githealthcheck explain` alone lists the rules. Architecture is `null` with the reason `not_implemented`.
 
 **Scores.** Each metric scores 0 to 10 by its percentile among 15 well-known repositories of the language ([docs/calibration.md](docs/calibration.md)): 7 means about the 70th percentile. Statement coverage scores X% as X/10. A family scores the mean of its metrics, and the overall score the mean of the scored families. Go and Python are calibrated; JS/TS gets `not_calibrated`. A metric below its minimum input (20 functions, 1000 code lines, 5 Go packages or 50 commits) is `null` and not scored.
 
@@ -73,6 +73,22 @@ Their rules are documented in [docs/rules](docs/rules). Architecture is `null` w
 Exit codes: 0 clean, 1 findings, 2 error, 3 incomplete.
 
 `--json`, `--sarif` and `--markdown <file>` also write those renderings of the same scan. SARIF 2.1.0 is for code scanning: findings that are not on one file (a repository's truck factor, a Go package without tests) are counted there but listed only in the JSON and Markdown reports.
+
+The JSON report is the source of truth, and [`schema/report.v1.json`](schema/report.v1.json) describes it (JSON Schema 2020-12). Check `schemaVersion` first: it changes whenever a field changes meaning or disappears. Every score and metric is a number or `null` with a `reason`, never both.
+
+### Suppressing a finding
+
+A finding you have decided to keep is suppressed in `.githealthcheck.yml` at the root of the repository, with a reason (ADR 0001, D21):
+
+```yaml
+version: 1
+suppress:
+  - rule: GHC-TEST-001
+    path: cmd/tool          # a file or a directory; leave it out for every finding of the rule
+    reason: main only wires the other packages together
+```
+
+A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and does not count in the exit code. Suppression never changes a metric or a score. The file is read as untrusted input: a strict subset of YAML (the keys above, comments, plain or quoted values, an entry's keys two spaces in from its `-`), at most 64 KiB and 1,000 suppressions. A file that does not parse, an unknown key or rule, a missing reason or an empty `path` stops the scan with exit 2 and the line number. A suppression that matches no finding, most often a mistyped path, is named in a warning on stderr.
 
 ## GitHub Action
 

@@ -162,7 +162,7 @@ Guards against the "measured or null" principle being bypassed:
 Every `null` carries a `reason`. JSON is the source of truth. Markdown and the terminal table are renderings of it; SARIF also needs the commit's file list, since a result must be on a file (D36). `--json`, `--sarif` and `--markdown` write more renderings of the same scan to files.
 
 - **SARIF 2.1.0**: one result per finding on a file, with paths relative to the root (`%SRCROOT%`), the rule's page as `helpUri`, level `warning` for complexity and tests and `note` for history, and suppressed findings as `suppressions`. Findings on a directory or the whole repository are counted in a notification, and so are those past the first 5,000 results (code scanning shows 5,000 and rejects more than 25,000).
-- **Markdown**: the score, a table of families and metrics, and up to 200 findings linked to their rules. Every path and message is escaped as literal text.
+- **Markdown**: the score, a table of families and metrics, the coverage report and reader tool versions when present, and up to 200 findings linked to their rules. Coverage provenance names its path, tracked status, format and commit-file counts. Every input string is escaped as literal text.
 
 Exit codes (D25):
 - **0:** no unsuppressed findings, and the score is not below `--fail-under`.
@@ -197,11 +197,8 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 |---|---|---|
 | v0.2.0 (released 2026-10-24) | Go only; tests, history and complexity (architecture moved to a later release, D31); JSON and terminal output; fixture pairs; offline only. Findings and raw metrics only: scores are `null` (`not_calibrated`) | Run on the four Git-Hospital repos, with the results checked by hand and written up in the release notes |
 | v0.3.0 (released 2026-10-25) | Python (the complexity family through python3's `ast` and `tokenize`, coverage.py's XML for tests); the calibration corpus (15 Go and 15 Python repositories, D35), percentile scores, `calibrate`; SARIF, Markdown and the GitHub Action (D36) | Fixture pairs for Python; Sonar's and radon's values matched; `corpus.lock` reproduced by the Calibration workflow; the Action run in CI on Linux and macOS |
-| v0.4.0 | Evidence ([ADR 0002](decisions/0002-evidence.md)): the fix rule and its labelled set, reading past trees from git objects, the backtest within size bands, the corpus evidence, and the ranked list as the headline | The fix rule's precision is at least 0.8 on the labelled set; on the experiment's nine repositories the backtest gives the same direction and the same side of 1 as ADR 0002's table (exact values differ: renames are followed and past trees are read from git objects) |
-| v0.5.0 | Impact from co-change ([ADR 0003](decisions/0003-evidence-layer.md), A4): `githealthcheck impact <path>`, backtested on the repository's history | On the experiment's repositories, the backtest's share of correctly named files is reported next to its baseline, and `null` where the history is too short |
-| v0.6.0 | The agent layer (ADR 0003, A5-A7): `githealthcheck mcp`, a read-only MCP server on stdio, and `githealthcheck verify --base`, a static check of a change with weakened-test observations; the "stable" section | An MCP client lists and calls every tool on a Git-Hospital repository; each weakened-test rule's precision is measured on its labelled set; `verify` on known changes matches measures read by hand |
-| v0.7.0 | JS/TS and its corpus, `--allow-exec` | Fixture pairs for JS/TS; null tests for missing tools |
-| v0.8.0 | Container image, pre-commit, badge, PR comment, `--online` | The Action is used in the CI of all four Git-Hospital repositories |
+| v0.3.1 | A release from main with what has landed since v0.3.0; no new rules ([ADR 0006](decisions/0006-code-rules-in-maintenance.md)) | Not applicable |
+| v0.4.0 to v0.9.0 | Not pursued for now ([ADR 0006](decisions/0006-code-rules-in-maintenance.md)): evidence, impact, `verify`, `mcp`, JS/TS, the container image, pre-commit, badge, PR comment and `--online`, as planned in ADRs 0002, 0003 and 0005. Those records stay as the record of what was planned | Not applicable |
 | v1.0.0 | The exit criteria C1-C9 in ADR 0001 | Every row has its evidence linked |
 | v2 | `--diff-base`, external plugins | Not designed yet |
 

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -75,6 +76,9 @@ func calibrate(args []string, stdout, stderr io.Writer) int {
 	check := fs.Bool("check", false, "compare with the lock instead of writing it; exit 1 when they differ")
 	timeout := fs.Duration("timeout", 15*time.Minute, "give up on one repository after this long")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+		if errors.Is(err, flag.ErrHelp) {
+			return report.ExitClean
+		}
 		return report.ExitError
 	}
 	data, err := os.ReadFile(*corpusFile)
@@ -193,7 +197,7 @@ func measure(e corpusEntry, work string, keep bool, timeout time.Duration) (*rep
 	if err := fetchGit(ctx, dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--force", "--detach", e.commit); err != nil {
 		return nil, err
 	}
-	r, _, err := buildReport(ctx, dir, "")
+	r, _, err := buildReport(ctx, dir, "", io.Discard)
 	if err != nil {
 		return nil, err
 	}

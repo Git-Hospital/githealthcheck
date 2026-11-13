@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/Git-Hospital/githealthcheck/internal/facts"
 )
@@ -92,12 +93,23 @@ func ModulePath(gomod []byte) string {
 				return ""
 			}
 		}
-		if p == "(" {
+		if !isPath(p) {
 			return ""
 		}
 		return p
 	}
 	return ""
+}
+
+// isPath reports whether p can be a module path as these readers return it: not empty, not a token
+// of the go.mod syntax, and without white space or control characters, which a quoted path can hold
+// once unquoted. The go command rejects all of them; the readers drop them, so a broken go.mod gives
+// fewer paths, not junk ones (review of #84).
+func isPath(p string) bool {
+	if p == "" || p == "(" || p == ")" || p == "=>" {
+		return false
+	}
+	return !strings.ContainsFunc(p, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) })
 }
 
 // ModuleRequires returns the module paths a go.mod requires or replaces, in file order: the first
@@ -132,7 +144,9 @@ func ModuleRequires(gomod []byte) []string {
 			if u, err := strconv.Unquote(p); err == nil {
 				p = u
 			}
-			out = append(out, p)
+			if isPath(p) {
+				out = append(out, p)
+			}
 		}
 	}
 	return out

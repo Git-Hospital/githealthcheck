@@ -179,7 +179,7 @@ runs:
     # Only after this run's scan: a report.sarif left by an earlier run must not be uploaded when the
     # install failed and the scan never ran.
     - if: always() && steps.run.outputs.exit-code != '' && inputs.upload-sarif == 'true' && hashFiles(format('{0}/report.sarif', inputs.report-dir)) != ''
-      uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
       with:
         sarif_file: ${{ inputs.report-dir }}/report.sarif
         # The SARIF paths are relative to the scanned repository's root.

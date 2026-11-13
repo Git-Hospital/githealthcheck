@@ -69,6 +69,7 @@ func TestScanJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 		t.Fatalf("output is not JSON: %v\n%s", err, stdout.String())
 	}
+	validateReport(t, stdout.Bytes())
 	if r.SchemaVersion != report.SchemaVersion || len(r.Repository.Head) != 40 {
 		t.Errorf("schemaVersion %d head %q", r.SchemaVersion, r.Repository.Head)
 	}
@@ -197,6 +198,31 @@ func TestScanExtraFileFailureIsError(t *testing.T) {
 	}
 }
 
+func TestVersionAndHelpExitCodes(t *testing.T) {
+	cases := []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--version"}, report.ExitClean},
+		{[]string{"-version"}, report.ExitClean},
+		{[]string{"scan", "-h"}, report.ExitClean},
+		{[]string{"calibrate", "-h"}, report.ExitClean},
+		{[]string{"scan", "--nope", "."}, report.ExitError},
+		{[]string{"calibrate", "--nope"}, report.ExitError},
+	}
+	for _, c := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(c.args, &stdout, &stderr); code != c.want {
+			t.Errorf("run(%q) = %d, want %d", c.args, code, c.want)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	run([]string{"--version"}, &stdout, &stderr)
+	if got, want := stdout.String(), "githealthcheck "+version+"\n"; got != want {
+		t.Errorf("--version printed %q, want %q", got, want)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	dir := gitRepo(t)
 	cases := [][]string{
@@ -285,6 +311,7 @@ func TestScanWalkTimeoutStillReports(t *testing.T) {
 		if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
 			t.Fatalf("no JSON report on a walk timeout: %v\n%s", err, stdout.String())
 		}
+		validateReport(t, stdout.Bytes())
 		if r.Inputs.WalkComplete {
 			t.Error("walkComplete is true after a walk timeout")
 		}
@@ -386,6 +413,7 @@ func TestScanUnbornHead(t *testing.T) {
 	if strings.Contains(stdout.String(), `"head"`) {
 		t.Errorf("unborn branch reported a head:\n%s", stdout.String())
 	}
+	validateReport(t, stdout.Bytes())
 	stdout.Reset()
 	stderr.Reset()
 	if code := run([]string{"scan", dir}, &stdout, &stderr); code != report.ExitIncomplete {

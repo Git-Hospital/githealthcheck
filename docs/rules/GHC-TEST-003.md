@@ -16,5 +16,5 @@ The same report, with the same freshness checks and exclusions, as
 
 ## Fix
 
-Exercise the file from a test, or delete it if it is dead code. Suppression with a reason (D21) is not
-implemented yet.
+Exercise the file from a test, or delete it if it is dead code. The finding can also be suppressed with a reason in
+`.githealthcheck.yml` (D21, see the README).

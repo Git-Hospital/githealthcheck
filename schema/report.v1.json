@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Git-Hospital/githealthcheck/schema/report.v1.json",
+  "title": "githealthcheck report, schemaVersion 1",
+  "description": "The JSON report of githealthcheck scan (docs/architecture.md section 6). schemaVersion changes whenever a field changes meaning or disappears; check it before reading anything else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "repository", "languages", "families", "overall", "inputs", "skipped"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "tool": {"$ref": "#/$defs/tool"},
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "shallow", "modifiedFiles", "dirty"],
+      "properties": {
+        "path": {"type": "string", "description": "The directory name only, so reports carry no home directory."},
+        "head": {"type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$", "description": "The HEAD commit; absent on a branch with no commits yet."},
+        "shallow": {"type": "boolean"},
+        "modifiedFiles": {"type": "integer", "minimum": 0, "description": "Source files read whose work-tree content differs from the commit's blob."},
+        "dirty": {"type": "boolean", "description": "Any modified file, or commit files missing from the work tree."}
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "files", "lines", "analysed"],
+        "properties": {
+          "name": {"type": "string"},
+          "files": {"type": "integer", "minimum": 0},
+          "lines": {"type": "integer", "minimum": 0},
+          "analysed": {"type": "boolean"},
+          "reason": {"$ref": "#/$defs/nullReason", "description": "Why a language this build supports was not analysed."}
+        }
+      }
+    },
+    "families": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["family", "measured", "score"],
+        "properties": {
+          "family": {"$ref": "#/$defs/family"},
+          "measured": {"type": "boolean", "description": "True only when at least one metric has a value."},
+          "reason": {"$ref": "#/$defs/nullReason", "description": "Why the family could not run at all."},
+          "score": {"$ref": "#/$defs/measurement"},
+          "metrics": {"type": "object", "additionalProperties": {"$ref": "#/$defs/measurement"}},
+          "metricScores": {
+            "description": "The 0-10 scores of the metrics the family score is the mean of.",
+            "type": "object",
+            "additionalProperties": {"type": "number", "minimum": 0, "maximum": 10}
+          },
+          "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+        }
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "measuredFamilies", "families"],
+      "properties": {
+        "score": {"$ref": "#/$defs/measurement"},
+        "measuredFamilies": {"type": "integer", "minimum": 0},
+        "families": {"type": "integer", "minimum": 0},
+        "weights": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/family"},
+          "additionalProperties": {"type": "number", "minimum": 0}
+        },
+        "calibration": {
+          "description": "The corpus the scores are percentiles in; absent when the run did not score.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["language", "analysedShare", "repositories", "tool"],
+          "properties": {
+            "language": {"type": "string"},
+            "analysedShare": {"type": "number", "minimum": 0, "maximum": 1},
+            "repositories": {"type": "integer", "minimum": 0},
+            "tool": {"type": "string", "description": "The githealthcheck version that measured the corpus."}
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filesAnalysed", "filesTotal", "walkComplete", "commits", "elapsedMillis"],
+      "properties": {
+        "filesAnalysed": {"type": "integer", "minimum": 0},
+        "filesTotal": {"type": "integer", "minimum": 0},
+        "walkComplete": {"type": "boolean", "description": "False when --timeout ran out during the walk; file and line counts are then partial."},
+        "commits": {"type": "integer", "minimum": 0},
+        "elapsedMillis": {"type": "integer", "minimum": 0},
+        "coverage": {
+          "description": "The coverage report found or named, used or not; absent when there was none.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "tracked"],
+          "properties": {
+            "path": {"type": "string", "description": "Relative to the root, or only the base name when outside it."},
+            "tracked": {"type": "boolean"},
+            "format": {"type": "string", "description": "Absent when the report could not be parsed."},
+            "files": {"type": "integer", "minimum": 0},
+            "moduleFiles": {"type": "integer", "minimum": 0},
+            "filesAtHead": {"type": "integer", "minimum": 0}
+          }
+        },
+        "tools": {"type": "array", "items": {"$ref": "#/$defs/tool"}}
+      }
+    },
+    "skipped": {
+      "description": "Paths that were not read, and why; [] when there are none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": {"type": "string"},
+          "reason": {"$ref": "#/$defs/skipReason"},
+          "detail": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "measurement": {
+      "description": "A measured value, or null with a reason; never both, and a null always has a reason. inputs counts the files, functions or commits the value was computed from.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "inputs"],
+          "properties": {
+            "value": {"type": "number"},
+            "inputs": {"type": "integer", "minimum": 0}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "reason", "inputs"],
+          "properties": {
+            "value": {"type": "null"},
+            "reason": {"$ref": "#/$defs/nullReason"},
+            "inputs": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleId", "message"],
+      "properties": {
+        "ruleId": {"type": "string", "pattern": "^GHC-[A-Z]+-[0-9]{3}$"},
+        "message": {"type": "string"},
+        "path": {"type": "string"},
+        "line": {"type": "integer", "minimum": 1},
+        "suppressed": {"type": "boolean"},
+        "suppressReason": {"type": "string", "description": "The reason given in .githealthcheck.yml; present when suppressed."}
+      }
+    },
+    "family": {"enum": ["tests", "history", "complexity", "architecture"]},
+    "nullReason": {
+      "enum": [
+        "unsupported_language", "tool_not_found", "tool_too_old", "offline", "no_coverage_report",
+        "stale_coverage_report", "invalid_coverage_report", "history_too_short", "exec_not_allowed",
+        "not_calibrated", "insufficient_input", "low_analysed_share", "insufficient_families",
+        "not_implemented", "too_large", "timeout", "tool_crashed"
+      ]
+    },
+    "skipReason": {
+      "enum": ["symlink", "too_large", "nested_repository", "unreadable", "not_regular_file", "missing", "invalid_path"]
+    }
+  }
+}
