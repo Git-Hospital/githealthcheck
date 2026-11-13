@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Git-Hospital/githealthcheck/calibration"
+	rulepages "github.com/Git-Hospital/githealthcheck/docs/rules"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/complexity"
 	"github.com/Git-Hospital/githealthcheck/internal/analyze/history"
@@ -55,6 +56,7 @@ func init() {
 
 const usage = `usage:
   githealthcheck scan [flags] <path>   measure the repository whose root is <path>
+  githealthcheck explain [rule-id]     print a rule's page, or list the rules
   githealthcheck calibrate [flags]     measure the calibration corpus and write its lock
   githealthcheck version               print the version
 
@@ -76,6 +78,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return report.ExitClean
 	case "scan":
 		return scan(args[1:], stdout, stderr)
+	case "explain":
+		return explain(args[1:], stdout, stderr)
 	case "calibrate":
 		return calibrate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
@@ -85,6 +89,31 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n%s", args[0], usage)
 		return report.ExitError
 	}
+}
+
+// explain prints the page of one rule, or with no argument the ID and title of every rule. A finding
+// names its rule, such as GHC-CPLX-001; this is how its reader gets the page without the repository.
+func explain(args []string, stdout, stderr io.Writer) int {
+	switch {
+	case len(args) == 0:
+		for _, id := range rulepages.IDs() {
+			fmt.Fprintf(stdout, "%s  %s\n", id, rulepages.Title(id))
+		}
+		return report.ExitClean
+	case len(args) == 1 && (args[0] == "-h" || args[0] == "--help"):
+		fmt.Fprint(stdout, usage)
+		return report.ExitClean
+	case len(args) > 1:
+		fmt.Fprintf(stderr, "explain takes one rule ID, got %d arguments\n%s", len(args), usage)
+		return report.ExitError
+	}
+	_, page, ok := rulepages.Page(args[0])
+	if !ok {
+		fmt.Fprintf(stderr, "unknown rule %q; the rules are %s\n", args[0], strings.Join(rulepages.IDs(), ", "))
+		return report.ExitError
+	}
+	fmt.Fprint(stdout, string(page))
+	return report.ExitClean
 }
 
 func scan(args []string, stdout, stderr io.Writer) int {
@@ -292,7 +321,7 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 	// Marks findings only: no metric or score depends on a finding's suppression (D21).
 	unused := conf.Apply(r.Families)
 	if ctx.Err() == nil {
-		warnUnused(warn, unused, r.Families)
+		warnUnused(warn, unused, r, rf.Files)
 	}
 	if corpus != nil && !timedOut {
 		corpus.Apply(r)
@@ -305,21 +334,59 @@ func buildReport(ctx context.Context, path, coverageFile string, warn io.Writer)
 }
 
 // warnUnused names the suppressions that cover no finding: most often a typo in the path, which
-// would otherwise go unseen. A family that timed out or crashed reported nothing, so its rules'
-// suppressions are left alone: a user told that a valid entry is unused may delete it.
-func warnUnused(w io.Writer, unused []config.Suppression, families []report.FamilyResult) {
-	ruleFamily := map[string]report.Family{}
+// would otherwise go unseen. Only a suppression whose rule really ran is named: a user told that a
+// valid entry is unused may delete it, and the finding comes back on the next full run (#83).
+//   - A family that did not run its rules is skipped whole: it timed out or crashed, or history
+//     stopped at history_too_short (a shallow clone) or too_large.
+//   - A rule whose own metric is null did not run either, though its family did: GHC-TEST-002 and
+//     003 without a usable coverage report, GHC-CPLX-009 and 010 when the token streams were dropped.
+//   - A suppression with a path is skipped when a file it covers was not read in full: its language
+//     was not analysed (Python with no python3 on PATH), the parser gave up on it, or the walk
+//     skipped it.
+//   - A suppression without a path is skipped when any such file exists, since its rule may read it.
+func warnUnused(w io.Writer, unused []config.Suppression, r *report.Report, files []facts.File) {
+	ruleFamily, ruleMetric := map[string]report.Family{}, map[string]string{}
 	for _, a := range analyzers {
 		for _, rl := range a.Rules() {
-			ruleFamily[rl.ID] = a.Family()
+			ruleFamily[rl.ID], ruleMetric[rl.ID] = a.Family(), rl.Metric
 		}
 	}
-	incomplete := map[report.Family]bool{}
-	for _, f := range families {
-		incomplete[f.Family] = f.Reason == report.Timeout || f.Reason == report.ToolCrashed
+	notRun := map[report.Family]bool{}
+	metricNull := map[string]bool{}
+	for _, f := range r.Families {
+		switch f.Reason {
+		case report.Timeout, report.ToolCrashed, report.HistoryTooShort, report.TooLarge:
+			notRun[f.Family] = true
+		}
+		for name, m := range f.Metrics {
+			metricNull[string(f.Family)+"/"+name] = m.IsNull()
+		}
+	}
+	// supported are the languages of the repository this build can analyse; a file in another one has
+	// no rules to hide.
+	supported := map[string]bool{}
+	for _, l := range r.Languages {
+		supported[l.Name] = l.Analysed || l.Reason != "" && l.Reason != report.UnsupportedLanguage
+	}
+	// unread holds the source files whose findings may be missing.
+	var unread []string
+	for _, f := range files {
+		if supported[f.Language] && (!f.Analysed || f.Partial) {
+			unread = append(unread, f.Path)
+		}
+	}
+	for _, sk := range r.Skipped {
+		if supported[repo.Language(sk.Path)] {
+			unread = append(unread, sk.Path)
+		}
 	}
 	for _, s := range unused {
-		if incomplete[ruleFamily[s.Rule]] {
+		family := ruleFamily[s.Rule]
+		if notRun[family] || ruleMetric[s.Rule] != "" && metricNull[string(family)+"/"+ruleMetric[s.Rule]] {
+			continue
+		}
+		// History reads every recognised language from git alone, so no file can hide its rules.
+		if family != report.History && slices.ContainsFunc(unread, func(p string) bool { return config.Covers(s.Path, p) }) {
 			continue
 		}
 		where := "any path"

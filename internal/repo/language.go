@@ -23,6 +23,9 @@ var extensions = map[string]string{
 	".sh":    "shell", ".bash": "shell",
 }
 
+// Language is the language name a path's extension stands for, or "" for none.
+func Language(rel string) string { return language(rel) }
+
 func language(rel string) string {
 	return extensions[strings.ToLower(path.Ext(rel))]
 }
