@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- `githealthcheck explain <rule-id>` prints the rule's page, which is now built into the binary, and `githealthcheck explain` lists every rule ID with its title (ADR 0001, D25). The ID's case does not matter; an unknown ID exits 2 and lists the known ones (#55).
+
 ### Fixed
 
 - A suppression in `.githealthcheck.yml` is no longer called unused when its rule did not run: history stopped at `history_too_short` (a shallow clone) or `too_large`, the language it is about was not analysed (Python with no python3 on PATH), a file it covers did not parse or was skipped, or the rule's own metric is null (GHC-TEST-002 and 003 without a usable coverage report, GHC-CPLX-009 and 010 when the token streams were dropped). A user told that a valid entry is unused may delete it, and the finding comes back on the next full run (#83).
