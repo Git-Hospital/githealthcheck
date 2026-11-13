@@ -71,8 +71,9 @@ func (Analyzer) Rules() []analyze.Rule {
 		{ID: UnusedFunction, Title: "Function nothing references"},
 		{ID: CommentedCode, Title: "Commented-out code"},
 		{ID: Placeholder, Title: "Function that only says it is not implemented"},
-		{ID: DuplicatedBlock, Title: fmt.Sprintf("Block of %d tokens or more repeated", MinCloneTokens)},
-		{ID: IdenticalFunctions, Title: "Function with the body of another"},
+		// Both come from duplication, which finds nothing when the walk dropped the token streams.
+		{ID: DuplicatedBlock, Title: fmt.Sprintf("Block of %d tokens or more repeated", MinCloneTokens), Metric: DuplicatedLineShare},
+		{ID: IdenticalFunctions, Title: "Function with the body of another", Metric: DuplicatedLineShare},
 	}
 }
 
