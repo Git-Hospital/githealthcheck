@@ -1,0 +1,2 @@
+repo	rule	path	count
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	18

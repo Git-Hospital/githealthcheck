@@ -1,0 +1,1129 @@
+repo	rule	path	line	message
+AdguardTeam/AdGuardHome	GHC-CPLX-004	internal/ossvc/service_darwin.go	125	darwinService.Status checks an error and returns nil in its place
+Aider-AI/aider	GHC-CPLX-004	aider/coders/base_coder.py	1115	Coder.get_user_language catches every exception and does nothing with it
+Aider-AI/aider	GHC-CPLX-004	aider/main.py	55	check_config_files_for_yes catches every exception and does nothing with it
+Aider-AI/aider	GHC-CPLX-004	aider/onboarding.py	321	start_openrouter_oauth_flow catches every exception and does nothing with it
+Aider-AI/aider	GHC-CPLX-004	aider/report.py	81	report_github_issue catches every exception and does nothing with it
+Aider-AI/aider	GHC-CPLX-004	aider/report.py	122	exception_handler catches every exception and does nothing with it
+aio-libs/aiohttp	GHC-CPLX-004	aiohttp/worker.py	141	GunicornWebWorker._run catches every exception and does nothing with it
+aio-libs/aiohttp	GHC-CPLX-004	tests/test_client_session.py	1355	test_request_tracing_exception catches every exception and does nothing with it
+anchore/syft	GHC-CPLX-004	internal/archive/extract.go	89	identifyFormat checks an error and returns nil in its place
+anchore/syft	GHC-CPLX-004	internal/file/squashfs.go	56	walkDiskDir checks an error and returns nil in its place
+anchore/syft	GHC-CPLX-004	syft/pkg/cataloger/dotnet/deps_binary_cataloger.go	544	findELFBundledDepsJSON checks an error and returns nil in its place
+anchore/syft	GHC-CPLX-004	syft/pkg/cataloger/dotnet/deps_binary_cataloger.go	572	readELFBundledDepsJSON checks an error and returns nil in its place
+anchore/syft	GHC-CPLX-004	syft/pkg/cataloger/golang/upx.go	645	classifyDecodeFailure checks an error and returns nil in its place
+aquasecurity/trivy	GHC-CPLX-004	pkg/cache/redis.go	204	RedisCache.MissingBlobs checks an error and returns nil in its place
+browser-use/browser-use	GHC-CPLX-004	browser_use/actor/element.py	105	Element.click catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/actor/element.py	123	Element.click catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/actor/element.py	148	Element.click catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/actor/element.py	196	Element.click catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/actor/mouse.py	161	Mouse.scroll catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/agent/service.py	4021	Agent.close catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/chrome.py	57	find_chrome_executable catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/cloud/cloud.py	125	CloudBrowserClient.create_browser catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/cloud/cloud.py	204	CloudBrowserClient.stop_browser catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/profile.py	254	get_display_size catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/profile.py	266	get_display_size catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/session.py	867	BrowserSession.on_BrowserStartEvent catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/session.py	874	BrowserSession.on_BrowserStartEvent catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/session.py	1328	BrowserSession.on_BrowserStopEvent catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/session.py	2144	BrowserSession._setup_proxy_auth catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/session.py	2427	BrowserSession.get_tabs catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	310	HarRecordingWatchdog._on_response_received catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	362	HarRecordingWatchdog._on_response_received catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	376	HarRecordingWatchdog._on_data_received catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	409	HarRecordingWatchdog._on_loading_finished catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	455	HarRecordingWatchdog._on_lifecycle_event catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	461	HarRecordingWatchdog._on_lifecycle_event catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/har_recording_watchdog.py	777	HarRecordingWatchdog._calc_request_body_size catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/local_browser_watchdog.py	169	LocalBrowserWatchdog._launch_browser catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/local_browser_watchdog.py	209	LocalBrowserWatchdog._launch_browser catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/screenshot_watchdog.py	61	ScreenshotWatchdog.on_ScreenshotEvent catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/security_watchdog.py	154	SecurityWatchdog._is_ip_address catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/security_watchdog.py	158	SecurityWatchdog._is_ip_address catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/browser/watchdogs/security_watchdog.py	166	SecurityWatchdog._is_ip_address catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/cli.py	56	_capture_via_harness catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/config.py	25	is_running_in_docker catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/config.py	34	is_running_in_docker catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/config.py	41	is_running_in_docker catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/integrations/anthropic/browser_use.py	612	BrowserUse.navigate catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/integrations/openai/browser_use.py	509	BrowserUse._start_diagnostics catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/llm/anthropic/chat.py	341	ChatAnthropic._completion_from_serialized_tool_input catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/llm/anthropic/chat.py	362	ChatAnthropic._completion_from_text_response catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/llm/mistral/chat.py	141	ChatMistral._parse_error catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/logging_config.py	269	FIFOHandler.emit catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/logging_config.py	277	FIFOHandler.close catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/sandbox/sandbox.py	556	_parse_with_type_annotation catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/sandbox/sandbox.py	663	_parse_with_type_annotation catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/tokens/service.py	108	TokenCost._find_valid_cache catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/tokens/service.py	628	TokenCost.clean_old_caches catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/tokens/service.py	641	TokenCost.clean_old_caches catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/tools/registry/service.py	363	Registry.execute_action catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/tools/service.py	652	Tools.__init__ catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	browser_use/utils.py	446	SignalHandler.wait_for_resume catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	examples/browser/playwright_integration.py	86	start_chrome_with_debug_port catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	examples/browser/playwright_integration.py	117	start_chrome_with_debug_port catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	tests/ci/browser/test_cdp_headers.py	120	test_cdp_client_no_headers_when_none catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	tests/ci/browser/test_cdp_headers.py	164	test_headers_used_for_json_version_endpoint catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	tests/ci/evaluate_tasks.py	191	run_single_task catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	tests/ci/infrastructure/test_filesystem.py	277	TestFileSystem.empty_filesystem catches every exception and does nothing with it
+browser-use/browser-use	GHC-CPLX-004	tests/scripts/test_frame_hierarchy.py	139	analyze_frame_hierarchy catches every exception and does nothing with it
+charmbracelet/crush	GHC-CPLX-004	internal/agent/coordinator.go	1888	coordinator.runSubAgent checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/prompt/prompt.go	294	getGitStatusSummary checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/bash.go	338	executeBashCommand checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/bash.go	392	executeBashCommand checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	157	createNewFile checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	298	loadExistingFile checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	316	deleteContent checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	361	deleteContent checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	386	replaceContent checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/edit.go	434	replaceContent checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/mcp-tools.go	136	Tool.Run checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/mcp/init.go	1386	oauthRoundTripper.RoundTrip checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/multiedit.go	208	processMultiEditWithCreation checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/multiedit.go	316	processMultiEditExistingFile checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/agent/tools/view.go	448	readBuiltinFile checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/litellm.go	45	litellmEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/litellm.go	55	litellmEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/llamacpp.go	50	llamacppEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/llamacpp.go	60	llamacppEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/lmstudio.go	56	lmstudioEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/lmstudio.go	66	lmstudioEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/omlx.go	39	omlxEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/discover/omlx.go	49	omlxEnricher.EnrichModels checks an error and returns nil in its place
+charmbracelet/crush	GHC-CPLX-004	internal/logout/logout.go	30	Confirm checks an error and returns nil in its place
+cloudwego/eino	GHC-CPLX-004	components/tool/utils/error_handler.go	146	errorHelper.InvokableRun checks an error and returns nil in its place
+cloudwego/eino	GHC-CPLX-004	components/tool/utils/error_handler.go	162	streamErrorHelper.StreamableRun checks an error and returns nil in its place
+cloudwego/eino	GHC-CPLX-004	compose/tool_node.go	451	remapArgs checks an error and returns nil in its place
+docker/compose	GHC-CPLX-004	cmd/compose/hooks.go	180	handleHook checks an error and returns nil in its place
+docker/compose	GHC-CPLX-004	cmd/compose/run.go	138	runOptions.getEnvironment checks an error and returns nil in its place
+docker/compose	GHC-CPLX-004	internal/pidfile/pidfile.go	43	Read checks an error and returns nil in its place
+fyne-io/fyne	GHC-CPLX-004	cmd/fyne/internal/commands/install.go	191	Installer.installAndroid checks an error and returns nil in its place
+fyne-io/fyne	GHC-CPLX-004	cmd/fyne/internal/commands/install.go	204	Installer.installIOS checks an error and returns nil in its place
+fyne-io/fyne	GHC-CPLX-004	cmd/fyne/internal/commands/release.go	525	Releaser.zipAlign checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	56	handleFailedJobLogs checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	115	handleSingleJobLogs checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	677	getWorkflow checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	692	getWorkflowRun checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	706	getWorkflowJob checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	729	listWorkflows checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	768	listWorkflowRuns checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	792	listWorkflowJobs checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	816	listWorkflowArtifacts checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	832	downloadWorkflowArtifact checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	856	getWorkflowRunLogsURL checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	880	getWorkflowRunUsage checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	911	runWorkflow checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	940	rerunWorkflowRun checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	962	rerunFailedJobs checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions.go	1008	deleteWorkflowRunLogs checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/actions_types.go	91	decodeActionsFilter checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	95	customPropertiesReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	99	customPropertiesReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	107	customPropertiesReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	116	customPropertiesReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	130	customPropertiesReadEnterprise checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	224	customPropertiesWriteRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	228	customPropertiesWriteRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	240	customPropertiesWriteRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	249	customPropertiesWriteOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	262	customPropertiesWriteEnterprise checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	390	customPropertiesWriteDefinitions checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/custom_properties.go	399	customPropertiesWriteDefinitions checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	709	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	713	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	717	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	721	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	738	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	756	addDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	786	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	791	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	795	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	799	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	803	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	820	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	842	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	867	replyToDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	886	updateDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	890	updateDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	908	updateDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	927	deleteDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	944	deleteDiscussionComment checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	963	markDiscussionCommentAsAnswer checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	978	markDiscussionCommentAsAnswer checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	996	unmarkDiscussionCommentAsAnswer checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/discussions.go	1011	unmarkDiscussionCommentAsAnswer checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/granular_issue_types.go	209	granularIssueMinimalResult checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issue_dependencies.go	113	getIssueBlockedByOutput checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issue_dependencies.go	137	getIssueBlockingOutput checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issue_dependencies.go	350	writeIssueDependency checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issue_dependencies.go	359	writeIssueDependency checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issue_dependencies.go	374	writeIssueDependency checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1061	getIssueComments checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1098	getSubIssues checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1131	getSubIssues checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1207	getIssueParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1273	getIssueLabels checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1826	addSubIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1865	removeSubIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	1920	reprioritizeSubIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2539	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2544	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2548	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2555	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2564	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2604	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	2616	searchIssuesHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3094	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3111	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3123	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3133	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3141	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3148	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3160	createIssueWithParent checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3343	createIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3354	createIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3361	createIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3373	createIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3397	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3447	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3483	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3541	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3562	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3590	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/issues.go	3597	updateIssue checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/lockdown.go	31	authorLockdownResult checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1057	listProjects checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1062	listProjects checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1081	listProjects checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1090	listProjects checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1191	listProjectFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1196	listProjectFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1213	listProjectFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1237	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1242	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1247	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1252	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1270	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1289	listProjectItems checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1340	getProject checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1377	getProjectField checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1403	getProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1460	updateProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1487	updateProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1507	updateProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1577	deleteProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1647	addProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1663	addProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1674	addProjectItem checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1715	createProjectStatusUpdate checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1720	createProjectStatusUpdate checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1727	createProjectStatusUpdate checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1761	createProjectStatusUpdate checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1783	listProjectStatusUpdates checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1788	listProjectStatusUpdates checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1799	listProjectStatusUpdates checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1820	listProjectStatusUpdates checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1829	listProjectStatusUpdates checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1867	getProjectStatusUpdate checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1941	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1945	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1952	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1956	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1988	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	1994	listProjectViews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2026	getProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2117	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2124	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2128	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2132	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2147	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2161	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2178	createProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2212	updateProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2216	updateProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects.go	2220	updateProjectView checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects_batch.go	87	updateProjectItemsBatch checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects_batch.go	114	updateProjectItemsBatch checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects_batch.go	119	updateProjectItemsBatch checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/projects_batch.go	129	updateProjectItemsBatch checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	181	getPullRequest checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	226	enforcePullRequestLockdown checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	259	getPullRequestDiff checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	288	getPullRequestStatus checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	307	getPullRequestStatus checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	341	getPullRequestCheckRuns checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	365	getPullRequestCheckRuns checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	416	getPullRequestFiles checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	456	getPullRequestCommits checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	539	getPullRequestReviewComments checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	561	getPullRequestReviewComments checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	617	getPullRequestReviews checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2147	CreatePullRequestReview checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2178	CreatePullRequestReview checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2211	SubmitPendingPullRequestReview checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2248	DeletePendingPullRequestReview checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2297	ResolveReviewThreadWithReason checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2321	ResolveReviewThreadWithReason checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/pullrequests.go	2361	AddCommentToPendingReviewCall checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/repositories_helper.go	367	matchFiles checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/repositories_helper.go	381	matchFiles checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/repositories_helper.go	385	matchFiles checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	223	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	227	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	234	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	241	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	249	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	255	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	264	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	268	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	275	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	279	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	286	repositoryRulesetReadRepository checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	299	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	306	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	313	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	320	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	324	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	331	repositoryRulesetReadOrganization checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	344	repositoryRulesetReadEnterprise checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	351	repositoryRulesetReadEnterprise checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	358	repositoryRulesetReadEnterprise checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	374	GetRepositoryRuleset checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	394	ListRepositoryRulesets checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	412	GetRepositoryRulesForBranch checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	509	listRuleSuites checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	518	listRuleSuites checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	539	getRuleSuite checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	548	getRuleSuite checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	562	GetOrganizationRepositoryRuleset checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	581	ListOrganizationRepositoryRulesets checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	595	GetEnterpriseRepositoryRuleset checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	624	ListEnterpriseRepositoryRulesets checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/rulesets.go	633	ListEnterpriseRepositoryRulesets checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search.go	424	userOrOrgHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search.go	433	userOrOrgHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search.go	444	userOrOrgHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search.go	476	userOrOrgHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	180	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	185	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	189	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	196	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	212	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/search_utils.go	224	searchHandler checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/typed_governance_outputs.go	424	normalizeGovernanceLevelRouting checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/typed_governance_outputs.go	432	normalizeGovernanceLevelRouting checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	111	uiGetLabels checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	148	uiGetLabels checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	186	uiGetAssignees checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	191	uiGetAssignees checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	201	uiGetAssignees checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	231	uiGetAssignees checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	240	uiGetMilestones checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	245	uiGetMilestones checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	258	uiGetMilestones checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	296	uiGetMilestones checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	305	uiGetIssueTypes checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	310	uiGetIssueTypes checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	317	uiGetIssueTypes checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	324	uiGetIssueTypes checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	333	uiGetBranches checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	338	uiGetBranches checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	350	uiGetBranches checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	377	uiGetBranches checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	386	uiGetIssueFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	391	uiGetIssueFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	396	uiGetIssueFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	446	marshalUIGetIssueFields checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	471	uiGetReviewers checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	476	uiGetReviewers checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	488	uiGetReviewers checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	509	uiGetReviewers checks an error and returns nil in its place
+github/github-mcp-server	GHC-CPLX-004	pkg/github/ui_tools.go	553	uiGetReviewers checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	pkg/proc/gdbserial/gdbserver.go	2252	checkRosettaExpensive checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	pkg/proc/macutil/rosetta_darwin.go	12	CheckRosetta checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	pkg/terminal/starbind/conv.go	493	ptrVariableAsStarlarkValue.Get checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	service/dap/command.go	169	Session.examineMemory checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	service/dap/command.go	198	Session.examineMemory checks an error and returns nil in its place
+go-delve/delve	GHC-CPLX-004	service/dap/command.go	207	Session.examineMemory checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/fingerprint/sources_checksum.go	42	ChecksumChecker.IsUpToDate checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/fingerprint/sources_timestamp.go	32	TimestampChecker.IsUpToDate checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/fingerprint/sources_timestamp.go	58	TimestampChecker.IsUpToDate checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/fingerprint/sources_timestamp.go	95	TimestampChecker.IsUpToDate checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/output/prefixed.go	102	prefixWriter.writeLine checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	internal/output/prefixed.go	109	prefixWriter.writeLine checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	setup.go	299	Executor.doVersionChecks checks an error and returns nil in its place
+go-task/task	GHC-CPLX-004	task.go	67	Executor.Run checks an error and returns nil in its place
+hashicorp/nomad	GHC-CPLX-004	nomad/state/state_store.go	945	StateStore.UpsertNode checks an error and returns nil in its place
+hashicorp/nomad	GHC-CPLX-004	nomad/state/state_store.go	1027	StateStore.DeleteNode checks an error and returns nil in its place
+hashicorp/nomad	GHC-CPLX-004	nomad/structs/structs.go	6010	PeriodicConfig.Next checks an error and returns nil in its place
+helm/helm	GHC-CPLX-004	internal/plugin/signing_info.go	65	GetPluginSigningInfo checks an error and returns nil in its place
+helm/helm	GHC-CPLX-004	pkg/downloader/manager.go	915	key checks an error and returns nil in its place
+jesseduffield/lazygit	GHC-CPLX-004	pkg/commands/git_commands/file.go	27	FileCommands.Cat checks an error and returns nil in its place
+jesseduffield/lazygit	GHC-CPLX-004	pkg/gui/controllers/helpers/repos_helper.go	379	ReposHelper.switchToLocation checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	examples/everything/main.go	557	resourceCompletionProvider.CompleteResourceArgument checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	server/input_validation.go	156	inputSchemaValidator.validate checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	server/output_validation.go	104	outputSchemaValidator.validateStructured checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	server/response.go	246	MCPServer.validateStandardHeadersForMessage checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	server/response.go	265	MCPServer.validateStandardHeadersWithParams checks an error and returns nil in its place
+mark3labs/mcp-go	GHC-CPLX-004	server/response.go	311	MCPServer.validateBoundToolHeaders checks an error and returns nil in its place
+mitmproxy/mitmproxy	GHC-CPLX-004	mitmproxy/addons/proxyauth.py	103	ProxyAuth.authenticate_http catches every exception and does nothing with it
+mitmproxy/mitmproxy	GHC-CPLX-004	mitmproxy/version.py	39	get_dev_version catches every exception and does nothing with it
+mitmproxy/mitmproxy	GHC-CPLX-004	test/helper_tools/hunt_memory_leaks.py	58	debug2 catches every exception and does nothing with it
+mitmproxy/mitmproxy	GHC-CPLX-004	test/mitmproxy/tools/web/test_app.py	582	TestApp.test_process_icon catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	addons/internal/connector/route.go	207	ServeWith checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/office/internal/pdf/images.go	719	imageExtractor.defaultDecode checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/office/internal/pdf/images.go	723	imageExtractor.defaultDecode checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/sandbox/cmd/sandbox/backend.go	66	packagedKVMTools checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	276	runtime.search checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	297	runtime.fetch checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	374	runtime.settingsTool checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	377	runtime.settingsTool checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	addons/web/internal/tools/tools.go	389	runtime.settingsTool checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	backend/go/omnivoice-cpp/gomnivoicecpp.go	111	OmnivoiceCpp.refAudio checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	backend/go/vllm-cpp/options.go	471	resolveDraftModelPath checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	backend/python/ace-step/backend.py	291	_generate_audio_sync catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/fish-speech/test.py	93	TestBackendServicer.setUp catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-distributed/backend.py	416	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-distributed/backend.py	428	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-distributed/backend.py	613	BackendServicer._build_generation_params catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-vlm/backend.py	279	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx-vlm/backend.py	285	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx/backend.py	266	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx/backend.py	277	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/mlx/backend.py	285	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/sglang/backend.py	435	BackendServicer.PredictStream catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/sglang/backend.py	456	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/sglang/backend.py	784	BackendServicer._predict catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/transformers/backend.py	544	BackendServicer.SoundGeneration catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/transformers/backend.py	619	BackendServicer.TTS catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/trl/backend.py	673	BackendServicer.ListCheckpoints catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm-omni/backend.py	150	BackendServicer.LoadModel catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm-omni/backend.py	495	BackendServicer._predict catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm-omni/backend.py	589	BackendServicer._predict catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm-omni/backend.py	773	BackendServicer.Free catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm/backend.py	506	BackendServicer.Score catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm/backend.py	1109	BackendServicer._predict catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	backend/python/vllm/backend.py	1113	BackendServicer._predict catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	971	studioAddons.Tools checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1000	studioAddons.AddonSkills checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1027	studioAddons.AddonContextFiles checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1053	studioAddons.AddonProviders checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1079	studioAddons.AddonUserSettings checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1100	studioAddons.AddonListings checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/application/addon_gateway.go	1148	studioAddons.AddonShadowers checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/backend.go	194	concreteFanOutGuard checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/motion_duplex.go	251	MotionEndpoints.duplexMotion checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/motion_duplex.go	264	MotionEndpoints.duplexMotion checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/motion_duplex.go	291	MotionEndpoints.duplexMotion checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/motion_duplex.go	295	MotionEndpoints.duplexMotion checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/localai/motion_duplex.go	299	MotionEndpoints.duplexMotion checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/studio/sse.go	42	streamSSEWithIDs checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/http/endpoints/studio/sse.go	59	streamSSEWithIDs checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/addons/recovery/backup.go	478	Recovery.writeBackup checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/cloudproxy/backend_forward.go	200	forwardReader.Close checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/cloudproxy/proxy.go	81	forwardStream checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_stager_http.go	550	HTTPFileStager.probeExisting checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_stager_http.go	558	HTTPFileStager.probeExisting checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_stager_http.go	579	HTTPFileStager.probeExisting checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_staging_client.go	580	FileStagingClient.ExportModel checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/nodes/file_staging_client.go	592	FileStagingClient.ExportModel checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/connectorlimits.go	158	Connectors.checkOwnerLimits checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/connectorsvc.go	359	Connectors.checkOptions checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/connectorsvc.go	381	Connectors.checkPermissions checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/egressapi.go	287	Service.servingRunner checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/egresscards.go	150	Service.cardVerdict checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/egresscards.go	173	Service.cardVerdict checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/files/extract.go	813	cleanEntryName checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/mcpconns/service.go	495	Service.Test checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/mcpconns/service.go	499	Service.Test checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/session/chattools.go	354	Chat.applyChatTools checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/sharedfolders/folders.go	652	Service.Roots checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	core/services/studio/workspace/jsonstore/store.go	275	Store.replay checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	examples/vllm-bench/ttft_streaming_tool_parser.py	95	bench_one catches every exception and does nothing with it
+mudler/LocalAI	GHC-CPLX-004	pkg/grpc/server.go	1112	server.Free checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	pkg/web/extract/extract.go	119	decode checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	tests/e2e/mock-backend/main.go	662	MockBackend.TTS checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	tests/e2e/mock-backend/main.go	665	MockBackend.TTS checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	tests/e2e/mock-backend/main.go	710	MockBackend.SoundGeneration checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	tests/e2e/mock-backend/main.go	713	MockBackend.SoundGeneration checks an error and returns nil in its place
+mudler/LocalAI	GHC-CPLX-004	tests/test_invariant_backend.py	37	test_dataset_source_path_traversal_blocked catches every exception and does nothing with it
+nats-io/nats-server	GHC-CPLX-004	server/jetstream_cluster.go	5223	jetStream.switchStreamWriteMode checks an error and returns nil in its place
+nats-io/nats-server	GHC-CPLX-004	server/jetstream_cluster.go	8803	jetStream.switchConsumerWriteMode checks an error and returns nil in its place
+nats-io/nats-server	GHC-CPLX-004	server/monitor.go	290	Server.Connz checks an error and returns nil in its place
+nektos/act	GHC-CPLX-004	pkg/runner/action_path.go	131	rejectHostContextEscape checks an error and returns nil in its place
+openai/openai-agents-python	GHC-CPLX-004	examples/basic/trace_redaction.py	43	RedactingExporter.export catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/live/app/server.py	121	relay catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/mcp/streamablehttp_example/server.py	36	get_current_weather catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/realtime/cli/demo.py	137	NoUIDemo._output_callback catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/realtime/cli/demo.py	202	NoUIDemo._output_callback catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/daytona/usaspending_text2sql/agent.py	220	_format_tool_args catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/temporal/temporal_sandbox_agent.py	615	AgentWorkflow._run_turn catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/temporal/temporal_sandbox_tui.py	317	ConversationApp._backfill_snapshot_ids catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/temporal/temporal_sandbox_tui.py	947	ConversationApp._fork_session catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/temporal/temporal_sandbox_tui.py	1144	ConversationApp._on_exit_choice catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/sandbox/extensions/temporal/temporal_sandbox_tui.py	1154	ConversationApp._on_exit_choice catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	examples/voice/streamed/main.py	142	RealtimeApp._on_transcription catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	integration_tests/containers/test_dapr_redis.py	116	wait_for_dapr_health catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	integration_tests/containers/test_dapr_redis.py	139	wait_for_dapr_component catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/exceptions.py	210	_prepare_data_redacted_error catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/exceptions.py	224	_prepare_data_redacted_error catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/exceptions.py	287	_copy_data_redacted_process_control_error catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/experimental/codex/output_schema_file.py	42	create_output_schema_file catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/advanced_sqlite_session.py	99	AdvancedSQLiteSession.__init__ catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/async_sqlite_session.py	121	AsyncSQLiteSession._get_connection catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/async_sqlite_session.py	123	AsyncSQLiteSession._get_connection catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/encrypt_session.py	81	_ensure_fernet_key_bytes catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/mongodb_session.py	440	MongoDBSession._pop_item catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/mongodb_session.py	489	MongoDBSession._pop_item catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/mongodb_session.py	564	MongoDBSession._clear_session catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/memory/redis_session.py	260	_PipelineConnectionPool.release catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/blaxel/sandbox.py	1052	BlaxelSandboxSession._terminate_pty_entry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	529	CloudflareSandboxSession.mount_bucket catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	571	CloudflareSandboxSession.unmount_bucket catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	722	CloudflareSandboxSession._restore_snapshot_into_workspace_on_resume catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1321	CloudflareSandboxSession.read catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1331	CloudflareSandboxSession.read catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1346	CloudflareSandboxSession.read catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1400	CloudflareSandboxSession.write catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1415	CloudflareSandboxSession.write catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1469	CloudflareSandboxSession._persist_workspace_via_http catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/cloudflare/sandbox.py	1530	CloudflareSandboxSession._hydrate_workspace_via_http catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	473	DaytonaSandboxSession._shutdown_backend catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	626	DaytonaSandboxSession._exec_internal catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	779	DaytonaSandboxSession._run_pty_waiter catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	810	DaytonaSandboxSession._run_session_reader catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	929	DaytonaSandboxSession._terminate_pty_entry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	1132	DaytonaSandboxSession.persist_workspace catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	1226	DaytonaSandboxSession.hydrate_workspace catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/daytona/sandbox.py	1372	DaytonaSandboxClient.delete catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/e2b/sandbox.py	1329	E2BSandboxSession._terminate_pty_entry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/e2b/sandbox.py	1578	E2BSandboxSession.hydrate_workspace catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/e2b/sandbox.py	1673	E2BSandboxSession.hydrate_workspace catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	676	ModalSandboxSession._shutdown_backend catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	705	ModalSandboxSession._ensure_sandbox catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	832	ModalSandboxSession._exec_internal catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	1239	ModalSandboxSession._terminate_pty_entry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	1919	ModalSandboxSession._restore_snapshot_filesystem_image catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	1946	ModalSandboxSession._restore_snapshot_filesystem_image catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/modal/sandbox.py	2369	ModalSandboxClient.delete catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/vercel/sandbox.py	1101	VercelSandboxSession._restore_snapshot_reference_id catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/vercel/sandbox.py	1421	VercelSandboxSession._persist_workspace_internal catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/extensions/sandbox/vercel/sandbox.py	1522	VercelSandboxSession._hydrate_workspace_internal catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/mcp/server.py	1339	_MCPServerWithClientSession._client_session_context catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/mcp/server.py	1356	_MCPServerWithClientSession._client_session_context catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/mcp/server.py	2546	MCPServerStreamableHttp._call_tool_with_isolated_retry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/mcp/util.py	747	MCPUtil.invoke_mcp_tool catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/models/openai_responses.py	1746	OpenAIResponsesWSModel._force_abort_websocket_connection catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_internal/blocked_output.py	225	_resolve_output_guardrail_blocked_message catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_internal/blocked_output.py	684	_sever_blocked_output_replay_graph catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_internal/error_handlers.py	109	attach_generic_agent_error catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_internal/run_loop.py	2033	start_streaming catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_state.py	3351	_deserialize_processed_response catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/run_state.py	3432	_deserialize_processed_response catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/capabilities/skills.py	864	Skills._resolve_runtime_metadata catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/capabilities/tools/view_image.py	155	ViewImageTool._run catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	283	_DockerExecSocket.close catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	545	DockerSandboxSession._rm_best_effort catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	645	DockerSandboxSession._exec_run catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	834	DockerSandboxSession._stream_into_exec catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	844	DockerSandboxSession._stream_into_exec catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1015	DockerSandboxSession._shutdown_backend catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1111	DockerSandboxSession.pty_exec_start catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1248	DockerSandboxSession._pump_pty_socket catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1257	DockerSandboxSession._pump_pty_socket catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1397	DockerSandboxSession._terminate_pty_entry catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1431	DockerSandboxSession._kill_pty_pid_path catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1586	DockerSandboxSession._iter_archive_chunks catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1686	DockerSandboxClient._cleanup_failed_create_resources catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/docker.py	1691	DockerSandboxClient._cleanup_failed_create_resources catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/unix_local.py	415	UnixLocalSandboxSession._exec_internal catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/sandboxes/unix_local.py	1621	UnixLocalSandboxClient.delete catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/session/sinks.py	130	JsonlOutboxSink._append_line catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/session/sinks.py	139	JsonlOutboxSink._append_line catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/session/sinks.py	358	HttpProxySink._post catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/session/snapshot_lifecycle.py	248	_close_best_effort catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/sandbox/util/tar_utils.py	566	safe_extract_tarfile catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/testing/model.py	584	ScriptedModel._set_span_error catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/tool.py	2243	_get_function_tool_invoke_context catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	src/agents/util/_json.py	60	validate_json catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	tests/extensions/memory/test_dapr_session.py	715	test_external_client_not_closed catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	tests/extensions/memory/test_redis_session.py	971	test_real_redis_decode_responses_compatibility catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	tests/mcp/test_mcp_util.py	1251	test_mcp_tool_outer_cancellation_after_inner_exception_still_propagates catches every exception and does nothing with it
+openai/openai-agents-python	GHC-CPLX-004	tests/realtime/test_openai_realtime.py	3768	TestTransportIntegration.test_connect_to_local_server catches every exception and does nothing with it
+ory/kratos	GHC-CPLX-004	driver/config/config.go	649	Config.IdentityTraitsSchemas checks an error and returns nil in its place
+ory/kratos	GHC-CPLX-004	selfservice/strategy/oidc/strategy_login.go	115	Strategy.handleConflictingIdentity checks an error and returns nil in its place
+ory/kratos	GHC-CPLX-004	selfservice/strategy/webauthn/registration.go	242	Strategy.PopulateRegistrationMethod checks an error and returns nil in its place
+ory/kratos	GHC-CPLX-004	selfservice/strategy/webauthn/registration.go	262	Strategy.PopulateRegistrationMethodProfile checks an error and returns nil in its place
+ory/kratos	GHC-CPLX-004	selfservice/strategy/webauthn/registration.go	282	Strategy.PopulateRegistrationMethodCredentials checks an error and returns nil in its place
+ory/kratos	GHC-CPLX-004	x/normalize.go	79	applyPRECIS checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	backend/hasher/kv.go	223	kvUpdateFingerprint.Do checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	backend/iclouddrive/icloudphotos.go	410	PhotosFs.FindLeaf checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	backend/internxt/internxt.go	422	NewFs checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	backend/netstorage/netstorage.go	1076	Object.netStorageUploadRequest checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	cmd/serve/s3/backend.go	880	s3Backend.BucketExists checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	cmd/serve/s3/multipart.go	739	copyToSink checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	fs/config/crypt.go	82	Decrypt checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	fs/operations/operations.go	1250	RemoveExisting checks an error and returns nil in its place
+rclone/rclone	GHC-CPLX-004	fs/rc/internal.go	594	rcRunCommand checks an error and returns nil in its place
+sigstore/cosign	GHC-CPLX-004	pkg/cosign/tsa.go	67	isTufTargetExist checks an error and returns nil in its place
+sphinx-doc/sphinx	GHC-CPLX-004	sphinx/builders/html/__init__.py	364	StandaloneHTMLBuilder.get_outdated_docs catches every exception and does nothing with it
+sphinx-doc/sphinx	GHC-CPLX-004	sphinx/events.py	432	EventManager.emit catches every exception and does nothing with it
+sphinx-doc/sphinx	GHC-CPLX-004	sphinx/transforms/post_transforms/code.py	129	TrimDoctestFlagsTransform.is_pyconsole catches every exception and does nothing with it
+sphinx-doc/sphinx	GHC-CPLX-004	sphinx/util/inspect.py	467	safe_getattr catches every exception and does nothing with it
+sphinx-doc/sphinx	GHC-CPLX-004	tests/test_util/test_util_display.py	110	test_progress_message catches every exception and does nothing with it
+sqlc-dev/sqlc	GHC-CPLX-004	internal/config/config.go	25	Paths.UnmarshalJSON checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/config/config.go	32	Paths.UnmarshalJSON checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/core/analyzer/expr.go	94	analyzer.typeExpr checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/core/cast.go	40	Catalog.FindCast checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/core/dialect.go	46	Catalog.DialectFlag checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/core/types.go	224	Catalog.createComparisons checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/goldeneye/spanner/library.go	324	probeCandidate checks an error and returns nil in its place
+sqlc-dev/sqlc	GHC-CPLX-004	internal/goldeneye/spanner/library.go	354	probeCandidate checks an error and returns nil in its place
+syncthing/syncthing	GHC-CPLX-004	lib/protocol/protocol.go	882	rawConnection.writeCompressedMessage checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	cmd/tailscale/cli/ip.go	127	serviceAddrsMatchingIP checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	ipn/ipnlocal/local.go	8119	LocalBackend.CheckUDPGROForwarding checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	ipn/ipnlocal/profiles.go	964	newProfileManagerWithGOOS checks an error and does nothing with it
+tailscale/tailscale	GHC-CPLX-004	tempfork/sshtest/ssh/server.go	387	gssExchangeToken checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	tempfork/sshtest/ssh/server.go	419	gssExchangeToken checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	tka/tailchonk.go	420	FS.CommitTime checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	tstest/natlab/natlab.go	674	Machine.ListenPacket checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	util/osuser/user.go	92	lookup checks an error and returns nil in its place
+tailscale/tailscale	GHC-CPLX-004	wgengine/router/osrouter/router_linux.go	233	ipCmdSupportsFwmask checks an error and returns nil in its place
+tmc/langchaingo	GHC-CPLX-004	llms/openai/openaillm.go	492	normalizeFunctionParameters checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/internal/system/packagemanager/nixpkgs.go	84	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/internal/system/packagemanager/nixpkgs.go	114	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/internal/system/packagemanager/nixpkgs.go	133	Nixpkgs.PackageAvailable checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/pkg/commands/build/build.go	188	SyncFrontendDistToEmbedTarget checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/pkg/commands/build/build.go	192	SyncFrontendDistToEmbedTarget checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v2/pkg/commands/build/build.go	201	SyncFrontendDistToEmbedTarget checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/appimage/elf_relocate.go	19	preferBundledLibraries checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/doctor/packagemanager/nixpkgs.go	84	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/doctor/packagemanager/nixpkgs.go	114	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/doctor/packagemanager/nixpkgs.go	133	Nixpkgs.PackageAvailable checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/doctor/packagemanager/xbps.go	62	Xbps.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/templates/templates.go	178	getLocalTemplate checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/webview2/pkg/webview2/ICoreWebView2HttpRequestHeaders.go	34	ICoreWebView2HttpRequestHeaders.GetHeader checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/webview2/pkg/webview2/ICoreWebView2HttpRequestHeaders.go	77	ICoreWebView2HttpRequestHeaders.Contains checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/webview2/pkg/webview2/ICoreWebView2HttpResponseHeaders.go	57	ICoreWebView2HttpResponseHeaders.Contains checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/internal/webview2/pkg/webview2/ICoreWebView2HttpResponseHeaders.go	79	ICoreWebView2HttpResponseHeaders.GetHeader checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/application/application_android.go	1011	serveAssetForAndroid checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/doctor-ng/packagemanager/nixpkgs.go	84	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/doctor-ng/packagemanager/nixpkgs.go	114	Nixpkgs.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/doctor-ng/packagemanager/nixpkgs.go	133	Nixpkgs.PackageAvailable checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/doctor-ng/packagemanager/xbps.go	62	Xbps.PackageInstalled checks an error and returns nil in its place
+wailsapp/wails	GHC-CPLX-004	v3/pkg/updater/validate.go	351	verifySignature checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/api/javagen/gencomponents.go	252	componentsContext.genGetSet checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/model/sql/command/migrationnotes/v1.3.4.go	28	needShow1_3_4 checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/model/sql/gen/tablename.go	21	genTableName checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/model/sql/gen/update.go	87	genUpdate checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/model/sql/gen/update.go	103	genUpdate checks an error and returns nil in its place
+zeromicro/go-zero	GHC-CPLX-004	tools/goctl/util/pathx/readlink.go	17	ReadLink checks an error and returns nil in its place
+anchore/syft	GHC-CPLX-006	internal/capabilities/generate/discover_catalogers_test.go	371	parseCompositeLit is never referenced in its package
+anchore/syft	GHC-CPLX-006	internal/capabilities/util_test.go	15	checkCompletenessTestsEnabled is never referenced in its package
+anchore/syft	GHC-CPLX-006	internal/licenses/find_evidence_test.go	74	mustOpen is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/cli/utils_test.go	33	setupPKI is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/cli/utils_test.go	229	runCosign is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/cli/utils_test.go	337	testRetryIntervals is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	12	resourceCleanup is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	28	noUnboundedReads is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	42	noOverflowingBoundsCheck is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	63	noSwallowedEOF is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	77	noDirectTempFiles is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	89	tmpCleanupDeferred is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	107	packagesInRelationshipsAsValues is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	130	noDirectELFOpen is never referenced in its package
+anchore/syft	GHC-CPLX-006	test/rules/rules.go	143	noUnboundedELFParsers is never referenced in its package
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	8	declareEmptySlices is never referenced in its package
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	18	initializeMaps is never referenced in its package
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	26	errorsJoin is never referenced in its package
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	34	mapSet is never referenced in its package
+aquasecurity/trivy	GHC-CPLX-006	misc/lint/rules.go	40	tempFileOps is never referenced in its package
+charmbracelet/crush	GHC-CPLX-006	internal/cmd/root.go	1047	createDotCrushDir is never referenced in its package
+charmbracelet/crush	GHC-CPLX-006	internal/permission/grant_scope_test.go	12	grantFirst is never referenced in its package
+charmbracelet/crush	GHC-CPLX-006	internal/ui/diffview/diffview_test.go	333	assertHeight is never referenced in its package
+cloudwego/eino	GHC-CPLX-006	adk/cancel_test.go	171	drainEventsAndAssertCancelError is never referenced in its package
+cloudwego/eino	GHC-CPLX-006	adk/cancel_test.go	1472	newCancelTestAgentWithToolsFinalAnswer is never referenced in its package
+cloudwego/eino	GHC-CPLX-006	adk/middlewares/reduction/reduction_test.go	107	sendStreamChunk is never referenced in its package
+cloudwego/eino	GHC-CPLX-006	compose/utils.go	318	mapToList is never referenced in its package
+fyne-io/fyne	GHC-CPLX-006	internal/driver/glfw/driver_windows.go	50	logError is never referenced in its package
+go-delve/delve	GHC-CPLX-006	pkg/proc/native/threads_windows_arm64.go	24	newRegisters is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	api/api.go	1293	copyURL is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	api/error_unexpected_response.go	101	withStatusText is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	api/error_unexpected_response_test.go	177	testOKHandler is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	api/util_test.go	79	testRecommendation is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	client/allocrunner/taskrunner/task_runner_linux_test.go	1469	useMockEnvoyBootstrapHook is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	client/devicemanager/manager_test.go	182	drainNodeDeviceUpdates is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	client/lib/cgroupslib/init.go	227	readRootCG2 is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	client/state/upgrade_int_test.go	118	checkUpgradedAlloc is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	command/operator_autopilot_health.go	106	formatVoters is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	command/testing_test.go	107	testServiceJob is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	command/testing_test.go	131	testMultiRegionJob is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	e2e/e2eutil/utils.go	62	stringToPtrOrNil is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	helper/escapingio/reader_test.go	331	checkEquivalenceToReadOnce is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	internal/testing/apitests/util_test.go	60	int64ToPtr is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	internal/testing/apitests/util_test.go	67	float64ToPtr is never referenced in its package
+hashicorp/nomad	GHC-CPLX-006	scheduler/util.go	391	volumeMountUpdated is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	addons/github/internal/tools/tools.go	172	translate is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	backend/go/supertonic/helper.go	466	getTextMask is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	backend/go/supertonic/helper.go	965	sanitizeFilename is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	backend/go/supertonic/helper.go	984	extractWavSegment is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/app_test.go	141	postRequestJSON is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/app_test.go	212	putRequestJSON is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/endpoints/localai/systemone.go	599	backendSupportsScore is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/endpoints/studio/agents.go	43	folderIn is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/routes/ui_api_backends_test.go	353	postRequest is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/routes/ui_api_backends_test.go	370	readResponseBody is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/routes/ui_backend_gallery.go	9	registerBackendGalleryRoutes is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/http/routes/ui_gallery.go	9	registerGalleryRoutes is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/services/nodes/file_transfer_server.go	259	handleRelease is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/services/nodes/health_mock_test.go	354	makeTestNodeWithHTTP is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	core/services/studio/providerslots.go	258	isSlotAlias is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	pkg/functions/parse.go	892	genPartialJSON is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	pkg/model/filters.go	13	allExcept is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	pkg/sound/testutil_test.go	54	computeRMS is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	pkg/sound/testutil_test.go	68	generatePCMBytes is never referenced in its package
+mudler/LocalAI	GHC-CPLX-006	tests/e2e/realtime_webrtc_test.go	449	computeRMSInt16 is never referenced in its package
+rclone/rclone	GHC-CPLX-006	bin/rules.go	38	useFsLog is never referenced in its package
+rclone/rclone	GHC-CPLX-006	cmd/cmount/mountpoint_windows.go	51	isDriveOrRootPath is never referenced in its package
+rclone/rclone	GHC-CPLX-006	fs/rc/js/main.go	37	getElementById is never referenced in its package
+rclone/rclone	GHC-CPLX-006	fs/rc/js/main.go	45	time is never referenced in its package
+rclone/rclone	GHC-CPLX-006	fs/rc/js/main.go	49	paramToValue is never referenced in its package
+sqlc-dev/sqlc	GHC-CPLX-006	internal/core/types.go	784	nullableOID is never referenced in its package
+sqlc-dev/sqlc	GHC-CPLX-006	internal/core/types.go	791	nullableString is never referenced in its package
+sqlc-dev/sqlc	GHC-CPLX-006	internal/core/types.go	798	boolToInt is never referenced in its package
+sqlc-dev/sqlc	GHC-CPLX-006	internal/engine/clickhouse/convert.go	1158	renderTypeParam is never referenced in its package
+syncthing/syncthing	GHC-CPLX-006	lib/syncutil/timeoutcond_test.go	114	newTestClock is never referenced in its package
+syncthing/syncthing	GHC-CPLX-006	script/copyrights.go	464	writeNotices is never referenced in its package
+syncthing/syncthing	GHC-CPLX-006	test/usage_windows.go	19	ftToDuration is never referenced in its package
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/client_auth_test.go	43	tryAuthWithGSSAPIWithMICConfig is never referenced in its package
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/common.go	371	appendU16 is never referenced in its package
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/messages.go	712	marshalUint64 is never referenced in its package
+tailscale/tailscale	GHC-CPLX-006	tempfork/sshtest/ssh/session_test.go	546	discardHandler is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/ernie-function-call-example/ernie_function_call_example.go	42	getCurrentWeather is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/openai-function-call-example/openai_function_call_example.go	143	showResponse is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/openai-function-call-streaming-example/openai_function_call_example.go	39	getCurrentWeather is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step3_basic.go	13	basicChat is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step4_interactive.go	16	interactiveChat is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step5_memory.go	17	chatWithMemory is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	examples/tutorial-basic-chat-app/step6_advanced.go	17	advancedChat is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	internal/devtools/lint/lint.go	326	checkMissingReplaceDirectives is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	llms/googleai/googleai.go	583	showContent is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	llms/googleai/internal/cmd/generate-vertex.go	65	addCastToTopK is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	llms/googleai/shared_test/shared_test.go	210	testMultiContentTextUsingTextParts is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	llms/googleai/shared_test/shared_test.go	704	showJSON is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	llms/openai/internal/openaiclient/openaiclient_test.go	19	setupTestClient is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	vectorstores/milvus/v2/example_migration.go	194	exampleV1Usage is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	vectorstores/milvus/v2/example_migration.go	224	exampleV2Usage is never referenced in its package
+tmc/langchaingo	GHC-CPLX-006	vectorstores/milvus/v2/example_migration.go	251	exampleMixedUsage is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v2/cmd/wails/flags/build.go	142	bool2Str is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v2/pkg/commands/build/packager_linux.go	3	packageApplication is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v2/pkg/menu/keys/keys.go	32	parseModifier is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/examples/ios/build/ios/app_options_default.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/examples/ios/build/ios/app_options_ios.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/examples/mobile/build/ios/app_options_default.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/examples/mobile/build/ios/app_options_ios.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/capabilities/capabilities_darwin.go	5	newCapabilities is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/commands/build_assets/ios/app_options_default.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/commands/build_assets/ios/app_options_ios.go	8	modifyOptionsForIOS is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/commands/manifest_pipeline.go	3054	existingOptionalPathInsideProject is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/commands/msix.go	471	generatePlaceholderImage is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/commands/windows_signing.go	129	windowsSigningPassword is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/setupwizard/project_config.go	82	projectConfigStateFromConfig is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/setupwizard/wizard.go	1244	isCommandAllowed is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/pkg/edge/ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler.go	61	newICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/pkg/edge/ICoreWebView2ExecuteScriptCompletedHandler.go	61	newICoreWebView2ExecuteScriptCompletedHandler is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/pkg/webview2/com.go	81	ptr is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/internal/webview2/scripts/generator/enum_test.go	23	makeOutput is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/application.go	303	addDragAndDropMessage is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/ios_runtime_ios.go	77	iosSetNativeTabsEnabled is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/ios_runtime_ios.go	78	iosNativeTabsIsEnabled is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/ios_runtime_ios.go	79	iosSelectNativeTab is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/keys_android.go	7	acceleratorToString is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/linux_cgo.go	526	menuRadioItemNewWithId is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/linux_cgo_gtk3.go	1636	windowIgnoreMouseEvents is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/linux_cgo_gtk3.go	1942	getMouseButtons is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/linux_cgo_gtk3.go	2303	setWindowIcon is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/linux_purego.go	377	menuRadioItemNewWithId is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/mcp_tools_enabled.go	50	mcpArgBool is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menu_android.go	23	defaultApplicationMenu is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	152	newSpeechMenu is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	165	newFrontMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	169	newHideMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	175	newHideOthersMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	181	newUnhideMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	186	newUndoMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	192	newRedoMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	198	newCutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	204	newCopyMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	210	newPasteMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	216	newPasteAndMatchStyleMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	222	newDeleteMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	228	newQuitMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	236	newSelectAllMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	242	newAboutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	249	newCloseMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	260	newReloadMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	271	newForceReloadMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	282	newToggleFullscreenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	298	newZoomResetMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	309	newZoomInMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	320	newZoomOutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	331	newMinimizeMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	342	newZoomMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	352	newFullScreenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	362	newPrintMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	366	newPageLayoutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	370	newShowAllMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	374	newBringAllToFrontMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	378	newNewFileMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	382	newOpenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	386	newSaveMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	390	newSaveAsMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	394	newStartSpeakingMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	398	newStopSpeakingMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	402	newRevertMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	406	newFindMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	410	newFindAndReplaceMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	414	newFindNextMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	418	newFindPreviousMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux.go	422	newHelpMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	172	newSpeechMenu is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	189	newFrontMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	193	newHideMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	202	newHideOthersMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	210	newUnhideMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	217	newUndoMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	226	newRedoMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	234	newCutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	242	newCopyMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	250	newPasteMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	258	newPasteAndMatchStyleMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	266	newDeleteMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	274	newQuitMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	282	newSelectAllMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	290	newAboutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	297	newCloseMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	308	newReloadMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	319	newForceReloadMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	330	newToggleFullscreenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	346	newZoomResetMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	358	newZoomInMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	369	newZoomOutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	380	newMinimizeMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	391	newZoomMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	401	newFullScreenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	411	newPrintMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	415	newPageLayoutMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	419	newShowAllMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	423	newBringAllToFrontMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	427	newNewFileMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	431	newOpenMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	435	newSaveMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	439	newSaveAsMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	443	newStartSpeakingMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	447	newStopSpeakingMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	451	newRevertMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	455	newFindMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	459	newFindAndReplaceMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	463	newFindNextMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	467	newFindPreviousMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/menuitem_linux_gtk3.go	471	newHelpMenuItem is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/screen_darwin.go	282	getScreenForSystray is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/screen_darwin_purego.go	160	getScreenForSystray is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/application/webview_window_ios.go	446	newWebviewWindow is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/doctor-ng/tui/styles.go	74	statusIcon is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/pkg/w32/idroptarget.go	22	_NOP is never referenced in its package
+wailsapp/wails	GHC-CPLX-006	v3/tasks/release/release.go	226	updateVersion is never referenced in its package
+anchore/syft	GHC-CPLX-008	cmd/syft/internal/commands/cataloger_list_test.go	39	dummyTask.Execute only says it is not implemented
+anchore/syft	GHC-CPLX-008	internal/task/set_test.go	19	mockTask.Execute only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/file/mock_resolver.go	262	MockResolver.FilesByBasenameGlob only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/filetree_resolver_test.go	1337	testFileInfo.Name only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/filetree_resolver_test.go	1341	testFileInfo.Size only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/filetree_resolver_test.go	1349	testFileInfo.ModTime only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/filetree_resolver_test.go	1353	testFileInfo.IsDir only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/filetree_resolver_test.go	1357	testFileInfo.Sys only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/unindexed_directory.go	495	unindexedDirectoryResolverFile.Read only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/internal/fileresolver/unindexed_directory.go	499	unindexedDirectoryResolverFile.Close only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/binary/classifier_cataloger_test.go	3780	panicyResolver.FileMetadataByLocation only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/golang/subfs.go	77	rootFile.Read only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	23	rpmdbTestFileResolverMock.FilesByExtension only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	27	rpmdbTestFileResolverMock.FilesByBasename only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	31	rpmdbTestFileResolverMock.FilesByBasenameGlob only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	35	rpmdbTestFileResolverMock.FileContentsByLocation only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	39	rpmdbTestFileResolverMock.AllLocations only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	43	rpmdbTestFileResolverMock.FileMetadataByLocation only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	70	rpmdbTestFileResolverMock.FilesByGlob only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	79	rpmdbTestFileResolverMock.FilesByMIMEType only says it is not implemented
+anchore/syft	GHC-CPLX-008	syft/pkg/cataloger/redhat/parse_rpm_db_test.go	83	rpmdbTestFileResolverMock.FilesByMediaType only says it is not implemented
+aquasecurity/trivy	GHC-CPLX-008	pkg/log/deferred.go	50	DeferredHandler.WithGroup only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_cancel_test.go	52	finishStreamModel.GenerateObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_cancel_test.go	56	finishStreamModel.StreamObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_race_test.go	61	concurrencyProbeModel.GenerateObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_race_test.go	65	concurrencyProbeModel.StreamObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_race_test.go	93	fastModel.GenerateObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/dispatch_race_test.go	97	fastModel.StreamObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/prism_model_test.go	300	fakePrismLanguageModel.Generate only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/prism_model_test.go	324	fakePrismLanguageModel.GenerateObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/prism_model_test.go	328	fakePrismLanguageModel.StreamObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/queued_runid_test.go	64	gatedStreamModel.GenerateObject only says it is not implemented
+charmbracelet/crush	GHC-CPLX-008	internal/agent/queued_runid_test.go	68	gatedStreamModel.StreamObject only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	adk/interrupt_test.go	1534	myModel.Stream only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	adk/interrupt_test.go	2103	twoToolCallModel.Stream only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	adk/middlewares/dynamictool/toolsearch/toolsearch_test.go	276	mockChatModel.Stream only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	adk/middlewares/summarization/summarization_test.go	1919	genericMockModel.Stream only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	callbacks/aspect_inject_test.go	320	myCallback.OnError only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	callbacks/aspect_inject_test.go	324	myCallback.OnStartWithStreamInput only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	callbacks/aspect_inject_test.go	328	myCallback.OnEndWithStreamOutput only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	flow/retriever/multiquery/multi_query_test.go	62	mockModel.Stream only says it is not implemented
+cloudwego/eino	GHC-CPLX-008	flow/retriever/multiquery/multi_query_test.go	66	mockModel.BindTools only says it is not implemented
+docker/compose	GHC-CPLX-008	pkg/compose/build_bake.go	682	_console.Read only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	app/cloud_test.go	124	mockCloudStorage.Create only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	app/cloud_test.go	132	mockCloudStorage.Open only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	app/cloud_test.go	136	mockCloudStorage.Remove only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	app/cloud_test.go	145	mockCloudStorage.Save only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	app_test.go	50	dummyApp.ScheduleNotification only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/embedded/window.go	33	noosWindow.RequestFocus only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	15	context.enqueue only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	19	context.HasWork only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	23	context.cString only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	27	context.cStringPtr only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	33	NewContext only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/mobile/gl/work_other.go	37	Version only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/util_test.go	514	scrollable.Hide only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/util_test.go	530	scrollable.Refresh only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/util_test.go	538	scrollable.Scrolled only says it is not implemented
+fyne-io/fyne	GHC-CPLX-008	internal/driver/util_test.go	542	scrollable.Show only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/core/core.go	280	process.SetUProbe only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/core/core.go	287	process.EnableURetProbes only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/core/core.go	291	process.DisableURetProbes only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/gdbserial/gdbserver.go	391	gdbProcess.SetUProbe only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/followexec_other.go	8	nativeProcess.FollowExec only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/followexec_other.go	12	processGroup.detachChild only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/proc_darwin.go	495	nativeProcess.SetUProbe only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/proc_darwin.go	499	nativeProcess.GetBufferedTracepoints only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/proc_freebsd.go	634	nativeProcess.SetUProbe only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/proc_freebsd.go	638	nativeProcess.GetBufferedTracepoints only says it is not implemented
+go-delve/delve	GHC-CPLX-008	pkg/proc/native/threads_darwin.go	133	nativeThread.restoreRegisters only says it is not implemented
+gofiber/fiber	GHC-CPLX-008	app_test.go	1624	invalidView.Render only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/js/modules/k6/webcrypto/subtle_crypto.go	1052	SubtleCrypto.WrapKey only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/js/modules/k6/webcrypto/subtle_crypto.go	1107	SubtleCrypto.UnwrapKey only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/netext/grpcext/conn_test.go	45	healthcheckmock.NewStream only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/netext/grpcext/conn_test.go	332	invokemock.NewStream only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	252	GRPCStub.StreamingOutputCall only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	259	GRPCStub.StreamingInputCall only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	264	GRPCStub.FullDuplexCall only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/lib/testutils/httpmultibin/httpmultibin.go	269	GRPCStub.HalfDuplexCall only says it is not implemented
+grafana/k6	GHC-CPLX-008	internal/output/cloud/insights/flush_test.go	56	mockRequestMetadatasCollector.CollectRequestMetadatas only says it is not implemented
+grafana/k6	GHC-CPLX-008	lib/fsext/changepathfs.go	54	ChangePathFs.Chown only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	client/allocdir/fs_default.go	11	mountDir only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	client/pluginmanager/csimanager/testing.go	25	MockCSIManager.PluginManager only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	client/pluginmanager/csimanager/testing.go	40	MockCSIManager.Shutdown only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	command/namespace_status_ce_test.go	10	testQuotaSpec only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	drivers/docker/driver_test.go	3063	fakeDockerClient.ContainerInspect only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	drivers/docker/driver_test.go	3066	fakeDockerClient.ContainerList only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	drivers/docker/driver_test.go	3069	fakeDockerClient.ContainerRemove only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	e2e/v3/cluster3/cluster3.go	223	WindowsClients only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	e2e/v3/jobs3/jobs3.go	692	SkipEvalComplete only says it is not implemented
+hashicorp/nomad	GHC-CPLX-008	e2e/v3/jobs3/jobs3.go	698	SkipDeploymentHealthy only says it is not implemented
+helm/helm	GHC-CPLX-008	internal/plugin/installer/http_installer.go	146	HTTPInstaller.Update only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/exporters/storageexporter/exporter_test.go	47	mockStorageExt.Start only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/exporters/storageexporter/exporter_test.go	51	mockStorageExt.Shutdown only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/extension/jaegerstorage/extension_test.go	44	errorFactory.CreateTraceReader only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/extension/jaegerstorage/extension_test.go	48	errorFactory.CreateTraceWriter only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/extension/jaegerstorage/extension_test.go	52	errorFactory.CreateMetricsReader only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/integration/storagecleaner/extension_test.go	48	mockStorageExt.Start only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/integration/storagecleaner/extension_test.go	52	mockStorageExt.Shutdown only says it is not implemented
+jaegertracing/jaeger	GHC-CPLX-008	cmd/jaeger/internal/integration/trace_reader.go	208	traceReader.FindTraceIDs only says it is not implemented
+jesseduffield/lazygit	GHC-CPLX-008	pkg/commands/git_cmd_obj_runner_test.go	48	scriptedRunner.RunAndProcessLines only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	core/services/nodes/health_mock_test.go	266	fakeBackendClient.MotionStream only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	core/services/nodes/inflight_test.go	228	fakeGRPCBackend.MotionStream only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	25	Base.Lock only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	29	Base.Unlock only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	37	Base.Load only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	41	Base.Predict only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	50	Base.Embeddings only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	54	Base.GenerateImage only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	58	Base.GenerateVideo only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	62	Base.Generate3D only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	66	Base.Animate3D only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	70	Base.UpscaleImage only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	74	Base.AudioTranscription only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	78	Base.AudioTranscriptionStream only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	82	Base.TTS only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	86	Base.TTSStream only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	90	Base.SoundGeneration only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	94	Base.Detect only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	98	Base.Depth only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	102	Base.Forecast only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	106	Base.FaceVerify only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	110	Base.FaceAnalyze only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	114	Base.VoiceVerify only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	118	Base.VoiceAnalyze only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	122	Base.VoiceEmbed only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	126	Base.Diarize only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	130	Base.SoundDetection only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	134	Base.TokenizeString only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	138	Base.Detokenize only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	142	Base.ModelMetadata only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	153	Base.StoresSet only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	157	Base.StoresGet only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	161	Base.StoresDelete only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	165	Base.StoresFind only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	169	Base.VAD only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	173	Base.AudioEncode only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	177	Base.AudioDecode only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	181	Base.AudioTransform only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	205	Base.StartFineTune only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	209	Base.FineTuneProgress only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	213	Base.StopFineTune only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	217	Base.ListCheckpoints only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	221	Base.ExportModel only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	225	Base.StartQuantization only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	229	Base.QuantizationProgress only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/grpc/base/base.go	233	Base.StopQuantization only says it is not implemented
+mudler/LocalAI	GHC-CPLX-008	pkg/oci/layer_internal_test.go	51	fakeLayer.Uncompressed only says it is not implemented
+openai/openai-agents-python	GHC-CPLX-008	tests/mcp/helpers.py	36	DummyStream.receive only says it is not implemented
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	35	logRegistryOnly.Contextualizer only says it is not implemented
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	47	logRegistryOnly.Audit only says it is not implemented
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	59	logRegistryOnly.IdentityTraitsSchemas only says it is not implemented
+ory/kratos	GHC-CPLX-008	persistence/sql/persister_hmac_test.go	63	logRegistryOnly.IdentityValidator only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	internal/key/svkeypair_test.go	66	mockSignerVerifier.VerifySignature only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	internal/pkg/cosign/common.go	100	HashReader.Write only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/internal/signature/layer_test.go	517	mockLayer.Digest only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/internal/signature/layer_test.go	518	mockLayer.DiffID only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/internal/signature/layer_test.go	519	mockLayer.Uncompressed only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/internal/signature/layer_test.go	520	mockLayer.MediaType only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/layout/index.go	85	index.Attachment only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/mutate/mutate.go	82	indexWrapper.Attachment only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/remote/remote_test.go	272	mockLayer.Digest only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/remote/remote_test.go	273	mockLayer.DiffID only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/remote/remote_test.go	274	mockLayer.Uncompressed only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/remote/remote_test.go	275	mockLayer.MediaType only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/signed/image.go	51	image.Attachment only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/signed/index.go	72	index.Attachment only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/static/file_test.go	190	mockLayer.Digest only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/static/file_test.go	191	mockLayer.DiffID only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/static/file_test.go	192	mockLayer.Compressed only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/oci/static/file_test.go	193	mockLayer.MediaType only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	45	failingAttestation.Annotations only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	48	failingAttestation.Signature only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	51	failingAttestation.Base64Signature only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	54	failingAttestation.Cert only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	57	failingAttestation.Chain only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	60	failingAttestation.Bundle only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	63	failingAttestation.RFC3161Timestamp only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	66	failingAttestation.Digest only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	69	failingAttestation.DiffID only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	72	failingAttestation.Compressed only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	75	failingAttestation.Uncompressed only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	78	failingAttestation.Size only says it is not implemented
+sigstore/cosign	GHC-CPLX-008	pkg/policy/attestation_test.go	81	failingAttestation.MediaType only says it is not implemented
+syncthing/syncthing	GHC-CPLX-008	lib/fs/basicfs.go	274	BasicFilesystem.Walk only says it is not implemented
+syncthing/syncthing	GHC-CPLX-008	lib/fs/fakefs.go	632	fakeFS.Walk only says it is not implemented
+syncthing/syncthing	GHC-CPLX-008	lib/fs/fakefs.go	687	fakeFS.Usage only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/stunstamp/stunstamp.go	184	lportForTCPConn.Write only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/stunstamp/stunstamp.go	188	lportForTCPConn.Read only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/stunstamp/stunstamp_default.go	15	getUDPConnKernelTimestamp only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/stunstamp/stunstamp_default.go	19	measureSTUNRTTKernel only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/tailscale/cli/ssh_exec_js.go	10	findSSH only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/tailscale/cli/ssh_exec_js.go	14	execSSH only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/testcontrol/testcontrol.go	113	fakeTB.Setenv only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	cmd/testcontrol/testcontrol.go	129	fakeTB.TempDir only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	control/controlclient/sign_supported_test.go	53	testIdentity.Signer only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	control/controlclient/sign_supported_test.go	57	testIdentity.Delete only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	derp/xdp/xdp_default.go	18	NewSTUNServer only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	derp/xdp/xdp_default.go	22	STUNServer.Close only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	derp/xdp/xdp_default.go	30	STUNServer.SetDropSTUN only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3813	fakePeerAPIHandler.Peer only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3821	fakePeerAPIHandler.CanDebug only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3825	fakePeerAPIHandler.Self only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3829	fakePeerAPIHandler.LocalBackend only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3833	fakePeerAPIHandler.IsSelfUntagged only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3837	fakePeerAPIHandler.RemoteAddr only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/conn25/conn25_test.go	3841	fakePeerAPIHandler.Logf only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	feature/relayserver/relayserver_test.go	252	mockRelayServer.AllocateEndpoint only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/extension_host_test.go	1375	testBackend.SendNotify only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/extension_host_test.go	1376	testBackend.NodeBackend only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/extension_host_test.go	1377	testBackend.TailscaleVarRoot only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/extension_host_test.go	1378	testBackend.authReconfig only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/web_client_stub.go	19	LocalBackend.webClientGetOrInit only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ipn/ipnlocal/web_client_stub.go	25	LocalBackend.handleWebClientConn only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	kube/localclient/fake-client.go	45	FakeLocalClient.CertPair only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	kube/state/state_test.go	184	fakeStore.ReadState only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	net/dns/manager_linux_test.go	316	memFS.Chmod only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	net/dns/manager_linux_test.go	317	memFS.Rename only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	net/dns/manager_linux_test.go	318	memFS.Remove only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	net/tstun/tstun_stub.go	13	New only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	net/tstun/tstun_stub.go	17	Diagnose only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	posture/serialnumber_stub.go	22	GetSerialNumbers only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	ssh/tailssh/fwdchild_other_test.go	15	peerCredUID only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	tsconsensus/bolt_store_no_bolt.go	14	boltStore only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	tsnet/tsnet_test.go	2687	chanTUN.File only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	tstest/natlab/natlab.go	744	conn.Read only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	tstest/natlab/natlab.go	748	conn.RemoteAddr only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	tstest/natlab/natlab.go	752	conn.Write only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	util/winutil/winutil_notwindows.go	32	lookupPseudoUser only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/magicsock/blockforever_conn.go	53	blockForeverConn.SetDeadline only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/magicsock/blockforever_conn.go	54	blockForeverConn.SetReadDeadline only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/magicsock/blockforever_conn.go	55	blockForeverConn.SetWriteDeadline only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	691	fakeIPTablesRunner.AddDNATRule only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	695	fakeIPTablesRunner.DNATWithLoadBalancer only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	699	fakeIPTablesRunner.EnsureSNATForDst only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	703	fakeIPTablesRunner.DNATNonTailscaleTraffic only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	707	fakeIPTablesRunner.EnsurePortMapRuleForSvc only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	711	fakeIPTablesRunner.DeletePortMapRuleForSvc only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	715	fakeIPTablesRunner.DeleteSvc only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	719	fakeIPTablesRunner.ClampMSSToPMTU only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	723	fakeIPTablesRunner.EnsureDNATRuleForSvc only says it is not implemented
+tailscale/tailscale	GHC-CPLX-008	wgengine/router/osrouter/router_linux_test.go	727	fakeIPTablesRunner.DeleteDNATRuleForSvc only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	165	newFrontMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	362	newPrintMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	366	newPageLayoutMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	370	newShowAllMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	374	newBringAllToFrontMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	378	newNewFileMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	382	newOpenMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	386	newSaveMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	390	newSaveAsMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	394	newStartSpeakingMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	398	newStopSpeakingMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	402	newRevertMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	406	newFindMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	410	newFindAndReplaceMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	414	newFindNextMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	418	newFindPreviousMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux.go	422	newHelpMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	189	newFrontMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	411	newPrintMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	415	newPageLayoutMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	419	newShowAllMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	423	newBringAllToFrontMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	427	newNewFileMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	431	newOpenMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	435	newSaveMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	439	newSaveAsMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	443	newStartSpeakingMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	447	newStopSpeakingMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	451	newRevertMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	455	newFindMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	459	newFindAndReplaceMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	463	newFindNextMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	467	newFindPreviousMenuItem only says it is not implemented
+wailsapp/wails	GHC-CPLX-008	v3/pkg/application/menuitem_linux_gtk3.go	471	newHelpMenuItem only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	35	mockedConn.PrepareCtx only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	39	mockedConn.QueryRowCtx only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	43	mockedConn.QueryRowPartialCtx only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	47	mockedConn.QueryRowsCtx only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/stores/sqlx/bulkinserter_test.go	51	mockedConn.QueryRowsPartialCtx only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	core/trace/message_test.go	55	mockSpan.SpanContext only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/cryptionhandler_test.go	220	flushableResponseWriter.Header only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/cryptionhandler_test.go	228	flushableResponseWriter.WriteHeader only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/timeouthandler_test.go	313	mockedPusher.Header only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/timeouthandler_test.go	317	mockedPusher.Write only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/timeouthandler_test.go	321	mockedPusher.WriteHeader only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	rest/handler/timeouthandler_test.go	325	mockedPusher.Push only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/clientinterceptors/tracinginterceptor_test.go	412	mockedClientStream.Trailer only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/serverinterceptors/tracinginterceptor_test.go	313	mockedServerStream.SetHeader only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/serverinterceptors/tracinginterceptor_test.go	317	mockedServerStream.SendHeader only says it is not implemented
+zeromicro/go-zero	GHC-CPLX-008	zrpc/internal/serverinterceptors/tracinginterceptor_test.go	321	mockedServerStream.SetTrailer only says it is not implemented
