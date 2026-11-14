@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Added
 
 - `githealthcheck explain <rule-id>` prints the rule's page, which is now built into the binary, and `githealthcheck explain` lists every rule ID with its title (ADR 0001, D25). The ID's case does not matter; an unknown ID exits 2 and lists the known ones (#55).
+- Generated-input benchmarks for clone finding, Git history parsing and Go fact extraction report time and allocations without network access.
 
 ### Fixed
 
