@@ -12,6 +12,18 @@ The code checks an error and then acts as if there was none:
 - In both, a comment that marks unfinished work (it starts with `TODO`, `FIXME`, `XXX` or `HACK`, after
   any `nolint` directive) is not taken as meant: `return nil // TODO: handle the error` is a finding.
 
+## Precision
+
+On the dev split of precision round 1, 10 of 45 sampled findings of this rule were true; weighted precision is
+0.092, with a 90% Wilson interval of 0.036 to 0.214. With the known false-positive classes removed it stays
+near 0.56. Both are under the bar of 0.8 set in [ADR 0005, C3](../decisions/0005-checker-beside-agents.md).
+Two models labelled the sample and the maintainer settled the one finding they disagreed on. The figures hold
+on round 1's 38 repositories (32 in Go, 6 in Python), scanned with the build at commit `1e713e4`; the interval says nothing
+about other repositories, and the sealed test split is unlabelled. Most findings of this rule are expected to
+be false, so read each one before acting on it. Source: [ADR
+0006](../decisions/0006-code-rules-in-maintenance.md); the sample and the labels are in
+`testdata/precision/round1`.
+
 ## Threshold and source
 
 None: each occurrence is a finding. It is CWE-390, "Detection of Error Condition Without Action"
