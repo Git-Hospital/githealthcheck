@@ -1,6 +1,6 @@
 # 0002: Prove each finding on the repository's own history
 
-**Status:** accepted, 27 October 2026; planned for v0.4.0. **Decided by:** the maintainer. **Amends** ADR 0001's D2 and D24 (the score is no longer the headline) and D26's badge (it shows what the headline shows). **Amended by** [ADR 0003](0003-evidence-layer.md): JS/TS moves from v0.5.0 to v0.7.0 (E8).
+**Status:** accepted, 27 October 2026; not scheduled, see [ADR 0006](0006-code-rules-in-maintenance.md); it was planned for v0.4.0. **Decided by:** the maintainer. **Amends** ADR 0001's D2 and D24 (the score is no longer the headline) and D26's badge (it shows what the headline shows). **Amended by** [ADR 0003](0003-evidence-layer.md): JS/TS moves from v0.5.0 to v0.7.0 (E8); [ADR 0005](0005-checker-beside-agents.md): a sealed test split is labelled by two people and a third resolves, and the dev split stays with two models and the maintainer (E3).
 
 Each decision gives the option chosen, then the options considered and rejected, so the reasoning stays visible. ADR 0001 stays in force; this record changes what the tool puts first and adds one way of reading the repository.
 
