@@ -197,7 +197,7 @@ Precedence is 2 > 3 > 1 > 0. Some nulls only mean that an input was expected to 
 |---|---|---|
 | v0.2.0 (released 2026-10-24) | Go only; tests, history and complexity (architecture moved to a later release, D31); JSON and terminal output; fixture pairs; offline only. Findings and raw metrics only: scores are `null` (`not_calibrated`) | Run on the four Git-Hospital repos, with the results checked by hand and written up in the release notes |
 | v0.3.0 (released 2026-10-25) | Python (the complexity family through python3's `ast` and `tokenize`, coverage.py's XML for tests); the calibration corpus (15 Go and 15 Python repositories, D35), percentile scores, `calibrate`; SARIF, Markdown and the GitHub Action (D36) | Fixture pairs for Python; Sonar's and radon's values matched; `corpus.lock` reproduced by the Calibration workflow; the Action run in CI on Linux and macOS |
-| v0.3.1 | A release from main with what has landed since v0.3.0; no new rules ([ADR 0006](decisions/0006-code-rules-in-maintenance.md)) | Not applicable |
+| v0.3.1 (released 2026-11-24) | A release from main with what has landed since v0.3.0; no new rules ([ADR 0006](decisions/0006-code-rules-in-maintenance.md)) | Not applicable |
 | v0.4.0 to v0.9.0 | Not pursued for now ([ADR 0006](decisions/0006-code-rules-in-maintenance.md)): evidence, impact, `verify`, `mcp`, JS/TS, the container image, pre-commit, badge, PR comment and `--online`, as planned in ADRs 0002, 0003 and 0005. Those records stay as the record of what was planned | Not applicable |
 | v1.0.0 | The exit criteria C1-C9 in ADR 0001 | Every row has its evidence linked |
 | v2 | `--diff-base`, external plugins | Not designed yet |

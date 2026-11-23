@@ -4,17 +4,31 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-24
+
+Maintenance release ([ADR 0006](docs/decisions/0006-code-rules-in-maintenance.md)): what has landed since 0.3.0, no new rules. The report is still `schemaVersion` 1, and every change to it is a field or text that was not there before.
+
 ### Added
 
-- `githealthcheck explain <rule-id>` prints the rule's page, which is now built into the binary, and `githealthcheck explain` lists every rule ID with its title (ADR 0001, D25). The ID's case does not matter; an unknown ID exits 2 and lists the known ones (#55).
-- Generated-input benchmarks for clone finding, Git history parsing and Go fact extraction report time and allocations without network access.
+- **Suppressions**: `.githealthcheck.yml` at the root of the repository (`version: 1`, then `suppress:` entries with `rule`, optional `path` and a required `reason`) marks matching findings as suppressed. A suppressed finding stays in the JSON, SARIF and Markdown reports with its reason, is listed apart in the text output, and no longer counts in the exit code; no metric or score changes. The file is read as untrusted input, as a strict subset of YAML with no dependency: a file that does not parse, an unknown key or rule, a missing reason or an empty `path` stops the scan with exit 2 and the line number, and a suppression that matches no finding is named in a warning on stderr. The Markdown findings heading says how many are suppressed (#59).
+- The report's JSON Schema is published as [`schema/report.v1.json`](schema/report.v1.json) (JSON Schema 2020-12), and every report the tests produce is checked against it (#75).
+- `githealthcheck explain <rule-id>` prints the rule's page, which is now built into the binary, and `githealthcheck explain` lists every rule ID with its title (ADR 0001, D25). The ID's case does not matter; an unknown ID exits 2 and lists the known ones (#55, #86).
+- Generated-input benchmarks for clone finding, Git history parsing and Go fact extraction report time and allocations without network access (#70).
+
+### Changed
+
+- The GitHub Action uploads the SARIF with `github/codeql-action/upload-sarif` v4.39.3 (was v4.38.3) (#72, #82).
 
 ### Fixed
 
-- A suppression in `.githealthcheck.yml` is no longer called unused when its rule did not run: history stopped at `history_too_short` (a shallow clone) or `too_large`, the language it is about was not analysed (Python with no python3 on PATH), a file it covers did not parse or was skipped, or the rule's own metric is null (GHC-TEST-002 and 003 without a usable coverage report, GHC-CPLX-009 and 010 when the token streams were dropped). A user told that a valid entry is unused may delete it, and the finding comes back on the next full run (#83).
 - GHC-CPLX-004 takes an `if err != nil { return nil }` block with a comment in it as meant, as it already did for an empty block and as its page advised: `return nil //nolint:nilerr // best effort` is no longer a finding. At the current tips of cli/cli and caddy this removes all 12 of the rule's findings, each of them commented so. A comment that marks unfinished work (`// TODO: handle the error`, `// FIXME`) is not taken as meant, in either block.
 - Markdown job summaries identify the coverage report, its tracked status, format and commit-file counts, and the tool versions code was read with. Input text is escaped as literal Markdown.
+- Python cognitive complexity counts a parenthesised `and`/`or` chain on its own when its opening parenthesis ends the line before, as it does when the parenthesis is on the same line.
+- A repository without commits is described as such ("no commits yet") in the text and Markdown reports, instead of printing an empty commit.
+- A tree record with an empty path is rejected when the commit's files are read.
 - `--version` and `-version` print the version like `version`, and `scan -h` and `calibrate -h` exit 0 instead of 2 (#52).
+- A suppression in `.githealthcheck.yml` is no longer called unused when its rule did not run: history stopped at `history_too_short` (a shallow clone) or `too_large`, the language it is about was not analysed (Python with no python3 on PATH), a file it covers did not parse or was skipped, or the rule's own metric is null (GHC-TEST-002 and 003 without a usable coverage report, GHC-CPLX-009 and 010 when the token streams were dropped). A user told that a valid entry is unused may delete it, and the finding comes back on the next full run (#83, #87).
+- The go.mod readers drop a module path that is empty, a token of the go.mod syntax, or holds white space or control characters, so a broken go.mod gives fewer paths, not junk ones (#50, #84).
 
 ## [0.3.0] - 2026-10-25
 
@@ -60,6 +74,7 @@ The first release of the Go rewrite (ADR 0001). Go is analysed; other languages 
 
 - The Python version (0.1.0). It read no Go or Rust files yet printed scores.
 
-[Unreleased]: https://github.com/Git-Hospital/githealthcheck/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Git-Hospital/githealthcheck/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Git-Hospital/githealthcheck/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Git-Hospital/githealthcheck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Git-Hospital/githealthcheck/compare/v0.1.0...v0.2.0
