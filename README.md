@@ -36,11 +36,12 @@ Overall  6.2/10  (2 of 4 families measured)
 
 That is this repository scanning itself at commit `3029e9b`, shortened. History is `null` because the repository has 43 commits and the family needs 50, and 12 of the 13 findings are the defect fixtures under `testdata/`, which are there on purpose.
 
-**Status: v0.3.0. Go and Python are analysed and scored; JS/TS is counted.** The code rules are in maintenance mode, see [ADR 0006](docs/decisions/0006-code-rules-in-maintenance.md). The decisions and their reasons are in these records:
+**Status: v0.3.1. Go and Python are analysed and scored; JS/TS is counted.** The code rules are in maintenance mode, see [ADR 0006](docs/decisions/0006-code-rules-in-maintenance.md). The decisions and their reasons are in these records:
 
 - [0001-go-rewrite.md](docs/decisions/0001-go-rewrite.md), the rewrite in Go;
 - [0002-evidence.md](docs/decisions/0002-evidence.md), evidence, not scheduled;
 - [0003-evidence-layer.md](docs/decisions/0003-evidence-layer.md), impact and the agent layer, not pursued for now;
+- [0004-trust-ledger.md](docs/decisions/0004-trust-ledger.md), sealed predictions and protected tests, not pursued for now;
 - [0005-checker-beside-agents.md](docs/decisions/0005-checker-beside-agents.md), a checker beside coding agents, not pursued except its precision method (C3);
 - [0006-code-rules-in-maintenance.md](docs/decisions/0006-code-rules-in-maintenance.md), the code rules in maintenance mode.
 
@@ -107,12 +108,12 @@ jobs:
         with:
           fetch-depth: 0 # history needs the full history
           persist-credentials: false
-      - uses: Git-Hospital/githealthcheck@v0.3.0
+      - uses: Git-Hospital/githealthcheck@v0.3.1
         with:
           fail-under: "5"
 ```
 
-The Action downloads the release it is pinned to, checks it against the release's checksums and build provenance, scans the checkout, uploads the findings to code scanning and writes the Markdown report to the job summary. Pinned to a commit SHA, it needs `version: v0.3.0` as well. It fails on errors and incomplete runs; `fail-on: findings` also fails on findings or a score under `fail-under`, and `fail-on: never` leaves the decision to the `exit-code`, `verdict` and `score` outputs. A pull request from a fork gets no `security-events: write`; set `upload-sarif: "false"` there. On a pull request, `.githealthcheck.yml` is read from the pull request's own tree, so a change can suppress its own findings: they stay in the reports with their reasons, but no longer count in the exit code, so `fail-on: findings` does not fail on them. The inputs are in [action.yml](action.yml). Linux and macOS runners.
+The Action downloads the release it is pinned to, checks it against the release's checksums and build provenance, scans the checkout, uploads the findings to code scanning and writes the Markdown report to the job summary. Pinned to a commit SHA, it needs `version: v0.3.1` as well. It fails on errors and incomplete runs; `fail-on: findings` also fails on findings or a score under `fail-under`, and `fail-on: never` leaves the decision to the `exit-code`, `verdict` and `score` outputs. A pull request from a fork gets no `security-events: write`; set `upload-sarif: "false"` there. On a pull request, `.githealthcheck.yml` is read from the pull request's own tree, so a change can suppress its own findings: they stay in the reports with their reasons, but no longer count in the exit code, so `fail-on: findings` does not fail on them. The inputs are in [action.yml](action.yml). Linux and macOS runners.
 
 ## License
 
